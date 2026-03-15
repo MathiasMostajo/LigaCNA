@@ -261,7 +261,6 @@ select option{background:var(--s2);}
       <span class="sdot" id="sdot"></span>
       <span class="modebadge" id="modeBadge">👁 Público</span>
       <button class="hbtn" id="subBtn" onclick="goTab('submissions')" style="display:none;">📥<span class="pbadge" id="pCount">0</span></button>
-      <button class="hbtn" onclick="toggleLang()" id="langBtn">🌐 ES</button>
       <div style="background:linear-gradient(135deg,#1a2a1a,#0f1f0f);border:1px solid var(--g);border-radius:8px;padding:4px 10px;font-family:'Barlow Condensed',sans-serif;font-size:.78rem;color:var(--g);">💰 $<strong id="prizeD">0</strong></div>
       <button class="hbtn" id="loginBtn" onclick="openLogin()" style="color:var(--g);border-color:rgba(0,255,135,.3);">🔑 Login</button>
       <button class="hbtn" id="logoutBtn" onclick="doLogout()" style="color:var(--red);border-color:rgba(255,71,87,.3);display:none;">↩ Salir</button>
@@ -284,7 +283,6 @@ select option{background:var(--s2);}
   <button class="tab admin-only" onclick="goTab('players',this)" style="display:none;">👤 Jugadores</button>
   <button class="tab admin-only" onclick="goTab('scan',this)" style="display:none;">🤖 AI Scan</button>
   <button class="tab admin-only" onclick="goTab('results',this)" style="display:none;">📝 Resultados</button>
-  <button class="tab admin-only" onclick="goTab('announce',this)" style="display:none;">📢 Anunciar</button>
   <button class="tab admin-only" onclick="goTab('seasons',this)" style="display:none;">🗂 Temporadas</button>
   <button class="tab admin-only" onclick="goTab('settings',this)" style="display:none;">⚙️ Config</button>
 </div>
@@ -513,24 +511,8 @@ select option{background:var(--s2);}
     <div style="margin-top:10px;display:flex;gap:7px;flex-wrap:wrap;align-items:center;">
       <button class="btn bp" onclick="submitResult(false)">✅ Guardar Resultado</button>
       <button class="btn" onclick="submitResult(true)" style="background:rgba(255,71,87,.15);border:1px solid var(--red);color:var(--red);font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:.86rem;padding:7px 15px;">🚫 WO</button>
-      <span style="font-size:.7rem;color:var(--tm);">WO = 1-0 gana el local</span>
+      <span style="font-size:.7rem;color:var(--tm);">WO = 1-0 (elegís quién gana)</span>
     </div>
-  </div>
-</div>
-
-<!-- ═══ ADMIN: ANNOUNCE ═══ -->
-<div class="sec" id="tab-announce">
-  <div class="card">
-    <div class="ct">📢 Mensajes WhatsApp</div>
-    <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:11px;">
-      <button class="btn bg" onclick="genAnn('standings')">📊 Tabla</button>
-      <button class="btn bg" onclick="genAnn('lastresult')">⚽ Último Resultado</button>
-      <button class="btn bg" onclick="genAnn('scorers')">🥇 Goleadores</button>
-      <button class="btn bg" onclick="genAnn('prizepool')">💰 Premio</button>
-      <button class="btn bg" onclick="genAnn('reminder')">🔔 Recordatorio</button>
-    </div>
-    <div style="background:var(--s2);border:1px solid var(--b);border-radius:10px;padding:12px;font-family:monospace;font-size:.8rem;line-height:1.7;white-space:pre-wrap;color:var(--t);min-height:90px;" id="annBox">Elegí una plantilla arriba 👆</div>
-    <div style="display:flex;justify-content:flex-end;margin-top:8px;"><button class="btn bp" onclick="copyAnn()">📋 Copiar</button></div>
   </div>
 </div>
 
@@ -544,8 +526,73 @@ select option{background:var(--s2);}
       <div class="fg"><label>% Premio Ganador</label><input type="number" id="snPct" value="70" min="1" max="100"></div>
     </div>
     <div class="ib">Podés llevar los equipos a la nueva temporada. Resultados y fixture empiezan de cero.</div>
-    <button class="btn bp" onclick="createSeason()">🚀 Crear Temporada</button>
+    <div style="display:flex;gap:7px;flex-wrap:wrap;">
+      <button class="btn bp" onclick="createSeason()">🚀 Crear Temporada</button>
+    </div>
   </div>
+
+  <!-- LOAD PAST SEASON -->
+  <div class="card" style="border-color:rgba(255,215,0,.3);background:linear-gradient(135deg,var(--s1),rgba(255,215,0,.03));">
+    <div class="ct" style="color:var(--gold);">📸 Cargar Temporada Pasada</div>
+    <div class="ib">Subí capturas de las temporadas anteriores. La IA va a leer tabla, goleadores, asistidores, resultados y playoffs.</div>
+    <div class="fr" style="margin-bottom:10px;">
+      <div class="fg"><label>Nombre de la Temporada</label><input id="pastSznName" placeholder="ej. Temporada 1"></div>
+      <div class="fg"><label>Campeón de Liga</label><input id="pastLeagueChamp" placeholder="Nombre del equipo"></div>
+      <div class="fg"><label>Campeón de Playoff</label><input id="pastPlayoffChamp" placeholder="Nombre del equipo"></div>
+    </div>
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:8px;margin-bottom:11px;">
+      <div>
+        <label style="margin-bottom:5px;display:block;">📊 Tabla Final</label>
+        <div class="adz" id="pz-table" ondragover="dov(event,'ptable')" ondragleave="dlv('ptable')" ondrop="dop(event,'ptable')">
+          <input type="file" accept="image/*" onchange="hfp(event,'table')">
+          <div class="di">📊</div><div class="dl">Tabla</div><div class="ds">Tocá o arrastrá</div>
+          <img class="imp" id="ppv-table" style="display:none">
+        </div>
+      </div>
+      <div>
+        <label style="margin-bottom:5px;display:block;">⚽ Goleadores</label>
+        <div class="adz" id="pz-scorers" ondragover="dov(event,'pscorers')" ondragleave="dlv('pscorers')" ondrop="dop(event,'pscorers')">
+          <input type="file" accept="image/*" onchange="hfp(event,'scorers')">
+          <div class="di">⚽</div><div class="dl">Goleadores</div><div class="ds">Tocá o arrastrá</div>
+          <img class="imp" id="ppv-scorers" style="display:none">
+        </div>
+      </div>
+      <div>
+        <label style="margin-bottom:5px;display:block;">🎯 Asistidores</label>
+        <div class="adz" id="pz-assists" ondragover="dov(event,'passists')" ondragleave="dlv('passists')" ondrop="dop(event,'passists')">
+          <input type="file" accept="image/*" onchange="hfp(event,'assists')">
+          <div class="di">🎯</div><div class="dl">Asistidores</div><div class="ds">Tocá o arrastrá</div>
+          <img class="imp" id="ppv-assists" style="display:none">
+        </div>
+      </div>
+      <div>
+        <label style="margin-bottom:5px;display:block;">🏆 Resultados Liga</label>
+        <div class="adz" id="pz-results" ondragover="dov(event,'presults')" ondragleave="dlv('presults')" ondrop="dop(event,'presults')">
+          <input type="file" accept="image/*" onchange="hfp(event,'results')">
+          <div class="di">🏆</div><div class="dl">Resultados</div><div class="ds">Tocá o arrastrá</div>
+          <img class="imp" id="ppv-results" style="display:none">
+        </div>
+      </div>
+      <div>
+        <label style="margin-bottom:5px;display:block;">⚡ Playoffs</label>
+        <div class="adz" id="pz-playoffs" ondragover="dov(event,'pplayoffs')" ondragleave="dlv('pplayoffs')" ondrop="dop(event,'pplayoffs')">
+          <input type="file" accept="image/*" multiple onchange="hfp(event,'playoffs')">
+          <div class="di">⚡</div><div class="dl">Playoffs (hasta 3 imgs)</div><div class="ds">Tocá o arrastrá</div>
+          <div id="ppv-playoffs-wrap"></div>
+        </div>
+      </div>
+    </div>
+    <div style="display:flex;gap:7px;flex-wrap:wrap;align-items:center;">
+      <button class="btn bai" id="pastScanBtn" onclick="runPastScan()">🤖 Leer con IA</button>
+      <button class="btn bg" onclick="clearPastScan()">✕ Limpiar</button>
+      <span id="pastScanSt" style="font-size:.74rem;color:var(--tm);"></span>
+    </div>
+    <div id="pastScanRes"></div>
+    <div id="pastSaveWrap" style="display:none;margin-top:9px;">
+      <button class="btn bgold" style="width:100%;" onclick="savePastSeason()">💾 Guardar Temporada Pasada</button>
+    </div>
+  </div>
+
   <div class="card"><div class="ct">Todas las Temporadas</div><div id="seasonsList"></div></div>
   <div class="card" id="closeSznCard" style="display:none;">
     <div class="ct" style="color:var(--gold);">🏆 Cerrar Temporada Actual</div>
@@ -640,8 +687,6 @@ function closeModal(){$('modal').classList.remove('open');}
 
 // ─── LANG ────────────────────────────────────────
 let lang=localStorage.getItem('ligacna_lang')||'es';
-function toggleLang(){lang=lang==='en'?'es':'en';localStorage.setItem('ligacna_lang',lang);$('langBtn').textContent=lang==='en'?'🌐 ES':'🌐 EN';}
-
 // ─── SUPABASE ────────────────────────────────────
 function setSdot(s){const d=$('sdot');if(d)d.className='sdot '+(s==='ok'?'ok':s==='err'?'err':s==='syncing'?'syncing':'');}
 
@@ -756,10 +801,12 @@ function switchSeason(){const v=$('szSel').value;if(v){db.currentSeasonId=v;save
 function createSeason(){
   const name=$('snName').value.trim(),fee=$('snFee').value,pct=$('snPct').value;
   if(!name){toast('⚠️ Ingresá un nombre',true);return;}
+  const doCreate=(carryover)=>{
+    const s=carryover?newSzn(name,fee,pct,S().teams,S().players):newSzn(name,fee,pct);
+    db.seasons[s.id]=s;db.currentSeasonId=s.id;$('snName').value='';saveDB();render();toast('🚀 '+name+' creada!');
+  };
   showModal('¿Llevar equipos?','Los equipos se copian con stats en cero.','Sí, llevar',
-    ()=>{const s=newSzn(name,fee,pct,S().teams,S().players);db.seasons[s.id]=s;db.currentSeasonId=s.id;$('snName').value='';saveDB();render();toast('🚀 '+name+' creada!');},
-    false,()=>{const s=newSzn(name,fee,pct);db.seasons[s.id]=s;db.currentSeasonId=s.id;$('snName').value='';saveDB();render();toast('🚀 '+name+' creada!');},
-    'No, de cero');
+    ()=>doCreate(true),false,()=>doCreate(false),'No, de cero');
 }
 function closeSeason(){
   const lc=$('czLeague').value,pc=$('czPlayoff').value;
@@ -807,18 +854,20 @@ function editPos(id){
 
 // ─── RESULTS ─────────────────────────────────────
 function submitResult(isWO=false){
-  const homeId=$('homeTeam').value,awayId=$('awayTeam').value;
-  if(!homeId||!awayId||homeId===awayId){toast('⚠️ Elegí 2 equipos distintos',true);return;}
+  const homeId=$("homeTeam").value,awayId=$("awayTeam").value;
+  if(!homeId||!awayId||homeId===awayId){toast("⚠️ Elegí 2 equipos distintos",true);return;}
   if(isWO){
-    showModal('¿Quién dio WO?','El equipo que da WO pierde 1-0.',
-      `${tn(awayId)} da WO (gana ${tn(homeId)})`,()=>_saveResult(homeId,awayId,1,0,{},'wo'),true,
-      ()=>_saveResult(awayId,homeId,1,0,{},'wo'),`${tn(homeId)} da WO (gana ${tn(awayId)})`);
+    showModal("¿Quién dio WO?","El equipo que da WO pierde 1-0.",
+      "✅ "+tn(awayId)+" da WO → gana "+tn(homeId),()=>_saveResult(homeId,awayId,1,0,{},"wo"),true,
+      ()=>_saveResult(awayId,homeId,1,0,{},"wo"),"✅ "+tn(homeId)+" da WO → gana "+tn(awayId));
     return;
   }
-  const hg=+$('homeGoals').value||0,ag=+$('awayGoals').value||0,ps={};
-  document.querySelectorAll('.psr').forEach(row=>{
-    const pid=row.dataset.pid,goals=+row.querySelector('.pg').value||0,assists=+row.querySelector('.pa').value||0,
-      rating=+row.querySelector('.pr2').value||0,played=row.querySelector('.pp').checked,csEl=row.querySelector('.pcs');
+  const hg=+$("homeGoals").value||0,ag=+$("awayGoals").value||0,ps={};
+  document.querySelectorAll(".psr").forEach(row=>{
+    const pid=row.dataset.pid,goals=+row.querySelector(".pg").value||0,
+      assists=+row.querySelector(".pa").value||0,
+      rating=+row.querySelector(".pr2").value||0,
+      played=row.querySelector(".pp").checked,csEl=row.querySelector(".pcs");
     if(played||goals||assists)ps[pid]={goals,assists,rating,played:true,cs:csEl?csEl.checked:false};
   });
   _saveResult(homeId,awayId,hg,ag,ps,null);
@@ -830,10 +879,9 @@ function _saveResult(homeId,awayId,hg,ag,ps,flag){
     const p=s.players.find(pl=>pl.id==pid);if(!p)return;
     p.goals+=st.goals;p.assists+=st.assists;
     if(st.rating>0)p.rating.push(st.rating);
-    if(st.played)p.matchesPlayed++;
-    if(st.cs)p.cs++;
+    if(st.played)p.matchesPlayed++;if(st.cs)p.cs++;
   });
-  saveDB();render();toast(flag==='wo'?`🚫 WO — ${tn(homeId)} 1-0 ${tn(awayId)}`:'⚽ Resultado guardado!');
+  saveDB();render();toast(flag==="wo"?"🚫 WO — "+tn(homeId)+" 1-0 "+tn(awayId):"⚽ Resultado guardado!");
 }
 
 // ─── STANDINGS ───────────────────────────────────
@@ -1211,16 +1259,134 @@ function renderSeasons(){
   else if(cc)cc.style.display='none';
 }
 
-function genAnn(type){
-  const s=S(),stand=getStandings(),paid=s.teams.filter(t=>t.paid==='yes'),pool=paid.reduce((x,t)=>x+t.fee,0),prize=Math.round(pool*(s.prizePct||70)/100);let msg='';
-  if(type==='standings'){msg=`🏆 *${s.name} — TABLA* 🏆\n━━━━━━━━━━━━━━━━\n`;stand.forEach((st,i)=>{const m=i===0?'🥇':i===1?'🥈':i===2?'🥉':'  ';msg+=`${m} ${i+1}. *${st.name}* — ${st.Pts}pts (${st.W}G ${st.D}E ${st.L}P | DG:${st.GD>0?'+':''}${st.GD})\n`;});msg+=`━━━━━━━━━━━━━━━━\n💰 $${pool} | Ganador: $${prize}\n⚽ ¡A seguir pichando! 🔥`;}
-  else if(type==='lastresult'){if(!s.matches.length){msg='⚠️ Sin resultados!';}else{const m=s.matches[s.matches.length-1];const w=m.homeGoals>m.awayGoals?tn(m.homeId):m.awayGoals>m.homeGoals?tn(m.awayId):null;const sc=Object.entries(m.playerStats||{}).filter(([,x])=>x.goals>0).map(([pid,x])=>{const p=s.players.find(pl=>pl.id==pid);return p?`${p.name} (${x.goals}⚽)`:''}).filter(Boolean);const as=Object.entries(m.playerStats||{}).filter(([,x])=>x.assists>0).map(([pid,x])=>{const p=s.players.find(pl=>pl.id==pid);return p?`${p.name} (${x.assists}🎯)`:''}).filter(Boolean);msg=`⚽ *RESULTADO* ⚽\n━━━━━━━━━━━━━━━━\n🏠 *${tn(m.homeId)}* ${m.homeGoals} — ${m.awayGoals} *${tn(m.awayId)}* ✈️${m.flag==='wo'?' 🚫 WO':''}\n━━━━━━━━━━━━━━━━\n`;msg+=w?`🏆 Ganador: *${w}* 🔥\n`:`🤝 Empate!\n`;if(sc.length)msg+=`⚽ Goles: ${sc.join(', ')}\n`;if(as.length)msg+=`🎯 Asistencias: ${as.join(', ')}\n`;}}
-  else if(type==='scorers'){const top=[...s.players].sort((a,b)=>b.goals-a.goals).slice(0,5);msg=`⚽ *GOLEADORES — ${s.name}* ⚽\n━━━━━━━━━━━━━━━━\n`;top.forEach((p,i)=>{msg+=`${['🥇','🥈','🥉'][i]||i+1+'.'} *${p.name}* (${tn(p.teamId)}) — ${p.goals}⚽ ${p.assists}🎯\n`;});msg+=`━━━━━━━━━━━━━━━━\n🎯 ¿Quién lo baja? 🔥`;}
-  else if(type==='prizepool'){msg=`💰 *PREMIO — ${s.name}* 💰\n━━━━━━━━━━━━━━━━\n👥 Equipos: ${s.teams.length} | ✅ Pagaron: ${paid.length}\n💵 Total: *$${pool}* | 🏆 Ganador: *$${prize}*\n📲 ¡Pagá para asegurar tu lugar! ⚡`;}
-  else if(type==='reminder'){const unp=s.teams.filter(t=>t.paid==='no');msg=unp.length?`🔔 *RECORDATORIO DE PAGO* 🔔\n━━━━━━━━━━━━━━━━\n${unp.map(t=>`❌ ${t.name}${t.cap?' ('+t.cap+')':''}`).join('\n')}\n━━━━━━━━━━━━━━━━\n💸 $${s.fee}/equipo · DM para confirmar 📲`:'✅ ¡Todos pagaron! 🔥⚽';}
-  $('annBox').textContent=msg;
+// ─── PAST SEASON SCAN ────────────────────────────
+let pastImgData={table:null,scorers:null,assists:null,results:null,playoffs:[]};
+let pastScanResult=null;
+
+function hfp(e,type){
+  if(type==='playoffs'){
+    const files=Array.from(e.target.files).slice(0,3);
+    pastImgData.playoffs=[];
+    const wrap=$('ppv-playoffs-wrap');wrap.innerHTML='';
+    files.forEach((f,i)=>{const r=new FileReader();r.onload=ev=>{pastImgData.playoffs[i]=ev.target.result;const img=document.createElement('img');img.className='imp';img.src=ev.target.result;wrap.appendChild(img);};r.readAsDataURL(f);});
+    $('pz-playoffs').classList.add('has-img');
+  } else {
+    const f=e.target.files[0];if(!f)return;
+    const r=new FileReader();r.onload=ev=>{pastImgData[type]=ev.target.result;const p=$('ppv-'+type);if(p){p.src=ev.target.result;p.style.display='block';}$('pz-'+type).classList.add('has-img');};r.readAsDataURL(f);
+  }
 }
-function copyAnn(){navigator.clipboard.writeText($('annBox').textContent).then(()=>toast('📋 Copiado!'));}
+
+function clearPastScan(){
+  pastImgData={table:null,scorers:null,assists:null,results:null,playoffs:[]};pastScanResult=null;
+  ['table','scorers','assists','results'].forEach(t=>{const p=$('ppv-'+t);if(p){p.style.display='none';p.src='';}const z=$('pz-'+t);if(z)z.classList.remove('has-img');});
+  const wrap=$('ppv-playoffs-wrap');if(wrap)wrap.innerHTML='';
+  const pz=$('pz-playoffs');if(pz)pz.classList.remove('has-img');
+  $('pastScanRes').innerHTML='';$('pastSaveWrap').style.display='none';
+  $('pastScanSt').textContent='';
+}
+
+async function runPastScan(){
+  const btn=$('pastScanBtn');btn.disabled=true;
+  $('pastScanRes').innerHTML=`<div class="ar"><div class="ald"><div class="spin"></div>IA leyendo capturas de temporada pasada...</div></div>`;
+  const sys='You are a JSON-only API. Respond with raw JSON only — no markdown, no backticks. Start with { end with }.';
+  const prompt=`Analyze these FC26 Pro Clubs historical season screenshots. Extract all data visible.
+FC26 UI may be in SPANISH or ENGLISH. Key terms: Goles=Goals, Asist.=Assists, PJ=Played, G=Won, E=Draw, P=Lost, DG=GD, Pts=Points.
+Playoffs: Look for match scores between teams. There can be up to 3 matches (ida/vuelta/desempate if tied on aggregate).
+
+Return this exact JSON:
+{
+  "standings": [{"pos":1,"team":"TeamName","played":10,"won":7,"draw":2,"lost":1,"gf":20,"ga":8,"pts":23}],
+  "topScorers": [{"name":"PlayerName","team":"TeamName","goals":10,"assists":5}],
+  "topAssists": [{"name":"PlayerName","team":"TeamName","assists":8,"goals":3}],
+  "results": [{"home":"TeamA","away":"TeamB","homeGoals":2,"awayGoals":1,"date":""}],
+  "playoffs": [{"home":"TeamA","away":"TeamB","homeGoals":2,"awayGoals":0,"leg":"ida"},{"home":"TeamB","away":"TeamA","homeGoals":1,"awayGoals":2,"leg":"vuelta"},{"home":"TeamA","away":"TeamB","homeGoals":2,"awayGoals":1,"leg":"desempate"}],
+  "playoffWinner": "TeamName",
+  "notes": ""
+}
+Only include playoff matches that are visible. If no third match, omit it from the array.`;
+
+  const content=[{type:'text',text:prompt}];
+  const ic=d=>{const[m,b]=d.split(',');return{type:'image',source:{type:'base64',media_type:m.match(/data:(image\/\w+);/)[1],data:b}};};
+  if(pastImgData.table)content.push(ic(pastImgData.table));
+  if(pastImgData.scorers)content.push(ic(pastImgData.scorers));
+  if(pastImgData.assists)content.push(ic(pastImgData.assists));
+  if(pastImgData.results)content.push(ic(pastImgData.results));
+  pastImgData.playoffs.forEach(img=>{if(img)content.push(ic(img));});
+
+  try{
+    const res=await fetch('https://api.anthropic.com/v1/messages',{method:'POST',headers:{'Content-Type':'application/json','x-api-key':getKey(),'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},body:JSON.stringify({model:'claude-sonnet-4-20250514',max_tokens:2500,system:sys,messages:[{role:'user',content}]})});
+    const data=await res.json();
+    if(data.error)throw new Error('API: '+data.error.message);
+    const raw=data.content.map(i=>i.text||'').join('').trim();
+    let result;
+    try{result=JSON.parse(raw);}
+    catch(e){const fm=raw.match(/```(?:json)?\s*([\s\S]*?)```/);const clean=fm?fm[1].trim():raw.replace(/`/g,'').trim();const si=clean.indexOf('{'),ei=clean.lastIndexOf('}')+1;if(si===-1)throw new Error('Sin JSON: '+raw.slice(0,100));result=JSON.parse(clean.slice(si,ei));}
+    pastScanResult=result;renderPastScanResult(result);
+  }catch(e){
+    $('pastScanRes').innerHTML=`<div class="wb">⚠️ Error: <code style="font-size:.74rem;">${e.message}</code></div>`;
+  }
+  btn.disabled=false;
+}
+
+function renderPastScanResult(r){
+  let h='<div class="ar" style="margin-top:10px;">';
+  // Standings
+  if(r.standings?.length){
+    h+=`<div class="art">📊 Tabla (${r.standings.length} equipos)</div>`;
+    h+=`<table class="st" style="margin-bottom:10px;"><thead><tr><th>#</th><th>Equipo</th><th>PJ</th><th>G</th><th>E</th><th>P</th><th>Pts</th></tr></thead><tbody>`;
+    r.standings.forEach((s,i)=>h+=`<tr><td><span class="rnk ${['r1','r2','r3'][i]||''}">${s.pos||i+1}</span></td><td><b>${s.team}</b></td><td>${s.played||0}</td><td>${s.won||0}</td><td>${s.draw||0}</td><td>${s.lost||0}</td><td><span class="pts">${s.pts||0}</span></td></tr>`);
+    h+=`</tbody></table>`;
+  }
+  // Top scorers
+  if(r.topScorers?.length){
+    h+=`<div class="art" style="margin-top:8px;">⚽ Goleadores</div>`;
+    r.topScorers.slice(0,5).forEach((p,i)=>h+=`<div style="font-size:.83rem;padding:4px 0;border-bottom:1px solid var(--b);">${['🥇','🥈','🥉'][i]||i+1+'.'} <b>${p.name}</b> (${p.team||'—'}) — ${p.goals}⚽ ${p.assists||0}🎯</div>`);
+  }
+  // Top assists
+  if(r.topAssists?.length){
+    h+=`<div class="art" style="margin-top:8px;">🎯 Asistidores</div>`;
+    r.topAssists.slice(0,5).forEach((p,i)=>h+=`<div style="font-size:.83rem;padding:4px 0;border-bottom:1px solid var(--b);">${['🥇','🥈','🥉'][i]||i+1+'.'} <b>${p.name}</b> (${p.team||'—'}) — ${p.assists}🎯 ${p.goals||0}⚽</div>`);
+  }
+  // Results
+  if(r.results?.length) h+=`<div class="art" style="margin-top:8px;">🏆 ${r.results.length} resultados detectados</div>`;
+  // Playoffs
+  if(r.playoffs?.length){
+    h+=`<div class="art" style="margin-top:8px;">⚡ Playoffs (${r.playoffs.length} partido${r.playoffs.length>1?'s':''})</div>`;
+    r.playoffs.forEach(m=>h+=`<div style="font-size:.83rem;padding:4px 0;border-bottom:1px solid var(--b);"><span style="font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:.7rem;color:var(--tm);text-transform:uppercase;">${m.leg||''}</span> ${m.home} ${m.homeGoals??'?'} — ${m.awayGoals??'?'} ${m.away}</div>`);
+    if(r.playoffWinner) h+=`<div style="margin-top:5px;font-size:.83rem;color:var(--gold);">🏆 Ganador playoff: <b>${r.playoffWinner}</b></div>`;
+  }
+  if(r.notes) h+=`<div style="margin-top:7px;font-size:.76rem;color:var(--tm);">📝 ${r.notes}</div>`;
+  h+=`</div>`;
+  $('pastScanRes').innerHTML=h;
+  $('pastSaveWrap').style.display='block';
+}
+
+function savePastSeason(){
+  if(!pastScanResult){toast('⚠️ Escaneá primero',true);return;}
+  const name=$('pastSznName').value.trim();
+  if(!name){toast('⚠️ Ingresá el nombre de la temporada',true);return;}
+  const leagueChamp=$('pastLeagueChamp').value.trim();
+  const playoffChamp=$('pastPlayoffChamp').value.trim()||pastScanResult.playoffWinner||'';
+  const r=pastScanResult;
+  const snap={
+    seasonId:'past_'+Date.now(),seasonName:name,
+    leagueChampion:leagueChamp||r.standings?.[0]?.team||'',
+    playoffChampion:playoffChamp,
+    topScorers:(r.topScorers||[]).slice(0,5).map(p=>({name:p.name,goals:p.goals||0,assists:p.assists||0})),
+    topAssists:(r.topAssists||[]).slice(0,3).map(p=>({name:p.name,assists:p.assists||0})),
+    topRating:[],
+    topCS:[],
+    standings:r.standings||[],
+    results:r.results||[],
+    playoffs:r.playoffs||[],
+    isPastSeason:true
+  };
+  if(!db.history)db.history={archivedSeasons:[]};
+  db.history.archivedSeasons.push(snap);
+  saveDB();
+  clearPastScan();$('pastSznName').value='';$('pastLeagueChamp').value='';$('pastPlayoffChamp').value='';
+  render();toast('✅ Temporada "'+name+'" cargada en el Hall of Fame!');
+}
 
 // ─── INIT ────────────────────────────────────────
 async function init(){
