@@ -238,25 +238,33 @@ select option{background:var(--s2);}
     <div class="login-logo">LIGA CNA</div>
     <div class="login-sub">Pro Clubs League Manager</div>
     <div class="login-tabs">
-      <button class="login-tab active" onclick="setLoginMode('admin')" id="lt-admin">🔐 Admin</button>
-      <button class="login-tab" onclick="setLoginMode('captain')" id="lt-captain">⚽ Captain</button>
+      <button class="login-tab active" onclick="setLoginMode('public')" id="lt-public">👁 Ver Liga</button>
+      <button class="login-tab" onclick="setLoginMode('captain')" id="lt-captain">⚽ Capitán</button>
+      <button class="login-tab" onclick="setLoginMode('admin')" id="lt-admin">🔐 Admin</button>
     </div>
-    <div id="login-admin">
+    <!-- PUBLIC -->
+    <div id="login-public">
+      <div class="ib" style="text-align:left;">Accedé como espectador para ver tabla, fixture, resultados y más. Sin necesidad de código.</div>
+      <button class="btn bp" style="width:100%;margin-top:8px;" onclick="doPublicLogin()">👁 Ver Liga</button>
+    </div>
+    <!-- CAPTAIN -->
+    <div id="login-captain" style="display:none;">
+      <div class="ib" style="text-align:left;">Ingresá tu código de equipo para ver la liga y enviar resultados. Tu DT te lo compartió.</div>
+      <div class="fg" style="margin-bottom:12px;text-align:left;">
+        <label>Código de Equipo</label>
+        <input type="text" id="capCode" placeholder="e.g. AKD-2847" style="text-transform:uppercase;" onkeydown="if(event.key==='Enter')doCapLogin()">
+      </div>
+      <button class="btn bp" style="width:100%;" onclick="doCapLogin()">⚽ Entrar</button>
+      <div id="capErr" style="color:var(--red);font-size:.78rem;margin-top:8px;display:none;">Código inválido. Pedíselo a tu DT.</div>
+    </div>
+    <!-- ADMIN -->
+    <div id="login-admin" style="display:none;">
       <div class="fg" style="margin-bottom:12px;text-align:left;">
         <label>Admin Password</label>
         <input type="password" id="adminPwd" placeholder="Enter password..." onkeydown="if(event.key==='Enter')doAdminLogin()">
       </div>
       <button class="btn bp" style="width:100%;" onclick="doAdminLogin()">🔐 Enter</button>
       <div id="adminErr" style="color:var(--red);font-size:.78rem;margin-top:8px;display:none;">Wrong password.</div>
-    </div>
-    <div id="login-captain" style="display:none;">
-      <div class="ib">Enter your team code to submit match results. Your DT provided this code.</div>
-      <div class="fg" style="margin-bottom:12px;text-align:left;">
-        <label>Team Code</label>
-        <input type="text" id="capCode" placeholder="e.g. AKD-2847" style="text-transform:uppercase;" onkeydown="if(event.key==='Enter')doCapLogin()">
-      </div>
-      <button class="btn bp" style="width:100%;" onclick="doCapLogin()">⚽ Submit Results</button>
-      <div id="capErr" style="color:var(--red);font-size:.78rem;margin-top:8px;display:none;">Invalid team code.</div>
     </div>
   </div>
 </div>
@@ -269,26 +277,31 @@ select option{background:var(--s2);}
     <div class="season-sel"><select id="seasonSelect" onchange="switchSeason()"></select></div>
     <div class="hright">
       <span><span class="sync-dot" id="syncDot"></span></span>
+      <span id="modeBadge" style="font-size:.75rem;color:var(--tm);font-family:'Barlow Condensed',sans-serif;letter-spacing:1px;"></span>
       <button class="hbtn" onclick="showTab('submissions',null)" id="subBtn" style="display:none;">📥 Submissions<span class="pending-badge" id="pendingCount">0</span></button>
       <button class="hbtn" onclick="toggleLang()" id="langBtn">🌐 ES</button>
       <div class="prize-badge">💰 $<strong id="prizeDisplay">0</strong></div>
-      <button class="hbtn" onclick="doLogout()" style="color:var(--red);border-color:rgba(255,71,87,.3);">↩ Exit</button>
+      <button class="hbtn" id="logoutBtn" onclick="doLogout()" style="color:var(--red);border-color:rgba(255,71,87,.3);">↩ Exit</button>
+      <button class="hbtn" id="loginBtn" onclick="showLoginModal()" style="color:var(--green);border-color:rgba(0,255,135,.3);display:none;">🔑 Login</button>
     </div>
   </div>
 </header>
 <div class="tabs" id="tabsRow">
-  <button class="tab active" onclick="showTab('teams',this)">⚽ <span data-t="tab_teams">Teams</span></button>
-  <button class="tab" onclick="showTab('players',this)">👤 <span data-t="tab_players">Players</span></button>
-  <button class="tab" onclick="showTab('scan',this)">🤖 AI Scan</button>
+  <button class="tab active" onclick="showTab('standings',this)">🏆 <span data-t="tab_standings">Standings</span></button>
   <button class="tab" onclick="showTab('schedule',this)">📅 <span data-t="tab_schedule">Schedule</span></button>
   <button class="tab" onclick="showTab('results',this)">📊 <span data-t="tab_results">Results</span></button>
-  <button class="tab" onclick="showTab('standings',this)">🏆 <span data-t="tab_standings">Standings</span></button>
   <button class="tab" onclick="showTab('leaders',this)">⭐ <span data-t="tab_leaders">Leaders</span></button>
   <button class="tab" onclick="showTab('knockout',this)">⚡ <span data-t="tab_knockout">Knockout</span></button>
-  <button class="tab" onclick="showTab('announce',this)">📢 <span data-t="tab_announce">Announce</span></button>
   <button class="tab gold" onclick="showTab('hof',this)">🏅 Hall of Fame</button>
-  <button class="tab" onclick="showTab('seasons',this)">🗂 <span data-t="tab_seasons">Seasons</span></button>
-  <button class="tab" onclick="showTab('settings',this)">⚙️ Settings</button>
+  <!-- Captain only -->
+  <button class="tab cap-only" onclick="showTab('capscan',this)" style="display:none;color:var(--purple);border-bottom-color:var(--purple);">📤 Enviar Resultado</button>
+  <!-- Admin only -->
+  <button class="tab admin-only" onclick="showTab('teams',this)" style="display:none;">⚽ <span data-t="tab_teams">Teams</span></button>
+  <button class="tab admin-only" onclick="showTab('players',this)" style="display:none;">👤 <span data-t="tab_players">Players</span></button>
+  <button class="tab admin-only" onclick="showTab('scan',this)" style="display:none;">🤖 AI Scan</button>
+  <button class="tab admin-only" onclick="showTab('announce',this)" style="display:none;">📢 <span data-t="tab_announce">Announce</span></button>
+  <button class="tab admin-only" onclick="showTab('seasons',this)" style="display:none;">🗂 <span data-t="tab_seasons">Seasons</span></button>
+  <button class="tab admin-only" onclick="showTab('settings',this)" style="display:none;">⚙️ Settings</button>
 </div>
 <main>
 
@@ -417,11 +430,12 @@ select option{background:var(--s2);}
     <div class="div"></div>
     <div class="ct" style="font-size:.8rem;margin-bottom:8px;">⚽ <span data-t="ga_away">Goals & Assists — Away</span></div>
     <div id="awayPSI"></div>
-    <div style="margin-top:11px;display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
+    <div style="margin-top:11px;display:flex;gap:8px;flex-wrap:wrap;align-items:center;" id="saveResultArea">
       <button class="btn bp" onclick="submitResult(false)" data-t="save_result">✅ Save Result</button>
       <button class="btn" onclick="submitResult(true)" style="background:rgba(255,71,87,.15);border:1px solid var(--red);color:var(--red);font-family:'Barlow Condensed',sans-serif;font-weight:700;letter-spacing:1px;font-size:.88rem;padding:8px 16px;">🚫 WO</button>
       <span style="font-size:.73rem;color:var(--tm);">WO = 1-0 win for home team</span>
     </div>
+    <div id="readonlyResultNote" style="display:none;margin-top:11px;" class="ib">👁 Modo solo lectura — Solo el Admin puede guardar resultados.</div>
   </div>
   <div class="card">
     <div class="ct">🕹️ <span data-t="match_hist">Match History</span></div>
@@ -513,7 +527,45 @@ select option{background:var(--s2);}
   </div>
 </div>
 
-<!-- SUBMISSIONS -->
+<!-- CAPTAIN SCAN TAB (inside main app) -->
+<div class="sec" id="tab-capscan">
+  <div class="card" style="border-color:rgba(168,85,247,.3);background:linear-gradient(135deg,var(--s1),rgba(168,85,247,.03));">
+    <div class="ct" style="color:var(--purple);">📤 Enviar Resultado</div>
+    <div class="ib" id="capTeamLabel">Subí las 3 capturas de FC26. La IA va a leer todo. Tu DT va a revisar y confirmar el resultado.</div>
+    <div class="apg">
+      <div><label style="margin-bottom:6px;display:block;">📸 Marcador</label>
+        <div class="adz" id="cz-score" ondragover="cdov(event,'score')" ondragleave="cdlv('score')" ondrop="cdop(event,'score')">
+          <input type="file" accept="image/*" onchange="chf(event,'score')">
+          <div class="di">🏟️</div><div class="dl">Score + Teams</div><div class="ds">Tocá o arrastrá</div>
+          <img class="imp" id="cpv-score" style="display:none">
+        </div>
+      </div>
+      <div><label style="margin-bottom:6px;display:block;">📸 Jugadores</label>
+        <div class="adz" id="cz-players" ondragover="cdov(event,'players')" ondragleave="cdlv('players')" ondrop="cdop(event,'players')">
+          <input type="file" accept="image/*" onchange="chf(event,'players')">
+          <div class="di">👥</div><div class="dl">Lista de Jugadores</div><div class="ds">Tocá o arrastrá</div>
+          <img class="imp" id="cpv-players" style="display:none">
+        </div>
+      </div>
+      <div><label style="margin-bottom:6px;display:block;">📸 Rendimiento</label>
+        <div class="adz" id="cz-stats" ondragover="cdov(event,'stats')" ondragleave="cdlv('stats')" ondrop="cdop(event,'stats')">
+          <input type="file" accept="image/*" onchange="chf(event,'stats')">
+          <div class="di">📈</div><div class="dl">Stats</div><div class="ds">Tocá o arrastrá</div>
+          <img class="imp" id="cpv-stats" style="display:none">
+        </div>
+      </div>
+    </div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
+      <button class="btn bai" id="capScanBtn" onclick="runCapScan()" disabled>🤖 Escanear con IA</button>
+      <button class="btn bg" onclick="clearCapScan()">✕ Limpiar</button>
+      <span id="capScanSt" style="font-size:.76rem;color:var(--tm);"></span>
+    </div>
+  </div>
+  <div id="capScanRes"></div>
+  <div id="capSubmitWrap" style="display:none;margin-top:8px;">
+    <button class="btn bp" style="width:100%;" onclick="submitCapResult()">📤 Enviar para Revisión</button>
+  </div>
+</div>
 <div class="sec" id="tab-submissions">
   <div class="card">
     <div class="ct">📥 Pending Submissions</div>
@@ -545,55 +597,6 @@ select option{background:var(--s2);}
 
 </main>
 </div><!-- end adminApp -->
-
-<!-- CAPTAIN SUBMIT PAGE -->
-<div id="capApp" style="display:none;">
-  <div class="cap-wrap">
-    <div class="cap-header">
-      <div class="cap-logo">LIGA CNA</div>
-      <div class="cap-sub" id="capTeamLabel">Submit Match Result</div>
-    </div>
-    <div class="card">
-      <div class="ct">🤖 AI Match Scanner</div>
-      <div class="ib">Upload the 3 FC26 screenshots. The AI will read everything. Your DT will review and confirm the result.</div>
-      <div class="apg">
-        <div><label style="margin-bottom:6px;display:block;">📸 Scoreboard</label>
-          <div class="adz" id="cz-score" ondragover="cdov(event,'score')" ondragleave="cdlv('score')" ondrop="cdop(event,'score')">
-            <input type="file" accept="image/*" onchange="chf(event,'score')">
-            <div class="di">🏟️</div><div class="dl">Score + Teams</div><div class="ds">Tap or drag</div>
-            <img class="imp" id="cpv-score" style="display:none">
-          </div>
-        </div>
-        <div><label style="margin-bottom:6px;display:block;">📸 Players Who Played</label>
-          <div class="adz" id="cz-players" ondragover="cdov(event,'players')" ondragleave="cdlv('players')" ondrop="cdop(event,'players')">
-            <input type="file" accept="image/*" onchange="chf(event,'players')">
-            <div class="di">👥</div><div class="dl">Player List</div><div class="ds">Tap or drag</div>
-            <img class="imp" id="cpv-players" style="display:none">
-          </div>
-        </div>
-        <div><label style="margin-bottom:6px;display:block;">📸 Rendimiento</label>
-          <div class="adz" id="cz-stats" ondragover="cdov(event,'stats')" ondragleave="cdlv('stats')" ondrop="cdop(event,'stats')">
-            <input type="file" accept="image/*" onchange="chf(event,'stats')">
-            <div class="di">📈</div><div class="dl">Stats</div><div class="ds">Tap or drag</div>
-            <img class="imp" id="cpv-stats" style="display:none">
-          </div>
-        </div>
-      </div>
-      <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
-        <button class="btn bai" id="capScanBtn" onclick="runCapScan()" disabled>🤖 Scan with AI</button>
-        <button class="btn bg" onclick="clearCapScan()">✕ Clear</button>
-        <span id="capScanSt" style="font-size:.76rem;color:var(--tm);"></span>
-      </div>
-    </div>
-    <div id="capScanRes"></div>
-    <div id="capSubmitWrap" style="display:none;">
-      <button class="btn bp" style="width:100%;margin-top:8px;" onclick="submitCapResult()">📤 Submit for Review</button>
-    </div>
-    <div style="text-align:center;margin-top:16px;">
-      <button class="btn bg" onclick="doLogout()" style="font-size:.78rem;">↩ Exit</button>
-    </div>
-  </div>
-</div>
 
 <div class="toast" id="toast"></div>
 <div id="modal" onclick="if(event.target===this)closeModal()">
@@ -682,53 +685,118 @@ async function loadFromCloud(){
 function saveDB(){localStorage.setItem('ligacna_backup',JSON.stringify(db));syncToCloud();}
 
 // ═══════════════════════════════════════════════════
-// AUTH
+// AUTH — 3 modes: public, captain, admin
 // ═══════════════════════════════════════════════════
+let accessMode = 'public'; // 'public' | 'captain' | 'admin'
+
 function getAdminPwd(){return localStorage.getItem(ADMIN_PWD_KEY)||DEFAULT_PWD;}
 
-function doAdminLogin(){
-  const pwd=document.getElementById('adminPwd').value;
-  if(pwd===getAdminPwd()){
-    document.getElementById('loginWrap').style.display='none';
-    document.getElementById('adminApp').style.display='block';
-    applyLang(); render(); pollSubmissions();
-  } else {
-    document.getElementById('adminErr').style.display='block';
-  }
+function setLoginMode(mode){
+  ['public','captain','admin'].forEach(m=>{
+    document.getElementById('login-'+m).style.display=mode===m?'block':'none';
+    document.getElementById('lt-'+m).classList.toggle('active',mode===m);
+  });
+}
+
+function doPublicLogin(){
+  accessMode='public';
+  document.getElementById('loginWrap').style.display='none';
+  document.getElementById('adminApp').style.display='block';
+  applyAccessMode();
+  applyLang(); render();
 }
 
 function doCapLogin(){
   const code=document.getElementById('capCode').value.trim().toUpperCase();
-  // Find team with this code across all seasons
   let found=null;
   Object.values(db.seasons).forEach(s=>{
     s.teams.forEach(t=>{ if(t.code===code) found={team:t,season:s}; });
   });
   if(found){
     capTeamCode=code;
+    accessMode='captain';
     document.getElementById('loginWrap').style.display='none';
-    document.getElementById('capApp').style.display='block';
-    document.getElementById('capTeamLabel').textContent='⚽ '+found.team.name+' — Submit Result';
+    document.getElementById('adminApp').style.display='block';
+    const lbl=document.getElementById('capTeamLabel');
+    if(lbl) lbl.textContent='⚽ '+found.team.name+' — Subí las 3 capturas de FC26. La IA va a leer todo. Tu DT va a revisar y confirmar.';
+    applyAccessMode();
+    applyLang(); render();
     updateCapScanBtn();
+    // Auto-navigate to capscan tab
+    setTimeout(()=>{ const capTab=document.querySelector('.cap-only'); if(capTab){showTab('capscan',capTab);} },100);
   } else {
     document.getElementById('capErr').style.display='block';
   }
 }
 
-function setLoginMode(mode){
-  document.getElementById('login-admin').style.display=mode==='admin'?'block':'none';
-  document.getElementById('login-captain').style.display=mode==='captain'?'block':'none';
-  document.getElementById('lt-admin').classList.toggle('active',mode==='admin');
-  document.getElementById('lt-captain').classList.toggle('active',mode==='captain');
+function doAdminLogin(){
+  const pwd=document.getElementById('adminPwd').value;
+  if(pwd===getAdminPwd()){
+    accessMode='admin';
+    document.getElementById('loginWrap').style.display='none';
+    document.getElementById('adminApp').style.display='block';
+    applyAccessMode();
+    applyLang(); render(); pollSubmissions();
+  } else {
+    document.getElementById('adminErr').style.display='block';
+  }
+}
+
+function applyAccessMode(){
+  // Show/hide tabs based on mode
+  document.querySelectorAll('.admin-only').forEach(el=>el.style.display=accessMode==='admin'?'':'none');
+  document.querySelectorAll('.cap-only').forEach(el=>el.style.display=accessMode==='captain'?'':'none');
+
+  // Header buttons
+  const subBtn=document.getElementById('subBtn');
+  const logoutBtn=document.getElementById('logoutBtn');
+  if(subBtn) subBtn.style.display=accessMode==='admin'?'inline-flex':'none';
+
+  // Toggle login/logout buttons
+  const logoutBtn=document.getElementById('logoutBtn');
+  const loginBtn=document.getElementById('loginBtn');
+  if(accessMode==='public'){
+    if(logoutBtn) logoutBtn.style.display='none';
+    if(loginBtn) loginBtn.style.display='inline-flex';
+  } else {
+    if(logoutBtn) logoutBtn.style.display='inline-flex';
+    if(loginBtn) loginBtn.style.display='none';
+  }
+  if(modeBadge){
+    if(accessMode==='public') modeBadge.textContent='👁 Público';
+    else if(accessMode==='captain') modeBadge.textContent='⚽ Capitán';
+    else modeBadge.textContent='🔐 Admin';
+  }
+
+  // Results tab — read only for non-admins (hide save buttons)
+  const saveResultArea=document.getElementById('saveResultArea');
+  const readonlyNote=document.getElementById('readonlyResultNote');
+  if(saveResultArea) saveResultArea.style.display=accessMode==='admin'?'flex':'none';
+  if(readonlyNote) readonlyNote.style.display=accessMode==='admin'?'none':'block';
+
+  // Hide teams/players input forms for non-admins
+  const addTeamCard=document.querySelector('#tab-teams .card:first-child');
+  const addPlayerCard=document.querySelector('#tab-players .card:first-child');
+  if(addTeamCard) addTeamCard.style.display=accessMode==='admin'?'block':'none';
+  if(addPlayerCard) addPlayerCard.style.display=accessMode==='admin'?'block':'none';
+}
+
+function showLoginModal(){
+  document.getElementById('adminApp').style.display='none';
+  document.getElementById('loginWrap').style.display='flex';
+  setLoginMode('captain');
 }
 
 function doLogout(){
+  accessMode='public';
+  capTeamCode=null; capScanResult=null;
   document.getElementById('adminApp').style.display='none';
-  document.getElementById('capApp').style.display='none';
   document.getElementById('loginWrap').style.display='flex';
   document.getElementById('adminPwd').value='';
   document.getElementById('capCode').value='';
-  capTeamCode=null; capScanResult=null;
+  document.getElementById('capErr').style.display='none';
+  document.getElementById('adminErr').style.display='none';
+  setLoginMode('public');
 }
 
 function changePassword(){
@@ -1333,8 +1401,9 @@ function copyAnn(){navigator.clipboard.writeText(document.getElementById('annBox
 function showTab(name,el){
   document.querySelectorAll('.sec').forEach(s=>s.classList.remove('active'));
   document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
-  document.getElementById('tab-'+name).classList.add('active');
-  if(el)el.classList.add('active');
+  const sec=document.getElementById('tab-'+name);
+  if(sec) sec.classList.add('active');
+  if(el) el.classList.add('active');
   render();
 }
 
@@ -1359,12 +1428,17 @@ function closeModal(){document.getElementById('modal').classList.remove('open');
 // INIT
 // ═══════════════════════════════════════════════════
 async function init(){
-  // Try loading from cloud first, fallback to localStorage backup
   await loadFromCloud();
   const backup=localStorage.getItem('ligacna_backup');
   if(!db.currentSeasonId&&backup){try{const b=JSON.parse(backup);if(b.currentSeasonId){db={...b};setSyncDot('ok');}}catch(e){}}
   if(!db.currentSeasonId){const s=newSeasonObj('Season 1',10,70);db.seasons[s.id]=s;db.currentSeasonId=s.id;saveDB();}
+  // Auto-enter public mode — show the app immediately
+  accessMode='public';
+  document.getElementById('loginWrap').style.display='none';
+  document.getElementById('adminApp').style.display='block';
+  applyAccessMode();
   applyLang();
+  render();
 }
 init();
 </script>
