@@ -1024,7 +1024,6 @@ Return this exact JSON:
     if(si===-1)throw new Error('Sin JSON. IA dijo: '+raw.slice(0,150));
     result=JSON.parse(clean.slice(si,ei));
   }
-  }
   result.players=result.players||[];result.unregisteredPlayers=result.unregisteredPlayers||[];result.score=result.score||{};
   return result;
 }
