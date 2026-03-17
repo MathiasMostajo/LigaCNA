@@ -576,7 +576,15 @@ select option{background:var(--s2);}
 <!-- ═══ ADMIN: SETTINGS ═══ -->
 <div class="sec" id="tab-settings">
   <div class="card">
-    <div class="ct">⚙️ Cambiar Contraseña Admin</div>
+    <div class="ct">🤖 Google Gemini API Key</div>
+    <div class="ib">Tu key se guarda solo en tu navegador, nunca en el código ni en GitHub.</div>
+    <div style="display:flex;gap:7px;align-items:flex-end;flex-wrap:wrap;">
+      <div class="fg" style="flex:1;min-width:200px;"><label>API Key</label><input type="password" id="geminiKeyInput" placeholder="AIzaSy..."></div>
+      <button class="btn bp" onclick="saveGeminiKeyUI()">Guardar</button>
+      <button class="btn bd" onclick="clearGeminiKeyUI()">Borrar</button>
+    </div>
+    <div id="geminiKeyStatus" style="margin-top:6px;font-size:.76rem;"></div>
+  </div>
     <div class="fg" style="margin-bottom:9px;"><label>Nueva Contraseña</label><input type="password" id="newPwd" placeholder="Nueva contraseña..."></div>
     <div class="fg" style="margin-bottom:9px;"><label>Confirmar</label><input type="password" id="newPwd2" placeholder="Repetir..."></div>
     <button class="btn bp" onclick="changePwd()">Guardar Contraseña</button>
@@ -727,6 +735,17 @@ function applyMode(){
   $('loginBtn').style.display=mode==='public'?'inline-flex':'none';
   $('logoutBtn').style.display=mode!=='public'?'inline-flex':'none';
   const sb=$('subBtn');if(sb)sb.style.display=mode==='admin'?'inline-flex':'none';
+}
+
+function saveGeminiKeyUI(){
+  const k=$('geminiKeyInput').value.trim();
+  if(!k.startsWith('AIza')){toast('⚠️ Key inválida',true);return;}
+  saveGeminiKey(k);$('geminiKeyInput').value='';updateGeminiKeyStatus();toast('✅ Gemini key guardada!');
+}
+function clearGeminiKeyUI(){localStorage.removeItem('ligacna_gemini_key');updateGeminiKeyStatus();toast('🗑 Key borrada.');}
+function updateGeminiKeyStatus(){
+  const k=getGeminiKey(),el=$('geminiKeyStatus');if(!el)return;
+  el.innerHTML=k?`<span style="color:var(--g);">✅ Key guardada — ···${k.slice(-6)}</span>`:`<span style="color:var(--or);">⚠️ Sin key — el escáner no va a funcionar</span>`;
 }
 
 function changePwd(){
@@ -961,8 +980,9 @@ function cdop(e,t){e.preventDefault();cdlv(t);const f=e.dataTransfer.files[0];if
 function clearCapScan(){capImgData={score:null,players:null,stats:null};capScanResult=null;['score','players','stats'].forEach(t=>{const p=$('cpv-'+t);if(p){p.style.display='none';p.src='';}$('cz-'+t).classList.remove('has-img');});$('capScanRes').innerHTML='';$('capSubmitWrap').style.display='none';updateCapScanBtn();}
 
 // ─── AI SCAN (Google Gemini) ──────────────────────
-const GEMINI_KEY='AIzaSyCyDfXic_WCE5BO7Pxyl1GT1xi_6RSLHnY';
-const GEMINI_URL=`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${GEMINI_KEY}`;
+const GEMINI_URL=key=>`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${key}`;
+function getGeminiKey(){return localStorage.getItem('ligacna_gemini_key')||'';}
+function saveGeminiKey(k){localStorage.setItem('ligacna_gemini_key',k);}
 
 async function callAI(images){
   const s=S();
@@ -985,7 +1005,9 @@ Return this exact JSON:
   if(images.players)parts.push({inline_data:{mime_type:toMime(images.players),data:toB64(images.players)}});
   if(images.stats)parts.push({inline_data:{mime_type:toMime(images.stats),data:toB64(images.stats)}});
 
-  const res=await fetch(GEMINI_URL,{
+  const key=getGeminiKey();
+  if(!key){toast('⚠️ Ingresá tu API key de Gemini en ⚙️ Config',true);throw new Error('Sin API key');}
+  const res=await fetch(GEMINI_URL(key),{
     method:'POST',
     headers:{'Content-Type':'application/json'},
     body:JSON.stringify({contents:[{parts}]})
@@ -1106,7 +1128,7 @@ function render(){
   renderSzSel();renderSummary();renderTeams();renderPlayers();
   renderDropdowns();renderPSI();renderHistory();renderStandings();
   renderLB(currentLB);renderKO();renderSchedule();renderHOF();renderSeasons();renderTeamCodes();
-  updateKeyUI();applyMode();
+  updateKeyUI();updateGeminiKeyStatus();applyMode();
 }
 
 function renderSummary(){
