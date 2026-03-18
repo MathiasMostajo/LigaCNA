@@ -1218,14 +1218,15 @@ function setPlayoffScore(roundIdx, matchId, side) {
 // ════════════════════════════════════════════════════════
 // GEMINI API KEY
 // ════════════════════════════════════════════════════════
-function getGeminiKey() { return localStorage.getItem('ligacna_gemini_key') || ''; }
-function saveGeminiKey(k) { localStorage.setItem('ligacna_gemini_key', k); }
+// API key stored in Supabase so all devices (including captain phones) can use it
+function getGeminiKey() { return db._groqKey || localStorage.getItem('ligacna_gemini_key') || ''; }
+function saveGeminiKey(k) { localStorage.setItem('ligacna_gemini_key', k); db._groqKey = k; saveDB(); }
 function saveGeminiKeyUI() {
   const k = $('geminiKeyInput').value.trim();
   if (!k.startsWith('gsk_')) { toast('⚠️ Key inválida — debe empezar con gsk_', true); return; }
-  saveGeminiKey(k); $('geminiKeyInput').value = ''; updateGeminiKeyStatus(); toast('✅ Groq key guardada!');
+  saveGeminiKey(k); $('geminiKeyInput').value = ''; updateGeminiKeyStatus(); toast('✅ Groq key guardada en todos los dispositivos!');
 }
-function clearGeminiKeyUI() { localStorage.removeItem('ligacna_gemini_key'); updateGeminiKeyStatus(); toast('🗑 Key borrada.'); }
+function clearGeminiKeyUI() { localStorage.removeItem('ligacna_gemini_key'); db._groqKey = null; saveDB(); updateGeminiKeyStatus(); toast('🗑 Key borrada.'); }
 function updateGeminiKeyStatus() {
   const k = getGeminiKey(), el = $('geminiKeyStatus'); if (!el) return;
   el.innerHTML = k ? `<span style="color:var(--g);">✅ Key guardada — ···${k.slice(-6)}</span>` : `<span style="color:var(--or);">⚠️ Sin key — ingresá tu Groq API key</span>`;
@@ -1333,26 +1334,39 @@ function renderCapResult(r) {
 
 async function submitCapResult() {
   if (!capScanResult || !capTeamCode) { toast('⚠️ Escaneá primero', true); return; }
-  // Validate: captain can only submit matches involving their team
   const s = S();
   const myTeam = s.teams.find(t => t.code === capTeamCode);
   if (myTeam) {
     const sc = capScanResult.score || {};
     const homeMatch = (sc.home || '').toLowerCase();
     const awayMatch = (sc.away || '').toLowerCase();
-    const myName = myTeam.name.toLowerCase();
-    // Check if team name appears in either home or away
-    const teamInMatch = homeMatch.includes(myName.substring(0,4)) || awayMatch.includes(myName.substring(0,4)) ||
-      s.teams.some(t => (t.code === capTeamCode) && (homeMatch.includes(t.name.toLowerCase().substring(0,4)) || awayMatch.includes(t.name.toLowerCase().substring(0,4))));
-    if (!teamInMatch) {
+    const myName = myTeam.name.toLowerCase().substring(0, 4);
+    if (!homeMatch.includes(myName) && !awayMatch.includes(myName)) {
       toast('⚠️ Solo podés enviar partidos de tu equipo', true); return;
     }
   }
   const btn = document.querySelector('#capSubmitWrap button'); btn.disabled = true; btn.textContent = 'Enviando...';
   try {
     const teamName = myTeam?.name || capTeamCode;
-    // Save screenshots alongside scan result
-    const payload = { ...capScanResult, _screenshots: { score: capImgData.score, players: capImgData.players, stats: capImgData.stats } };
+    // Compress screenshots to small thumbnails for storage
+    const compressImg = async (dataUrl) => {
+      if (!dataUrl) return null;
+      return new Promise(res => {
+        const img = new Image(); img.onload = () => {
+          const c = document.createElement('canvas');
+          const max = 400; const ratio = Math.min(max/img.width, max/img.height);
+          c.width = img.width * ratio; c.height = img.height * ratio;
+          c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+          res(c.toDataURL('image/jpeg', 0.6));
+        }; img.src = dataUrl;
+      });
+    };
+    const screenshots = {
+      score: await compressImg(capImgData.score),
+      players: await compressImg(capImgData.players),
+      stats: await compressImg(capImgData.stats)
+    };
+    const payload = { ...capScanResult, _screenshots: screenshots };
     const { error } = await supa.from('submissions').insert({ team_code: capTeamCode, team_name: teamName, scan_result: payload, status: 'pending' });
     if (error) throw error;
     $('capScanRes').innerHTML = `<div class="card" style="text-align:center;padding:22px;"><div style="font-size:1.8rem;margin-bottom:7px;">✅</div><div style="font-family:'Bebas Neue',sans-serif;font-size:1.3rem;color:var(--g);">¡Enviado!</div><div style="font-size:.8rem;color:var(--tm);margin-top:5px;">Tu DT va a revisar y confirmar.</div></div>`;
@@ -1451,10 +1465,40 @@ function renderSubs(subs) {
 
 async function approveSub(subId, encodedResult) {
   try {
-    const scanResult = JSON.parse(decodeURIComponent(encodedResult));
-    prefill(scanResult);
+    const r = JSON.parse(decodeURIComponent(encodedResult));
+    const sc = r.score || {};
+    const s = S();
+    // Find the teams
+    const hT = s.teams.find(t => t.name.toLowerCase().includes((sc.home||'').toLowerCase().substring(0,4)));
+    const aT = s.teams.find(t => t.name.toLowerCase().includes((sc.away||'').toLowerCase().substring(0,4)));
+    if (!hT || !aT) { toast('⚠️ No se encontraron los equipos — revisá manualmente', true); prefill(r); goTab('results'); await supa.from('submissions').update({ status: 'approved' }).eq('id', subId); pollSubmissions(); return; }
+    // Find the scheduled fixture (correct home/away order regardless of what captain sent)
+    let fixtureHomeId = hT.id, fixtureAwayId = aT.id;
+    let foundFixture = false;
+    for (const round of s.schedule || []) {
+      for (const fix of round.fixtures) {
+        if ((fix.home == hT.id && fix.away == aT.id) || (fix.home == aT.id && fix.away == hT.id)) {
+          fixtureHomeId = fix.home; fixtureAwayId = fix.away; foundFixture = true; break;
+        }
+      }
+      if (foundFixture) break;
+    }
+    // Determine goals in correct fixture order
+    // If AI detected home=hT, away=aT but fixture is aT at home, swap goals
+    let homeGoals = sc.homeGoals ?? 0, awayGoals = sc.awayGoals ?? 0;
+    if (foundFixture && fixtureHomeId == aT.id) {
+      // Fixture has aT as home, hT as away — swap
+      [homeGoals, awayGoals] = [awayGoals, homeGoals];
+    }
+    // Build player stats
+    const ps = {};
+    (r.players || []).forEach(rp => {
+      const p = s.players.find(sp => sp.name.toLowerCase() === rp.name.toLowerCase()); if (!p) return;
+      if (rp.goals || rp.assists || rp.rating) ps[p.id] = { goals: rp.goals||0, assists: rp.assists||0, rating: rp.rating||0, played: true, cs: false };
+    });
+    _saveResult(fixtureHomeId, fixtureAwayId, homeGoals, awayGoals, ps, null);
     await supa.from('submissions').update({ status: 'approved' }).eq('id', subId);
-    toast('✅ Aprobado! Revisá y guardá en Resultados.'); pollSubmissions();
+    toast('✅ Resultado guardado correctamente!'); pollSubmissions();
   } catch (e) { toast('⚠️ Error: ' + e.message, true); }
 }
 async function rejectSub(subId) {
