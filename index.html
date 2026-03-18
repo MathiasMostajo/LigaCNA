@@ -351,6 +351,11 @@ select option{background:var(--s2);}
   </div>
 </div>
 
+<!-- ════ TAB: TEAM PROFILE (public) ════ -->
+<div class="sec" id="tab-teamprofile">
+  <div id="teamProfileContent"></div>
+</div>
+
 <!-- ════ TAB: LEADERS (public) ════ -->
 <div class="sec" id="tab-leaders">
   <div class="card">
@@ -1644,6 +1649,7 @@ function renderHistory() {
     const awayName = m.awayDisplayName || tn(m.awayId);
     const homeShield = m.homeDisplayName ? `<div style="width:20px;height:20px;border-radius:50%;background:var(--s3);border:1px solid var(--b);display:inline-flex;align-items:center;justify-content:center;font-size:.6rem;color:var(--tm);">${homeName[0]}</div>` : getShield(m.homeId, 'sm');
     const awayShield = m.awayDisplayName ? `<div style="width:20px;height:20px;border-radius:50%;background:var(--s3);border:1px solid var(--b);display:inline-flex;align-items:center;justify-content:center;font-size:.6rem;color:var(--tm);">${awayName[0]}</div>` : getShield(m.awayId, 'sm');
+    const editBtn = mode === 'admin' ? `<button class="btn bg" onclick="editMatch('${m.id}')" style="font-size:.62rem;padding:2px 7px;margin-left:4px;">✏️</button>` : '';
     return `<div class="me">
       <div class="mt home" style="color:${w === 'home' ? 'var(--g)' : ''};">${homeShield} ${homeName}</div>
       <div style="font-family:'Bebas Neue';font-size:1.3rem;color:${w === 'home' ? 'var(--g)' : 'var(--tm)'};">${m.homeGoals}</div>
@@ -1651,14 +1657,172 @@ function renderHistory() {
       <div style="font-family:'Bebas Neue';font-size:1.3rem;color:${w === 'away' ? 'var(--g)' : 'var(--tm)'};">${m.awayGoals}</div>
       <div class="mt" style="color:${w === 'away' ? 'var(--g)' : ''};">${awayName} ${awayShield}</div>
     </div>
-    <div style="font-size:.66rem;color:var(--tm);text-align:center;padding-bottom:5px;display:flex;align-items:center;justify-content:center;gap:4px;">${m.date} ${wb}${(m.homeDisplayName || m.awayDisplayName) ? '<span style="color:var(--or);font-size:.62rem;">📌 equipo reemplazado</span>' : ''}</div>`;
+    <div style="font-size:.66rem;color:var(--tm);text-align:center;padding-bottom:5px;display:flex;align-items:center;justify-content:center;gap:4px;">${m.date} ${wb}${(m.homeDisplayName || m.awayDisplayName) ? '<span style="color:var(--or);font-size:.62rem;">📌 equipo reemplazado</span>' : ''}${editBtn}</div>`;
   }).join('');
+}
+
+// ════ EDIT MATCH ════
+function editMatch(matchId) {
+  const s = S(), m = s.matches.find(x => x.id === matchId); if (!m) return;
+  const homeName = m.homeDisplayName || tn(m.homeId);
+  const awayName = m.awayDisplayName || tn(m.awayId);
+  $('mttl').textContent = '✏️ Editar Partido';
+  $('mbdy').innerHTML = `
+    <div style="text-align:center;font-family:'Bebas Neue',sans-serif;font-size:1.1rem;color:var(--g);margin-bottom:12px;">${homeName} vs ${awayName}</div>
+    <div style="display:flex;gap:8px;justify-content:center;align-items:center;margin-bottom:14px;">
+      <div style="text-align:center;"><div style="font-size:.68rem;color:var(--tm);margin-bottom:3px;">Local</div><input type="number" id="eHG" value="${m.homeGoals}" min="0" style="width:60px;text-align:center;font-size:1.3rem;font-family:'Bebas Neue',sans-serif;background:var(--s2);border:1px solid var(--b);border-radius:8px;color:var(--g);padding:6px;"></div>
+      <div style="font-family:'Bebas Neue',sans-serif;font-size:1.5rem;color:var(--tm);padding-top:16px;">—</div>
+      <div style="text-align:center;"><div style="font-size:.68rem;color:var(--tm);margin-bottom:3px;">Visitante</div><input type="number" id="eAG" value="${m.awayGoals}" min="0" style="width:60px;text-align:center;font-size:1.3rem;font-family:'Bebas Neue',sans-serif;background:var(--s2);border:1px solid var(--b);border-radius:8px;color:var(--g);padding:6px;"></div>
+    </div>
+    <div style="font-size:.74rem;color:var(--tm);margin-bottom:8px;font-family:'Barlow Condensed',sans-serif;letter-spacing:1px;text-transform:uppercase;">Stats de jugadores</div>
+    <div id="eMatchPlayers" style="max-height:220px;overflow-y:auto;">
+      ${s.players.filter(p => p.teamId == m.homeId || p.teamId == m.awayId).map(p => {
+        const st = m.playerStats?.[p.id] || {};
+        return `<div style="display:flex;align-items:center;gap:5px;padding:4px 0;border-bottom:1px solid var(--b);flex-wrap:wrap;">
+          <span style="font-size:.74rem;font-weight:600;flex:1;min-width:80px;">${p.name}</span>
+          <label style="font-size:.64rem;display:flex;align-items:center;gap:2px;"><input type="checkbox" class="ep-played" data-pid="${p.id}" ${st.played?'checked':''}> Jugó</label>
+          <div style="display:flex;flex-direction:column;gap:1px;"><label style="font-size:.56rem;">⚽</label><input type="number" class="ep-g" data-pid="${p.id}" value="${st.goals||0}" min="0" style="width:40px;padding:2px;font-size:.74rem;background:var(--s2);border:1px solid var(--b);border-radius:4px;color:var(--t);"></div>
+          <div style="display:flex;flex-direction:column;gap:1px;"><label style="font-size:.56rem;">🎯</label><input type="number" class="ep-a" data-pid="${p.id}" value="${st.assists||0}" min="0" style="width:40px;padding:2px;font-size:.74rem;background:var(--s2);border:1px solid var(--b);border-radius:4px;color:var(--t);"></div>
+          <div style="display:flex;flex-direction:column;gap:1px;"><label style="font-size:.56rem;">⭐</label><input type="number" class="ep-r" data-pid="${p.id}" value="${st.rating||0}" min="0" max="10" step="0.1" style="width:44px;padding:2px;font-size:.74rem;background:var(--s2);border:1px solid var(--b);border-radius:4px;color:var(--t);"></div>
+        </div>`;
+      }).join('')}
+    </div>`;
+  window._modalConfirm = () => saveEditMatch(matchId);
+  $('mbtns').innerHTML = `
+    <button class="btn bd" onclick="deleteMatch('${matchId}');closeModal();" style="font-size:.8rem;padding:6px 12px;margin-right:auto;">🗑 Borrar</button>
+    <button class="btn bg" onclick="closeModal()" style="font-size:.8rem;padding:6px 12px;">Cancelar</button>
+    <button class="btn bp" onclick="closeModal();window._modalConfirm&&window._modalConfirm()" style="font-size:.8rem;padding:6px 12px;">💾 Guardar</button>`;
+  $('modal').classList.add('open');
+}
+
+function saveEditMatch(matchId) {
+  const s = S(), m = s.matches.find(x => x.id === matchId); if (!m) return;
+  const newHG = +$('eHG').value || 0, newAG = +$('eAG').value || 0;
+  // Reverse old player stats
+  Object.entries(m.playerStats || {}).forEach(([pid, st]) => {
+    const p = s.players.find(pl => pl.id === pid); if (!p) return;
+    p.goals -= st.goals || 0; p.assists -= st.assists || 0;
+    if (st.rating > 0) { const idx = p.rating.indexOf(st.rating); if (idx > -1) p.rating.splice(idx, 1); }
+    if (st.played) p.matchesPlayed--;
+    if (st.cs) p.cs--;
+  });
+  // Apply new player stats
+  const newPs = {};
+  document.querySelectorAll('.ep-g').forEach(inp => {
+    const pid = inp.dataset.pid;
+    const goals = +inp.value || 0, assists = +(document.querySelector(`.ep-a[data-pid="${pid}"]`)?.value) || 0;
+    const rating = +(document.querySelector(`.ep-r[data-pid="${pid}"]`)?.value) || 0;
+    const played = document.querySelector(`.ep-played[data-pid="${pid}"]`)?.checked || false;
+    if (played || goals || assists || rating) {
+      newPs[pid] = { goals, assists, rating, played, cs: false };
+      const p = s.players.find(pl => pl.id === pid); if (!p) return;
+      p.goals += goals; p.assists += assists;
+      if (rating > 0) p.rating.push(rating);
+      if (played) p.matchesPlayed++;
+    }
+  });
+  m.homeGoals = newHG; m.awayGoals = newAG; m.playerStats = newPs;
+  saveDB(); render(); toast('✅ Partido actualizado!');
+}
+
+function deleteMatch(matchId) {
+  const s = S(), m = s.matches.find(x => x.id === matchId); if (!m) return;
+  // Reverse stats
+  Object.entries(m.playerStats || {}).forEach(([pid, st]) => {
+    const p = s.players.find(pl => pl.id === pid); if (!p) return;
+    p.goals -= st.goals || 0; p.assists -= st.assists || 0;
+    if (st.rating > 0) { const idx = p.rating.indexOf(st.rating); if (idx > -1) p.rating.splice(idx, 1); }
+    if (st.played) p.matchesPlayed--;
+    if (st.cs) p.cs--;
+  });
+  s.matches = s.matches.filter(x => x.id !== matchId);
+  saveDB(); render(); toast('🗑 Partido eliminado.');
+}
+
+// ════ TEAM PROFILE ════
+function viewTeamProfile(teamId) {
+  const s = S(), team = s.teams.find(t => t.id === teamId); if (!team) return;
+  const players = s.players.filter(p => p.teamId === teamId);
+  const teamMatches = s.matches.filter(m => m.homeId === teamId || m.awayId === teamId);
+  const stand = getStandings().find(x => x.id === teamId) || { P:0,W:0,D:0,L:0,GF:0,GA:0,GD:0,Pts:0 };
+  // Pending fixtures
+  const pending = [];
+  (s.schedule || []).forEach(round => {
+    round.fixtures.forEach(fix => {
+      if ((fix.home === teamId || fix.away === teamId) && !getMatchResult(fix.home, fix.away)) {
+        const opp = fix.home === teamId ? fix.away : fix.home;
+        const isHome = fix.home === teamId;
+        pending.push({ round: round.round, oppId: opp, isHome });
+      }
+    });
+  });
+  const el = $('teamProfileContent');
+  el.innerHTML = `
+    <div style="display:flex;align-items:center;gap:12px;margin-bottom:16px;">
+      <button class="btn bg" onclick="goTab('standings')" style="font-size:.76rem;padding:5px 10px;">← Volver</button>
+      <div style="font-family:'Bebas Neue',sans-serif;font-size:1.8rem;color:var(--g);">${team.name}</div>
+    </div>
+
+    <!-- Shield + stats summary -->
+    <div class="card" style="display:flex;align-items:center;gap:16px;flex-wrap:wrap;">
+      ${getShield(teamId, 'lg')}
+      <div style="flex:1;display:grid;grid-template-columns:repeat(4,1fr);gap:7px;">
+        <div class="ss"><div class="v">${stand.Pts}</div><div class="l">Pts</div></div>
+        <div class="ss"><div class="v">${stand.W}</div><div class="l">Ganados</div></div>
+        <div class="ss"><div class="v">${stand.D}</div><div class="l">Empates</div></div>
+        <div class="ss"><div class="v">${stand.L}</div><div class="l">Perdidos</div></div>
+      </div>
+    </div>
+
+    <!-- Players -->
+    <div class="card">
+      <div class="ct">👤 Jugadores (${players.length})</div>
+      ${players.length ? players.map(p => {
+        const ar = p.rating.length ? avg(p.rating).toFixed(1) : '—';
+        return `<div class="pr"><div class="pi"><span class="pb">${p.pos||'—'}</span><span style="font-weight:600;">${p.name}</span></div><div class="psm"><span>⚽${p.goals}</span><span>🎯${p.assists}</span><span>⭐${ar}</span><span>🧤${p.cs}</span><span>${p.matchesPlayed}GP</span></div></div>`;
+      }).join('') : `<div class="es" style="padding:14px;"><div class="ei">👤</div>Sin jugadores.</div>`}
+    </div>
+
+    <!-- Played matches -->
+    <div class="card">
+      <div class="ct">🕹 Partidos Jugados (${teamMatches.length})</div>
+      ${teamMatches.length ? [...teamMatches].reverse().map(m => {
+        const isHome = m.homeId === teamId;
+        const oppName = isHome ? (m.awayDisplayName || tn(m.awayId)) : (m.homeDisplayName || tn(m.homeId));
+        const oppId = isHome ? m.awayId : m.homeId;
+        const myGoals = isHome ? m.homeGoals : m.awayGoals;
+        const theirGoals = isHome ? m.awayGoals : m.homeGoals;
+        const res = myGoals > theirGoals ? 'V' : myGoals < theirGoals ? 'D' : 'E';
+        const rc = res === 'V' ? 'var(--g)' : res === 'D' ? 'var(--red)' : 'var(--gold)';
+        return `<div style="display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid var(--b);">
+          <span style="font-family:'Bebas Neue',sans-serif;font-size:.9rem;color:${rc};min-width:16px;">${res}</span>
+          <span style="font-size:.76rem;color:var(--tm);">${isHome?'🏠':'✈️'}</span>
+          ${getShield(oppId,'sm')}
+          <span style="font-weight:600;font-size:.84rem;flex:1;">${oppName}</span>
+          <span style="font-family:'Bebas Neue',sans-serif;font-size:1.1rem;color:${rc};">${myGoals}–${theirGoals}</span>
+          <span style="font-size:.66rem;color:var(--tm);">${m.date||''}</span>
+        </div>`;
+      }).join('') : `<div class="es" style="padding:14px;"><div class="ei">🎮</div>Sin partidos.</div>`}
+    </div>
+
+    <!-- Pending fixtures -->
+    <div class="card">
+      <div class="ct">📅 Partidos Pendientes (${pending.length})</div>
+      ${pending.length ? pending.map(fix => `
+        <div style="display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid var(--b);">
+          <span style="font-size:.76rem;color:var(--tm);">Fecha ${fix.round}</span>
+          <span style="font-size:.76rem;color:var(--tm);">${fix.isHome?'🏠':'✈️'}</span>
+          ${getShield(fix.oppId,'sm')}
+          <span style="font-weight:600;font-size:.84rem;">${tn(fix.oppId)}</span>
+        </div>`).join('') : `<div class="es" style="padding:14px;"><div class="ei">📅</div>Sin pendientes.</div>`}
+    </div>`;
+  goTab('teamprofile');
 }
 
 function renderStandings() {
   const el = $('standTable'), stand = getStandings();
   if (!stand.length) { el.innerHTML = `<div class="es"><div class="ei">📊</div>Sin datos.</div>`; return; }
-  el.innerHTML = `<table class="st"><thead><tr><th>#</th><th>Equipo</th><th>PJ</th><th>G</th><th>E</th><th>P</th><th>GF</th><th>GC</th><th>DG</th><th>Pts</th><th>Forma</th></tr></thead><tbody>${stand.map((s, i) => `<tr><td><span class="rnk ${['r1', 'r2', 'r3'][i] || ''}">${i + 1}</span></td><td><div style="display:flex;align-items:center;gap:7px;">${getShield(s.id, 'md')}<b>${s.name}</b></div></td><td>${s.P}</td><td>${s.W}</td><td>${s.D}</td><td>${s.L}</td><td>${s.GF}</td><td>${s.GA}</td><td style="color:${s.GD > 0 ? 'var(--g)' : s.GD < 0 ? 'var(--red)' : ''}">${s.GD > 0 ? '+' : ''}${s.GD}</td><td><span class="pts">${s.Pts}</span></td><td><div class="fp">${s.form.slice(-5).map(f => `<div class="fpill ${f}">${f}</div>`).join('')}</div></td></tr>`).join('')}</tbody></table>`;
+  el.innerHTML = `<table class="st"><thead><tr><th>#</th><th>Equipo</th><th>PJ</th><th>G</th><th>E</th><th>P</th><th>GF</th><th>GC</th><th>DG</th><th>Pts</th><th>Forma</th></tr></thead><tbody>${stand.map((s, i) => `<tr><td><span class="rnk ${['r1', 'r2', 'r3'][i] || ''}">${i + 1}</span></td><td><div style="display:flex;align-items:center;gap:7px;cursor:pointer;" onclick="viewTeamProfile('${s.id}')">${getShield(s.id, 'md')}<b style="color:var(--g);text-decoration:underline dotted;">${s.name}</b></div></td><td>${s.P}</td><td>${s.W}</td><td>${s.D}</td><td>${s.L}</td><td>${s.GF}</td><td>${s.GA}</td><td style="color:${s.GD > 0 ? 'var(--g)' : s.GD < 0 ? 'var(--red)' : ''}">${s.GD > 0 ? '+' : ''}${s.GD}</td><td><span class="pts">${s.Pts}</span></td><td><div class="fp">${s.form.slice(-5).map(f => `<div class="fpill ${f}">${f}</div>`).join('')}</div></td></tr>`).join('')}</tbody></table>`;
 }
 
 function showLB(type, el) { currentLB = type; document.querySelectorAll('.lbtab').forEach(t => t.classList.remove('active')); if (el) el.classList.add('active'); renderLB(type); }
