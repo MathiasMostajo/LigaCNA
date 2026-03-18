@@ -94,6 +94,9 @@ select option{background:var(--s2);}
 
 /* TEAM/PLAYER ROWS */
 .ti{display:flex;align-items:center;justify-content:space-between;padding:9px 0;border-bottom:1px solid var(--b);}
+.shield{width:28px;height:28px;border-radius:50%;object-fit:cover;border:1px solid var(--b);background:var(--s3);}
+.shield-sm{width:20px;height:20px;border-radius:50%;object-fit:cover;border:1px solid var(--b);background:var(--s3);flex-shrink:0;}
+.shield-placeholder{width:20px;height:20px;border-radius:50%;background:var(--s3);border:1px solid var(--b);display:inline-flex;align-items:center;justify-content:center;font-size:.6rem;color:var(--tm);flex-shrink:0;}
 .ti:last-child{border-bottom:none;}
 .tpaid{font-size:.68rem;padding:3px 7px;border-radius:20px;font-weight:600;cursor:pointer;}
 .tpaid.yes{background:rgba(0,255,135,.15);color:var(--g);}
@@ -851,7 +854,89 @@ function addTeam(){
   $('tName').value='';$('tCap').value='';
   saveDB();render();toast('✅ '+name+' — Código: '+code);
 }
-function removeTeam(id){showModal('¿Eliminar equipo?','Se elimina el equipo y sus jugadores.','Eliminar',()=>{const s=S();s.teams=s.teams.filter(t=>t.id!=id);s.players=s.players.filter(p=>p.teamId!=id);saveDB();render();},true);}
+function uploadShield(e,teamId){
+  const f=e.target.files[0];if(!f)return;
+  const r=new FileReader();
+  r.onload=ev=>{
+    const t=S().teams.find(t=>t.id==teamId);
+    if(t){t.shield=ev.target.result;saveDB();render();toast('🖼️ Escudo guardado!');}
+  };
+  r.readAsDataURL(f);
+}
+function getShield(teamId){
+  const t=S().teams.find(t=>t.id==teamId);
+  if(t?.shield)return `<img class="shield-sm" src="${t.shield}" alt="">`;
+  return `<div class="shield-placeholder">${(t?.name||'?')[0].toUpperCase()}</div>`;
+}
+
+function promptReplaceTeam(oldId){
+  const s=S();
+  const oldTeam=s.teams.find(t=>t.id==oldId);
+  if(!oldTeam)return;
+  const played=s.matches.filter(m=>m.homeId==oldId||m.awayId==oldId).length;
+  showModal(
+    '🔄 Reemplazar '+oldTeam.name,
+    `Este equipo jugó ${played} partido(s). Los resultados quedan en el historial. El equipo nuevo toma su lugar en el fixture restante. Ingresá el nombre del nuevo equipo en el próximo paso.`,
+    '🔄 Reemplazar',
+    ()=>{
+      const newName=prompt('Nombre del nuevo equipo:');
+      if(!newName||!newName.trim())return;
+      const newCap=prompt('Capitán del nuevo equipo (opcional):','');
+      replaceTeam(oldId,newName.trim(),newCap?.trim()||'');
+    },
+    false
+  );
+}
+
+function replaceTeam(oldId,newName,newCap){
+  const s=S();
+  const oldTeam=s.teams.find(t=>t.id==oldId);
+  if(!oldTeam)return;
+
+  // Mark old team as replaced (keeps it in history/matches)
+  oldTeam.replaced=true;
+  oldTeam.replacedBy=newName;
+
+  // Create new team
+  const newId=Date.now().toString();
+  const newCode=genCode(newName);
+  const newTeam={id:newId,name:newName,cap:newCap,fee:oldTeam.fee,paid:'no',code:newCode,replacedFrom:oldTeam.name};
+  s.teams.push(newTeam);
+
+  // Replace old team in schedule fixtures (only unplayed ones)
+  s.schedule.forEach(round=>{
+    round.fixtures.forEach(fix=>{
+      const alreadyPlayed=getMatchResult(fix.home,fix.away);
+      if(!alreadyPlayed){
+        if(fix.home==oldId)fix.home=newId;
+        if(fix.away==oldId)fix.away=newId;
+      }
+    });
+  });
+
+  // For standings: replace old team ID in already played matches so points transfer
+  // BUT we keep a copy of the old name in the match so history still shows the old team name
+  s.matches.forEach(m=>{
+    if(m.homeId==oldId){m.homeId=newId;m.homeDisplayName=oldTeam.name;}
+    if(m.awayId==oldId){m.awayId=newId;m.awayDisplayName=oldTeam.name;}
+  });
+
+  // Do NOT transfer players — new team comes with their own
+
+  // Replace old team in knockout (unplayed)
+  (s.knockoutMatches||[]).forEach(round=>{
+    round.matches.forEach(m=>{
+      if(!m.hg&&!m.ag){
+        if(m.home==oldTeam.name)m.home=newName;
+        if(m.away==oldTeam.name)m.away=newName;
+      }
+    });
+  });
+
+  saveDB();render();
+  toast(`🔄 ${oldTeam.name} reemplazado por ${newName}! Código: ${newCode}`);
+}
+showModal('¿Eliminar equipo?','Se elimina el equipo y sus jugadores.','Eliminar',()=>{const s=S();s.teams=s.teams.filter(t=>t.id!=id);s.players=s.players.filter(p=>p.teamId!=id);saveDB();render();},true);}
 function togglePaid(id){const t=S().teams.find(t=>t.id==id);if(t){t.paid=t.paid==='yes'?'no':'yes';saveDB();render();}}
 
 // ─── PLAYERS ─────────────────────────────────────
@@ -906,7 +991,7 @@ function _saveResult(homeId,awayId,hg,ag,ps,flag){
 // ─── STANDINGS ───────────────────────────────────
 function getStandings(){
   const s=S(),stats={};
-  s.teams.forEach(t=>{stats[t.id]={id:t.id,name:t.name,P:0,W:0,D:0,L:0,GF:0,GA:0,GD:0,Pts:0,form:[]};});
+  s.teams.filter(t=>!t.replaced).forEach(t=>{stats[t.id]={id:t.id,name:t.name,P:0,W:0,D:0,L:0,GF:0,GA:0,GD:0,Pts:0,form:[]};});
   s.matches.forEach(m=>{
     const h=stats[m.homeId],a=stats[m.awayId];if(!h||!a)return;
     h.P++;a.P++;h.GF+=m.homeGoals;h.GA+=m.awayGoals;a.GF+=m.awayGoals;a.GA+=m.homeGoals;
@@ -1142,7 +1227,8 @@ function renderTeams(){
   if(!s.teams.length){el.innerHTML=`<div class="es"><div class="ei">🏟️</div>Sin equipos aún.</div>`;return;}
   el.innerHTML=s.teams.map(t=>{
     const pc=s.players.filter(p=>p.teamId==t.id).length;
-    return `<div class="ti"><div><div style="font-weight:600;">${t.name}</div><div style="font-size:.72rem;color:var(--tm);">${t.cap?'📱 '+t.cap+' · ':''}👤 ${pc} jug. · 🔑 ${t.code||'—'}</div></div><div style="display:flex;align-items:center;gap:5px;"><span class="tpaid ${t.paid}" onclick="togglePaid('${t.id}')">${t.paid==='yes'?'✅ $'+t.fee:'❌ No pagó'}</span><button class="btn bd" onclick="removeTeam('${t.id}')">✕</button></div></div>`;
+    const shield=t.shield?`<img class="shield" src="${t.shield}" alt="">`:`<div class="shield" style="display:flex;align-items:center;justify-content:center;font-size:.7rem;color:var(--tm);">⚽</div>`;
+    return `<div class="ti"><div style="display:flex;align-items:center;gap:9px;">${shield}<div><div style="font-weight:600;">${t.name}${t.replaced?` <span style="font-size:.65rem;color:var(--or);background:rgba(255,159,67,.15);padding:2px 6px;border-radius:20px;">Reemplazado</span>`:''}</div><div style="font-size:.72rem;color:var(--tm);">${t.cap?'📱 '+t.cap+' · ':''}👤 ${pc} jug. · 🔑 ${t.code||'—'}</div></div></div><div style="display:flex;align-items:center;gap:5px;"><label style="cursor:pointer;" title="Subir escudo"><input type="file" accept="image/*" style="display:none;" onchange="uploadShield(event,'${t.id}')">🖼️</label><span class="tpaid ${t.paid}" onclick="togglePaid('${t.id}')">${t.paid==='yes'?'✅ $'+t.fee:'❌ No pagó'}</span>${!t.replaced?`<button class="btn bg" onclick="promptReplaceTeam('${t.id}')" style="font-size:.68rem;padding:3px 7px;">🔄</button>`:''}<button class="btn bd" onclick="removeTeam('${t.id}')">✕</button></div></div>`;
   }).join('');
 }
 
@@ -1202,14 +1288,20 @@ function renderHistory(){
   el.innerHTML=[...s.matches].reverse().map(m=>{
     const w=m.homeGoals>m.awayGoals?'home':m.awayGoals>m.homeGoals?'away':'draw';
     const wb=m.flag==='wo'?`<span style="background:rgba(255,71,87,.2);color:var(--red);font-size:.64rem;padding:2px 6px;border-radius:20px;font-weight:700;font-family:'Barlow Condensed',sans-serif;letter-spacing:1px;">🚫 WO</span>`:'';
-    return `<div class="me"><div class="mt home" style="color:${w==='home'?'var(--g)':''}">${tn(m.homeId)}</div><div style="font-family:'Bebas Neue';font-size:1.3rem;color:${w==='home'?'var(--g)':'var(--tm)'};">${m.homeGoals}</div><div class="vs">—</div><div style="font-family:'Bebas Neue';font-size:1.3rem;color:${w==='away'?'var(--g)':'var(--tm)'};">${m.awayGoals}</div><div class="mt" style="color:${w==='away'?'var(--g)':''}">${tn(m.awayId)}</div></div><div style="font-size:.66rem;color:var(--tm);text-align:center;padding-bottom:5px;display:flex;align-items:center;justify-content:center;gap:4px;">${m.date} ${wb}</div>`;
+    // Use displayName (old team name) if it was a replaced team match
+    const homeName=m.homeDisplayName||tn(m.homeId);
+    const awayName=m.awayDisplayName||tn(m.awayId);
+    const replaced=m.homeDisplayName||m.awayDisplayName;
+    const homeShield=m.homeDisplayName?`<div class="shield-placeholder">${homeName[0]}</div>`:getShield(m.homeId);
+    const awayShield=m.awayDisplayName?`<div class="shield-placeholder">${awayName[0]}</div>`:getShield(m.awayId);
+    return `<div class="me"><div class="mt home" style="color:${w==='home'?'var(--g)':''};">${homeShield} ${homeName}</div><div style="font-family:'Bebas Neue';font-size:1.3rem;color:${w==='home'?'var(--g)':'var(--tm)'};">${m.homeGoals}</div><div class="vs">—</div><div style="font-family:'Bebas Neue';font-size:1.3rem;color:${w==='away'?'var(--g)':'var(--tm)'};">${m.awayGoals}</div><div class="mt" style="color:${w==='away'?'var(--g)':''};">${awayShield} ${awayName}</div></div><div style="font-size:.66rem;color:var(--tm);text-align:center;padding-bottom:5px;display:flex;align-items:center;justify-content:center;gap:4px;">${m.date} ${wb}${replaced?`<span style="color:var(--or);font-size:.62rem;">📌 equipo reemplazado</span>`:''}</div>`;
   }).join('');
 }
 
 function renderStandings(){
   const el=$('standTable'),stand=getStandings();
   if(!stand.length){el.innerHTML=`<div class="es"><div class="ei">📊</div>Sin datos aún.</div>`;return;}
-  el.innerHTML=`<table class="st"><thead><tr><th>#</th><th>Equipo</th><th>PJ</th><th>G</th><th>E</th><th>P</th><th>GF</th><th>GC</th><th>DG</th><th>Pts</th><th>Forma</th></tr></thead><tbody>${stand.map((s,i)=>`<tr><td><span class="rnk ${['r1','r2','r3'][i]||''}">${i+1}</span></td><td><b>${s.name}</b></td><td>${s.P}</td><td>${s.W}</td><td>${s.D}</td><td>${s.L}</td><td>${s.GF}</td><td>${s.GA}</td><td style="color:${s.GD>0?'var(--g)':s.GD<0?'var(--red)':''}">${s.GD>0?'+':''}${s.GD}</td><td><span class="pts">${s.Pts}</span></td><td><div class="fp">${s.form.slice(-5).map(f=>`<div class="fpill ${f}">${f}</div>`).join('')}</div></td></tr>`).join('')}</tbody></table>`;
+  el.innerHTML=`<table class="st"><thead><tr><th>#</th><th>Equipo</th><th>PJ</th><th>G</th><th>E</th><th>P</th><th>GF</th><th>GC</th><th>DG</th><th>Pts</th><th>Forma</th></tr></thead><tbody>${stand.map((s,i)=>`<tr><td><span class="rnk ${['r1','r2','r3'][i]||''}">${i+1}</span></td><td><div style="display:flex;align-items:center;gap:6px;">${getShield(s.id)}<b>${s.name}</b></div></td><td>${s.P}</td><td>${s.W}</td><td>${s.D}</td><td>${s.L}</td><td>${s.GF}</td><td>${s.GA}</td><td style="color:${s.GD>0?'var(--g)':s.GD<0?'var(--red)':''}">${s.GD>0?'+':''}${s.GD}</td><td><span class="pts">${s.Pts}</span></td><td><div class="fp">${s.form.slice(-5).map(f=>`<div class="fpill ${f}">${f}</div>`).join('')}</div></td></tr>`).join('')}</tbody></table>`;
 }
 
 function showLB(type,el){currentLB=type;document.querySelectorAll('.lbtab').forEach(t=>t.classList.remove('active'));if(el)el.classList.add('active');renderLB(type);}
@@ -1224,7 +1316,7 @@ function renderLB(type){
   const top=sorted.slice(0,10);
   if(!top.length){el.innerHTML=`<div class="es"><div class="ei">📊</div>Sin datos.</div>`;return;}
   el.innerHTML=top.map((p,i)=>{const val=type==='goals'?p.goals:type==='assists'?p.assists:type==='rating'?avg(p.rating).toFixed(1):p.cs;
-    return `<div class="lbr"><div class="lbrk" style="color:${['var(--gold)','var(--silver)','var(--bronze)'][i]||'var(--tm)'}">${['🥇','🥈','🥉'][i]||i+1}</div><div><div style="font-weight:600;">${p.name}</div><div class="lbt2">${tn(p.teamId)} · <span class="pb" style="display:inline;">${p.pos||'—'}</span></div></div><div class="lbv">${val}</div></div>`;
+    return `<div class="lbr"><div class="lbrk" style="color:${['var(--gold)','var(--silver)','var(--bronze)'][i]||'var(--tm)'}">${['🥇','🥈','🥉'][i]||i+1}</div>${getShield(p.teamId)}<div><div style="font-weight:600;">${p.name}</div><div class="lbt2">${tn(p.teamId)} · <span class="pb" style="display:inline;">${p.pos||'—'}</span></div></div><div class="lbv">${val}</div></div>`;
   }).join('');
 }
 
