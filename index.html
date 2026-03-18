@@ -481,7 +481,7 @@ select option{background:var(--s2);}
 <div class="sec" id="tab-scan">
   <div class="card">
     <div class="ct">🤖 Escáner IA de Partidos</div>
-    <div class="ib">✅ Powered by Google Gemini. Subí las 3 capturas y confirmás antes de guardar.</div>
+    <div class="ib">✅ Powered by Groq — gratis, sin tarjeta. Subí las 3 capturas y confirmás antes de guardar.</div>
     <div class="apg">
       <div><label style="margin-bottom:5px;display:block;">📸 Marcador</label>
         <div class="adz" id="z-score" ondragover="dov(event,'score')" ondragleave="dlv('score')" ondrop="dop(event,'score')">
@@ -606,8 +606,8 @@ select option{background:var(--s2);}
 <!-- ════ TAB: SETTINGS (admin) ════ -->
 <div class="sec" id="tab-settings">
   <div class="card">
-    <div class="ct">🤖 Google Gemini API Key</div>
-    <div class="ib">Tu key se guarda solo en tu navegador, nunca en el código.</div>
+    <div class="ct">🤖 Groq API Key</div>
+    <div class="ib">Gratis en console.groq.com — sin tarjeta. Tu key se guarda solo en tu navegador.</div>
     <div style="display:flex;gap:7px;align-items:flex-end;flex-wrap:wrap;">
       <div class="fg" style="flex:1;min-width:200px;"><label>API Key</label><input type="password" id="geminiKeyInput" placeholder="AIzaSy..."></div>
       <button class="btn bp" onclick="saveGeminiKeyUI()">Guardar</button>
@@ -649,7 +649,7 @@ const SB_KEY = 'sb_publishable_O9stoyN7Yx2hZn-bxP6yxA_fMa7B6ad';
 const DB_KEY = 'ligacna_main';
 const PWD_KEY = 'ligacna_pwd';
 const DEFAULT_PWD = 'LigaCNA2024';
-const GEMINI_URL = key => `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${key}`;
+const GROQ_URL = 'https://api.groq.com/openai/v1/chat/completions';
 
 const supa = supabase.createClient(SB_URL, SB_KEY);
 
@@ -1223,12 +1223,12 @@ function saveGeminiKey(k) { localStorage.setItem('ligacna_gemini_key', k); }
 function saveGeminiKeyUI() {
   const k = $('geminiKeyInput').value.trim();
   if (!k.startsWith('AIza')) { toast('⚠️ Key inválida', true); return; }
-  saveGeminiKey(k); $('geminiKeyInput').value = ''; updateGeminiKeyStatus(); toast('✅ Gemini key guardada!');
+  saveGeminiKey(k); $('geminiKeyInput').value = ''; updateGeminiKeyStatus(); toast('✅ Groq key guardada!');
 }
 function clearGeminiKeyUI() { localStorage.removeItem('ligacna_gemini_key'); updateGeminiKeyStatus(); toast('🗑 Key borrada.'); }
 function updateGeminiKeyStatus() {
   const k = getGeminiKey(), el = $('geminiKeyStatus'); if (!el) return;
-  el.innerHTML = k ? `<span style="color:var(--g);">✅ Key guardada — ···${k.slice(-6)}</span>` : `<span style="color:var(--or);">⚠️ Sin key — ingresá tu Gemini API key</span>`;
+  el.innerHTML = k ? `<span style="color:var(--g);">✅ Key guardada — ···${k.slice(-6)}</span>` : `<span style="color:var(--or);">⚠️ Sin key — ingresá tu Groq API key</span>`;
 }
 function updateScanBtn() { const c = [imgData.score, imgData.players, imgData.stats].filter(Boolean).length; const b = $('scanBtn'); if (b) b.disabled = c === 0; const s = $('scanSt'); if (s) s.textContent = c > 0 ? `${c}/3 listas` : ''; }
 function updateCapScanBtn() { const c = [capImgData.score, capImgData.players, capImgData.stats].filter(Boolean).length; const b = $('capScanBtn'); if (b) b.disabled = c === 0; const s = $('capScanSt'); if (s) s.textContent = c > 0 ? `${c}/3 listas` : ''; }
@@ -1267,17 +1267,22 @@ Return: {"score":{"home":"","away":"","homeGoals":0,"awayGoals":0,"time":"90'"},
 
   const key = getGeminiKey();
   if (!key) { toast('⚠️ Ingresá tu API key en ⚙️ Config', true); throw new Error('Sin API key'); }
-  const parts = [{ text: prompt }];
-  const toMime = d => d.split(';')[0].replace('data:', '');
-  const toB64 = d => d.split(',')[1];
-  if (images.score) parts.push({ inline_data: { mime_type: toMime(images.score), data: toB64(images.score) } });
-  if (images.players) parts.push({ inline_data: { mime_type: toMime(images.players), data: toB64(images.players) } });
-  if (images.stats) parts.push({ inline_data: { mime_type: toMime(images.stats), data: toB64(images.stats) } });
 
-  const res = await fetch(GEMINI_URL(key), { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ contents: [{ parts }] }) });
+  // Build message content with images
+  const toMime = d => d.split(';')[0].replace('data:', '');
+  const content = [{ type: 'text', text: prompt }];
+  if (images.score) content.push({ type: 'image_url', image_url: { url: images.score } });
+  if (images.players) content.push({ type: 'image_url', image_url: { url: images.players } });
+  if (images.stats) content.push({ type: 'image_url', image_url: { url: images.stats } });
+
+  const res = await fetch(GROQ_URL, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + key },
+    body: JSON.stringify({ model: 'meta-llama/llama-4-scout-17b-16e-instruct', messages: [{ role: 'user', content }], max_tokens: 1500, temperature: 0.1 })
+  });
   const data = await res.json();
-  if (data.error) throw new Error('Gemini: ' + data.error.message);
-  const raw = (data.candidates?.[0]?.content?.parts?.[0]?.text || '').trim();
+  if (data.error) throw new Error('Groq: ' + data.error.message);
+  const raw = (data.choices?.[0]?.message?.content || '').trim();
   let result;
   try { result = JSON.parse(raw); }
   catch (e) {
