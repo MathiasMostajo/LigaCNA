@@ -936,7 +936,7 @@ function replaceTeam(oldId,newName,newCap){
   saveDB();render();
   toast(`🔄 ${oldTeam.name} reemplazado por ${newName}! Código: ${newCode}`);
 }
-showModal('¿Eliminar equipo?','Se elimina el equipo y sus jugadores.','Eliminar',()=>{const s=S();s.teams=s.teams.filter(t=>t.id!=id);s.players=s.players.filter(p=>p.teamId!=id);saveDB();render();},true);}
+function removeTeam(id){showModal('¿Eliminar equipo?','Se elimina el equipo y sus jugadores.','Eliminar',()=>{const s=S();s.teams=s.teams.filter(t=>t.id!=id);s.players=s.players.filter(p=>p.teamId!=id);saveDB();render();},true);}
 function togglePaid(id){const t=S().teams.find(t=>t.id==id);if(t){t.paid=t.paid==='yes'?'no':'yes';saveDB();render();}}
 
 // ─── PLAYERS ─────────────────────────────────────
