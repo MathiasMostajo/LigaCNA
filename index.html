@@ -1222,7 +1222,7 @@ function getGeminiKey() { return localStorage.getItem('ligacna_gemini_key') || '
 function saveGeminiKey(k) { localStorage.setItem('ligacna_gemini_key', k); }
 function saveGeminiKeyUI() {
   const k = $('geminiKeyInput').value.trim();
-  if (!k.startsWith('AIza')) { toast('⚠️ Key inválida', true); return; }
+  if (!k.startsWith('gsk_')) { toast('⚠️ Key inválida — debe empezar con gsk_', true); return; }
   saveGeminiKey(k); $('geminiKeyInput').value = ''; updateGeminiKeyStatus(); toast('✅ Groq key guardada!');
 }
 function clearGeminiKeyUI() { localStorage.removeItem('ligacna_gemini_key'); updateGeminiKeyStatus(); toast('🗑 Key borrada.'); }
