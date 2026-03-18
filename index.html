@@ -660,6 +660,7 @@ let db = { currentSeasonId: null, seasons: {}, history: { archivedSeasons: [] } 
 let mode = 'public'; // 'public' | 'captain' | 'admin'
 let capTeamCode = null;
 let capScanResult = null;
+let subsCache = {}; // store full submission objects by id to avoid passing base64 through onclick
 let imgData = { score: null, players: null, stats: null };
 let capImgData = { score: null, players: null, stats: null };
 let currentLB = 'goals';
@@ -1251,8 +1252,28 @@ function cdop(e, t) { e.preventDefault(); cdlv(t); const f = e.dataTransfer.file
 function clearCapScan() { capImgData = { score: null, players: null, stats: null }; capScanResult = null; ['score', 'players', 'stats'].forEach(t => { const p = $('cpv-' + t); if (p) { p.style.display = 'none'; p.src = ''; } $('cz-' + t).classList.remove('has-img'); }); $('capScanRes').innerHTML = ''; $('capSubmitWrap').style.display = 'none'; updateCapScanBtn(); }
 
 // ════════════════════════════════════════════════════════
-// AI SCAN (Google Gemini)
 // ════════════════════════════════════════════════════════
+// AI SCAN (Groq)
+// ════════════════════════════════════════════════════════
+
+// Compress image to max 800px and 0.7 quality before sending to API
+async function compressForAI(dataUrl, maxPx = 800) {
+  if (!dataUrl) return null;
+  return new Promise(res => {
+    const img = new Image();
+    img.onload = () => {
+      const ratio = Math.min(maxPx / img.width, maxPx / img.height, 1);
+      const c = document.createElement('canvas');
+      c.width = Math.round(img.width * ratio);
+      c.height = Math.round(img.height * ratio);
+      c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+      res(c.toDataURL('image/jpeg', 0.75));
+    };
+    img.onerror = () => res(dataUrl);
+    img.src = dataUrl;
+  });
+}
+
 async function callAI(images) {
   const s = S();
   const prompt = `You are a JSON-only API. Respond with raw JSON only, no markdown, no backticks, no explanation. Start with { and end with }.
@@ -1269,12 +1290,17 @@ Return: {"score":{"home":"","away":"","homeGoals":0,"awayGoals":0,"time":"90'"},
   const key = getGeminiKey();
   if (!key) { toast('⚠️ Ingresá tu API key en ⚙️ Config', true); throw new Error('Sin API key'); }
 
-  // Build message content with images
-  const toMime = d => d.split(';')[0].replace('data:', '');
+  // Compress all images before sending
+  const [scoreC, playersC, statsC] = await Promise.all([
+    compressForAI(images.score),
+    compressForAI(images.players),
+    compressForAI(images.stats)
+  ]);
+
   const content = [{ type: 'text', text: prompt }];
-  if (images.score) content.push({ type: 'image_url', image_url: { url: images.score } });
-  if (images.players) content.push({ type: 'image_url', image_url: { url: images.players } });
-  if (images.stats) content.push({ type: 'image_url', image_url: { url: images.stats } });
+  if (scoreC) content.push({ type: 'image_url', image_url: { url: scoreC } });
+  if (playersC) content.push({ type: 'image_url', image_url: { url: playersC } });
+  if (statsC) content.push({ type: 'image_url', image_url: { url: statsC } });
 
   const res = await fetch(GROQ_URL, {
     method: 'POST',
@@ -1417,32 +1443,31 @@ async function pollSubmissions() {
 function renderSubs(subs) {
   const el = $('subsList'); if (!el) return;
   if (!subs.length) { el.innerHTML = `<div class="es"><div class="ei">📥</div>Sin submissions.</div>`; return; }
+  // Store in memory cache to avoid passing large base64 through onclick attributes
+  subs.forEach(sub => { subsCache[sub.id] = sub; });
   el.innerHTML = subs.map(sub => {
     const r = sub.scan_result || {}, sc = r.score || {};
     const pl = r.players || [], ur = r.unregisteredPlayers || [];
     const shots = r._screenshots || {};
-    // Find matching fixture to show which scheduled match this is
     const s = S();
     let fixtureHint = '';
     if (sc.home && sc.away) {
       const hT = s.teams.find(t => t.name.toLowerCase().includes((sc.home||'').toLowerCase().substring(0,4)));
       const aT = s.teams.find(t => t.name.toLowerCase().includes((sc.away||'').toLowerCase().substring(0,4)));
       if (hT && aT) {
-        // Find the scheduled fixture (first occurrence between these two teams regardless of order)
         let found = null;
-        s.schedule.forEach(round => { round.fixtures.forEach(fix => { if (!found && !getMatchResult(fix.home, fix.away)) { if ((fix.home==hT.id&&fix.away==aT.id)||(fix.home==aT.id&&fix.away==hT.id)) found = { round: round.round, homeId: fix.home, awayId: fix.away }; } }); });
+        (s.schedule||[]).forEach(round => { round.fixtures.forEach(fix => { if (!found && !getMatchResult(fix.home,fix.away) && ((fix.home==hT.id&&fix.away==aT.id)||(fix.home==aT.id&&fix.away==hT.id))) found = { round: round.round, homeId: fix.home, awayId: fix.away }; }); });
         if (found) fixtureHint = `<div style="font-size:.72rem;color:var(--g);background:rgba(0,255,135,.08);border:1px solid rgba(0,255,135,.2);border-radius:6px;padding:4px 8px;margin-bottom:8px;">📅 Fecha ${found.round}: ${tn(found.homeId)} vs ${tn(found.awayId)}</div>`;
       }
     }
     const screenshotsHtml = (shots.score||shots.players||shots.stats) ? `
       <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin:8px 0;">
-        ${shots.score?`<img src="${shots.score}" style="width:100%;border-radius:6px;border:1px solid var(--b);cursor:pointer;" onclick="this.style.maxWidth=this.style.maxWidth?'':'100vw'">` :''}
-        ${shots.players?`<img src="${shots.players}" style="width:100%;border-radius:6px;border:1px solid var(--b);cursor:pointer;" onclick="this.style.maxWidth=this.style.maxWidth?'':'100vw'">` :''}
-        ${shots.stats?`<img src="${shots.stats}" style="width:100%;border-radius:6px;border:1px solid var(--b);cursor:pointer;" onclick="this.style.maxWidth=this.style.maxWidth?'':'100vw'">` :''}
-      </div>` : '<div style="font-size:.72rem;color:var(--tm);margin-bottom:6px;">Sin capturas adjuntas</div>';
+        ${shots.score?`<img src="${shots.score}" style="width:100%;border-radius:6px;border:1px solid var(--b);cursor:pointer;" onclick="showSubImg('${sub.id}','score')">`:'' }
+        ${shots.players?`<img src="${shots.players}" style="width:100%;border-radius:6px;border:1px solid var(--b);cursor:pointer;" onclick="showSubImg('${sub.id}','players')">`:'' }
+        ${shots.stats?`<img src="${shots.stats}" style="width:100%;border-radius:6px;border:1px solid var(--b);cursor:pointer;" onclick="showSubImg('${sub.id}','stats')">`:'' }
+      </div>` : `<div style="font-size:.72rem;color:var(--tm);margin-bottom:6px;">Sin capturas adjuntas</div>`;
     const urHtml = ur.length ? `<div class="wb" style="margin-bottom:6px;">⚠️ No registrados: <strong>${ur.join(', ')}</strong></div>` : '';
     const playersHtml = pl.length ? `<div class="ar" style="margin-bottom:6px;"><div class="art">Jugadores (${pl.length})</div>${pl.map(p=>`<div class="api"><div style="display:flex;align-items:center;gap:5px;"><span class="pb">${p.pos||'?'}</span><span style="font-weight:600;">${p.name}</span><span class="${p.registered?'rb':'urb'}">${p.registered?'✓ OK':'⚠ NO REG'}</span></div><div style="display:flex;gap:4px;">${p.goals?`<span>⚽${p.goals}</span>`:''}${p.assists?`<span>🎯${p.assists}</span>`:''}${p.rating?`<span style="color:var(--gold);">⭐${p.rating}</span>`:''}</div></div>`).join('')}</div>` : '';
-    const safeR = encodeURIComponent(JSON.stringify(r));
     return `<div class="subc">
       <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:7px;">
         <div>
@@ -1450,55 +1475,57 @@ function renderSubs(subs) {
           <div style="font-size:.7rem;color:var(--tm);">${new Date(sub.created_at).toLocaleString()}</div>
         </div>
         <div style="display:flex;gap:5px;">
-          <button class="btn bp" style="font-size:.74rem;padding:4px 9px;" onclick="approveSub('${sub.id}','${safeR}')">✅ Aprobar</button>
+          <button class="btn bp" style="font-size:.74rem;padding:4px 9px;" onclick="approveSub('${sub.id}')">✅ Aprobar</button>
           <button class="btn bd" style="font-size:.74rem;padding:4px 9px;" onclick="rejectSub('${sub.id}')">✕ Rechazar</button>
         </div>
       </div>
       ${fixtureHint}
-      ${sc.home ? `<div style="font-family:'Bebas Neue',sans-serif;font-size:1.25rem;color:var(--g);margin-bottom:6px;">${sc.home} ${sc.homeGoals??'?'} — ${sc.awayGoals??'?'} ${sc.away}</div>` : ''}
-      ${screenshotsHtml}
-      ${urHtml}
-      ${playersHtml}
+      ${sc.home?`<div style="font-family:'Bebas Neue',sans-serif;font-size:1.25rem;color:var(--g);margin-bottom:6px;">${sc.home} ${sc.homeGoals??'?'} — ${sc.awayGoals??'?'} ${sc.away}</div>`:''}
+      ${screenshotsHtml}${urHtml}${playersHtml}
     </div>`;
   }).join('');
 }
 
-async function approveSub(subId, encodedResult) {
+function showSubImg(subId, type) {
+  const sub = subsCache[subId]; if (!sub) return;
+  const src = sub.scan_result?._screenshots?.[type]; if (!src) return;
+  $('mttl').textContent = '📸 Captura';
+  $('mbdy').innerHTML = `<img src="${src}" style="width:100%;border-radius:8px;margin-top:8px;">`;
+  window._modalConfirm = () => {};
+  $('mbtns').innerHTML = `<button class="btn bp" onclick="closeModal()" style="font-size:.8rem;padding:6px 12px;">Cerrar</button>`;
+  $('modal').classList.add('open');
+}
+
+async function approveSub(subId) {
+  const sub = subsCache[subId];
+  if (!sub) { toast('⚠️ Recargá la página e intentá de nuevo', true); return; }
   try {
-    const r = JSON.parse(decodeURIComponent(encodedResult));
-    const sc = r.score || {};
+    const r = sub.scan_result || {}, sc = r.score || {};
     const s = S();
-    // Find the teams
     const hT = s.teams.find(t => t.name.toLowerCase().includes((sc.home||'').toLowerCase().substring(0,4)));
     const aT = s.teams.find(t => t.name.toLowerCase().includes((sc.away||'').toLowerCase().substring(0,4)));
-    if (!hT || !aT) { toast('⚠️ No se encontraron los equipos — revisá manualmente', true); prefill(r); goTab('results'); await supa.from('submissions').update({ status: 'approved' }).eq('id', subId); pollSubmissions(); return; }
-    // Find the scheduled fixture (correct home/away order regardless of what captain sent)
+    if (!hT || !aT) { toast('⚠️ No se encontraron los equipos — cargá manualmente', true); prefill(r); goTab('results'); await supa.from('submissions').update({ status: 'approved' }).eq('id', subId); pollSubmissions(); return; }
+    // Find correct fixture order
     let fixtureHomeId = hT.id, fixtureAwayId = aT.id;
-    let foundFixture = false;
-    for (const round of s.schedule || []) {
+    let swapped = false;
+    for (const round of s.schedule||[]) {
       for (const fix of round.fixtures) {
-        if ((fix.home == hT.id && fix.away == aT.id) || (fix.home == aT.id && fix.away == hT.id)) {
-          fixtureHomeId = fix.home; fixtureAwayId = fix.away; foundFixture = true; break;
+        if ((fix.home==hT.id&&fix.away==aT.id)||(fix.home==aT.id&&fix.away==hT.id)) {
+          fixtureHomeId = fix.home; fixtureAwayId = fix.away;
+          swapped = (fix.home == aT.id); break;
         }
       }
-      if (foundFixture) break;
     }
-    // Determine goals in correct fixture order
-    // If AI detected home=hT, away=aT but fixture is aT at home, swap goals
-    let homeGoals = sc.homeGoals ?? 0, awayGoals = sc.awayGoals ?? 0;
-    if (foundFixture && fixtureHomeId == aT.id) {
-      // Fixture has aT as home, hT as away — swap
-      [homeGoals, awayGoals] = [awayGoals, homeGoals];
-    }
-    // Build player stats
+    let homeGoals = sc.homeGoals??0, awayGoals = sc.awayGoals??0;
+    if (swapped) { [homeGoals, awayGoals] = [awayGoals, homeGoals]; }
     const ps = {};
-    (r.players || []).forEach(rp => {
+    (r.players||[]).forEach(rp => {
       const p = s.players.find(sp => sp.name.toLowerCase() === rp.name.toLowerCase()); if (!p) return;
-      if (rp.goals || rp.assists || rp.rating) ps[p.id] = { goals: rp.goals||0, assists: rp.assists||0, rating: rp.rating||0, played: true, cs: false };
+      if (rp.goals||rp.assists||rp.rating) ps[p.id] = { goals: rp.goals||0, assists: rp.assists||0, rating: rp.rating||0, played: true, cs: false };
     });
     _saveResult(fixtureHomeId, fixtureAwayId, homeGoals, awayGoals, ps, null);
     await supa.from('submissions').update({ status: 'approved' }).eq('id', subId);
-    toast('✅ Resultado guardado correctamente!'); pollSubmissions();
+    toast('✅ Resultado guardado!'); pollSubmissions();
   } catch (e) { toast('⚠️ Error: ' + e.message, true); }
 }
 async function rejectSub(subId) {
