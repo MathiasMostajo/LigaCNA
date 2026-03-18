@@ -1333,10 +1333,27 @@ function renderCapResult(r) {
 
 async function submitCapResult() {
   if (!capScanResult || !capTeamCode) { toast('⚠️ Escaneá primero', true); return; }
+  // Validate: captain can only submit matches involving their team
+  const s = S();
+  const myTeam = s.teams.find(t => t.code === capTeamCode);
+  if (myTeam) {
+    const sc = capScanResult.score || {};
+    const homeMatch = (sc.home || '').toLowerCase();
+    const awayMatch = (sc.away || '').toLowerCase();
+    const myName = myTeam.name.toLowerCase();
+    // Check if team name appears in either home or away
+    const teamInMatch = homeMatch.includes(myName.substring(0,4)) || awayMatch.includes(myName.substring(0,4)) ||
+      s.teams.some(t => (t.code === capTeamCode) && (homeMatch.includes(t.name.toLowerCase().substring(0,4)) || awayMatch.includes(t.name.toLowerCase().substring(0,4))));
+    if (!teamInMatch) {
+      toast('⚠️ Solo podés enviar partidos de tu equipo', true); return;
+    }
+  }
   const btn = document.querySelector('#capSubmitWrap button'); btn.disabled = true; btn.textContent = 'Enviando...';
   try {
-    const teamName = Object.values(db.seasons).flatMap(s => s.teams).find(t => t.code === capTeamCode)?.name || capTeamCode;
-    const { error } = await supa.from('submissions').insert({ team_code: capTeamCode, team_name: teamName, scan_result: capScanResult, status: 'pending' });
+    const teamName = myTeam?.name || capTeamCode;
+    // Save screenshots alongside scan result
+    const payload = { ...capScanResult, _screenshots: { score: capImgData.score, players: capImgData.players, stats: capImgData.stats } };
+    const { error } = await supa.from('submissions').insert({ team_code: capTeamCode, team_name: teamName, scan_result: payload, status: 'pending' });
     if (error) throw error;
     $('capScanRes').innerHTML = `<div class="card" style="text-align:center;padding:22px;"><div style="font-size:1.8rem;margin-bottom:7px;">✅</div><div style="font-family:'Bebas Neue',sans-serif;font-size:1.3rem;color:var(--g);">¡Enviado!</div><div style="font-size:.8rem;color:var(--tm);margin-top:5px;">Tu DT va a revisar y confirmar.</div></div>`;
     $('capSubmitWrap').style.display = 'none'; clearCapScan(); toast('📤 Resultado enviado!');
@@ -1388,13 +1405,57 @@ function renderSubs(subs) {
   if (!subs.length) { el.innerHTML = `<div class="es"><div class="ei">📥</div>Sin submissions.</div>`; return; }
   el.innerHTML = subs.map(sub => {
     const r = sub.scan_result || {}, sc = r.score || {};
-    return `<div class="subc"><div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:7px;"><div><div style="font-family:'Bebas Neue',sans-serif;font-size:1.05rem;color:var(--g);">⚽ ${sub.team_name || sub.team_code}</div><div style="font-size:.7rem;color:var(--tm);">${new Date(sub.created_at).toLocaleString()}</div></div><div style="display:flex;gap:5px;"><button class="btn bp" style="font-size:.74rem;padding:4px 9px;" onclick="approveSub('${sub.id}',${JSON.stringify(r).replace(/"/g, '&quot;')})">✅ Aprobar</button><button class="btn bd" onclick="rejectSub('${sub.id}')">✕</button></div></div>${sc.home ? `<div style="font-family:'Bebas Neue',sans-serif;font-size:1.25rem;color:var(--g);">${sc.home} ${sc.homeGoals ?? '?'} — ${sc.awayGoals ?? '?'} ${sc.away}</div>` : ''}</div>`;
+    const pl = r.players || [], ur = r.unregisteredPlayers || [];
+    const shots = r._screenshots || {};
+    // Find matching fixture to show which scheduled match this is
+    const s = S();
+    let fixtureHint = '';
+    if (sc.home && sc.away) {
+      const hT = s.teams.find(t => t.name.toLowerCase().includes((sc.home||'').toLowerCase().substring(0,4)));
+      const aT = s.teams.find(t => t.name.toLowerCase().includes((sc.away||'').toLowerCase().substring(0,4)));
+      if (hT && aT) {
+        // Find the scheduled fixture (first occurrence between these two teams regardless of order)
+        let found = null;
+        s.schedule.forEach(round => { round.fixtures.forEach(fix => { if (!found && !getMatchResult(fix.home, fix.away)) { if ((fix.home==hT.id&&fix.away==aT.id)||(fix.home==aT.id&&fix.away==hT.id)) found = { round: round.round, homeId: fix.home, awayId: fix.away }; } }); });
+        if (found) fixtureHint = `<div style="font-size:.72rem;color:var(--g);background:rgba(0,255,135,.08);border:1px solid rgba(0,255,135,.2);border-radius:6px;padding:4px 8px;margin-bottom:8px;">📅 Fecha ${found.round}: ${tn(found.homeId)} vs ${tn(found.awayId)}</div>`;
+      }
+    }
+    const screenshotsHtml = (shots.score||shots.players||shots.stats) ? `
+      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin:8px 0;">
+        ${shots.score?`<img src="${shots.score}" style="width:100%;border-radius:6px;border:1px solid var(--b);cursor:pointer;" onclick="this.style.maxWidth=this.style.maxWidth?'':'100vw'">` :''}
+        ${shots.players?`<img src="${shots.players}" style="width:100%;border-radius:6px;border:1px solid var(--b);cursor:pointer;" onclick="this.style.maxWidth=this.style.maxWidth?'':'100vw'">` :''}
+        ${shots.stats?`<img src="${shots.stats}" style="width:100%;border-radius:6px;border:1px solid var(--b);cursor:pointer;" onclick="this.style.maxWidth=this.style.maxWidth?'':'100vw'">` :''}
+      </div>` : '<div style="font-size:.72rem;color:var(--tm);margin-bottom:6px;">Sin capturas adjuntas</div>';
+    const urHtml = ur.length ? `<div class="wb" style="margin-bottom:6px;">⚠️ No registrados: <strong>${ur.join(', ')}</strong></div>` : '';
+    const playersHtml = pl.length ? `<div class="ar" style="margin-bottom:6px;"><div class="art">Jugadores (${pl.length})</div>${pl.map(p=>`<div class="api"><div style="display:flex;align-items:center;gap:5px;"><span class="pb">${p.pos||'?'}</span><span style="font-weight:600;">${p.name}</span><span class="${p.registered?'rb':'urb'}">${p.registered?'✓ OK':'⚠ NO REG'}</span></div><div style="display:flex;gap:4px;">${p.goals?`<span>⚽${p.goals}</span>`:''}${p.assists?`<span>🎯${p.assists}</span>`:''}${p.rating?`<span style="color:var(--gold);">⭐${p.rating}</span>`:''}</div></div>`).join('')}</div>` : '';
+    const safeR = encodeURIComponent(JSON.stringify(r));
+    return `<div class="subc">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:7px;">
+        <div>
+          <div style="font-family:'Bebas Neue',sans-serif;font-size:1.05rem;color:var(--g);">⚽ ${sub.team_name||sub.team_code}</div>
+          <div style="font-size:.7rem;color:var(--tm);">${new Date(sub.created_at).toLocaleString()}</div>
+        </div>
+        <div style="display:flex;gap:5px;">
+          <button class="btn bp" style="font-size:.74rem;padding:4px 9px;" onclick="approveSub('${sub.id}','${safeR}')">✅ Aprobar</button>
+          <button class="btn bd" style="font-size:.74rem;padding:4px 9px;" onclick="rejectSub('${sub.id}')">✕ Rechazar</button>
+        </div>
+      </div>
+      ${fixtureHint}
+      ${sc.home ? `<div style="font-family:'Bebas Neue',sans-serif;font-size:1.25rem;color:var(--g);margin-bottom:6px;">${sc.home} ${sc.homeGoals??'?'} — ${sc.awayGoals??'?'} ${sc.away}</div>` : ''}
+      ${screenshotsHtml}
+      ${urHtml}
+      ${playersHtml}
+    </div>`;
   }).join('');
 }
 
-async function approveSub(subId, scanResult) {
-  try { prefill(scanResult); await supa.from('submissions').update({ status: 'approved' }).eq('id', subId); toast('✅ Aprobado!'); pollSubmissions(); }
-  catch (e) { toast('⚠️ Error: ' + e.message, true); }
+async function approveSub(subId, encodedResult) {
+  try {
+    const scanResult = JSON.parse(decodeURIComponent(encodedResult));
+    prefill(scanResult);
+    await supa.from('submissions').update({ status: 'approved' }).eq('id', subId);
+    toast('✅ Aprobado! Revisá y guardá en Resultados.'); pollSubmissions();
+  } catch (e) { toast('⚠️ Error: ' + e.message, true); }
 }
 async function rejectSub(subId) {
   showModal('¿Rechazar?', 'El capitán tendrá que reenviar.', 'Rechazar', async () => { await supa.from('submissions').update({ status: 'rejected' }).eq('id', subId); toast('🗑 Rechazado.'); pollSubmissions(); }, true);
