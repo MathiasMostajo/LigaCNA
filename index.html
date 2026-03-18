@@ -1794,13 +1794,17 @@ function viewTeamProfile(teamId) {
         const theirGoals = isHome ? m.awayGoals : m.homeGoals;
         const res = myGoals > theirGoals ? 'V' : myGoals < theirGoals ? 'D' : 'E';
         const rc = res === 'V' ? 'var(--g)' : res === 'D' ? 'var(--red)' : 'var(--gold)';
-        return `<div style="display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid var(--b);">
+        const clickAction = mode === 'admin' ? `onclick="editMatch('${m.id}')"` : '';
+        const cursor = mode === 'admin' ? 'cursor:pointer;' : '';
+        const editHint = mode === 'admin' ? `<span style="font-size:.62rem;color:var(--tm);">✏️</span>` : '';
+        return `<div style="display:flex;align-items:center;gap:8px;padding:7px 0;border-bottom:1px solid var(--b);${cursor}border-radius:6px;transition:background .15s;" ${clickAction} onmouseover="if(this.style.cursor==='pointer')this.style.background='var(--s2)'" onmouseout="this.style.background=''">
           <span style="font-family:'Bebas Neue',sans-serif;font-size:.9rem;color:${rc};min-width:16px;">${res}</span>
           <span style="font-size:.76rem;color:var(--tm);">${isHome?'🏠':'✈️'}</span>
           ${getShield(oppId,'sm')}
           <span style="font-weight:600;font-size:.84rem;flex:1;">${oppName}</span>
           <span style="font-family:'Bebas Neue',sans-serif;font-size:1.1rem;color:${rc};">${myGoals}–${theirGoals}</span>
           <span style="font-size:.66rem;color:var(--tm);">${m.date||''}</span>
+          ${editHint}
         </div>`;
       }).join('') : `<div class="es" style="padding:14px;"><div class="ei">🎮</div>Sin partidos.</div>`}
     </div>
