@@ -1797,9 +1797,9 @@ function viewTeamProfile(teamId) {
         const clickAction = mode === 'admin' ? `onclick="editMatch('${m.id}')"` : '';
         const cursor = mode === 'admin' ? 'cursor:pointer;' : '';
         const editHint = mode === 'admin' ? `<span style="font-size:.62rem;color:var(--tm);">✏️</span>` : '';
-        return `<div style="display:flex;align-items:center;gap:8px;padding:7px 0;border-bottom:1px solid var(--b);${cursor}border-radius:6px;transition:background .15s;" ${clickAction} onmouseover="if(this.style.cursor==='pointer')this.style.background='var(--s2)'" onmouseout="this.style.background=''">
+        return `<div style="display:flex;align-items:center;gap:8px;padding:7px 0;border-bottom:1px solid var(--b);${cursor}border-radius:6px;" ${clickAction}>
           <span style="font-family:'Bebas Neue',sans-serif;font-size:.9rem;color:${rc};min-width:16px;">${res}</span>
-          <span style="font-size:.76rem;color:var(--tm);">${isHome?'🏠':'✈️'}</span>
+          <span style="font-size:.76rem;color:var(--tm);">${isHome?'\uD83C\uDFE0':'\u2708\uFE0F'}</span>
           ${getShield(oppId,'sm')}
           <span style="font-weight:600;font-size:.84rem;flex:1;">${oppName}</span>
           <span style="font-family:'Bebas Neue',sans-serif;font-size:1.1rem;color:${rc};">${myGoals}–${theirGoals}</span>
