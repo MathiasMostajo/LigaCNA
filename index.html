@@ -3,6 +3,11 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1.0">
+<meta name="theme-color" content="#0a0e0a">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Liga CNA">
+<link rel="manifest" href="manifest.json">
 <title>Liga CNA</title>
 <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Barlow:wght@400;600;700&family=Barlow+Condensed:wght@600;700;800&display=swap" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
@@ -356,6 +361,11 @@ select option{background:var(--s2);}
   <div id="teamProfileContent"></div>
 </div>
 
+<!-- ════ TAB: PLAYER PROFILE ════ -->
+<div class="sec" id="tab-playerprofile">
+  <div id="playerProfileContent"></div>
+</div>
+
 <!-- ════ TAB: LEADERS (public) ════ -->
 <div class="sec" id="tab-leaders">
   <div class="card">
@@ -650,7 +660,7 @@ select option{background:var(--s2);}
 // CONFIG
 // ════════════════════════════════════════════════════════
 const SB_URL = 'https://wrgexwyjivfxijivdbqa.supabase.co';
-const SB_KEY = 'sb_publishable_O9stoyN7Yx2hZn-bxP6yxA_fMa7B6ad';
+const SB_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6IndyZ2V4d3lqaXZmeGlqaXZkYnFhIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzM1NDI2NTgsImV4cCI6MjA4OTExODY1OH0.KGBX0-PQGiwrAHrWrZ1TS_rbHtDbQwNA0F2NRhlT830';
 const DB_KEY = 'ligacna_main';
 const PWD_KEY = 'ligacna_pwd';
 const DEFAULT_PWD = 'LigaCNA2024';
@@ -1780,6 +1790,96 @@ function deleteMatch(matchId) {
 }
 
 // ════ TEAM PROFILE ════
+function viewPlayerProfile(playerId) {
+  const s = S(), p = s.players.find(pl => pl.id === playerId); if (!p) return;
+  const team = s.teams.find(t => t.id === p.teamId);
+  const ar = p.rating.length ? avg(p.rating).toFixed(1) : '—';
+  // Matches where this player has stats
+  const matchesPlayed = s.matches.filter(m => m.playerStats?.[playerId]);
+  // Goal history per match
+  const recentMatches = [...matchesPlayed].reverse().slice(0, 10);
+  const el = $('playerProfileContent');
+  el.innerHTML = `
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:16px;">
+      <button class="btn bg" onclick="history.go(-1);goTab(document._prevTab||'leaders')" style="font-size:.76rem;padding:5px 10px;">← Volver</button>
+      <div style="font-family:'Bebas Neue',sans-serif;font-size:1.8rem;color:var(--g);">${p.name}</div>
+    </div>
+
+    <!-- Header card -->
+    <div class="card" style="display:flex;align-items:center;gap:16px;flex-wrap:wrap;">
+      ${getShield(p.teamId, 'lg')}
+      <div>
+        <div style="font-size:.76rem;color:var(--tm);margin-bottom:4px;">
+          <span class="pb">${p.pos || '—'}</span>
+          <span style="cursor:pointer;color:var(--g);margin-left:6px;" onclick="viewTeamProfile('${p.teamId}')">${team?.name || '—'}</span>
+        </div>
+        <div style="font-size:.72rem;color:var(--tm);">🔑 ${team?.code || '—'}</div>
+      </div>
+      <div style="flex:1;display:grid;grid-template-columns:repeat(4,1fr);gap:7px;min-width:240px;">
+        <div class="ss"><div class="v">${p.goals}</div><div class="l">Goles</div></div>
+        <div class="ss"><div class="v">${p.assists}</div><div class="l">Asist.</div></div>
+        <div class="ss"><div class="v">${ar}</div><div class="l">Nota</div></div>
+        <div class="ss"><div class="v">${p.matchesPlayed}</div><div class="l">PJ</div></div>
+      </div>
+    </div>
+
+    <!-- Stats breakdown -->
+    <div class="card">
+      <div class="ct">📊 Estadísticas Detalladas</div>
+      <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:10px;">
+        <div>
+          <div style="font-size:.7rem;color:var(--tm);margin-bottom:4px;font-family:'Barlow Condensed',sans-serif;letter-spacing:1px;text-transform:uppercase;">Promedio por partido</div>
+          ${p.matchesPlayed > 0 ? `
+            <div style="font-size:.84rem;padding:4px 0;border-bottom:1px solid var(--b);">⚽ Goles: <b style="color:var(--g);">${(p.goals/p.matchesPlayed).toFixed(2)}</b></div>
+            <div style="font-size:.84rem;padding:4px 0;border-bottom:1px solid var(--b);">🎯 Asist.: <b style="color:var(--g);">${(p.assists/p.matchesPlayed).toFixed(2)}</b></div>
+            <div style="font-size:.84rem;padding:4px 0;">🧤 Vallas a 0: <b style="color:var(--g);">${p.cs}</b></div>
+          ` : '<div style="color:var(--tm);font-size:.8rem;">Sin partidos</div>'}
+        </div>
+        <div>
+          <div style="font-size:.7rem;color:var(--tm);margin-bottom:4px;font-family:\'Barlow Condensed\',sans-serif;letter-spacing:1px;text-transform:uppercase;">Notas</div>
+          ${p.rating.length ? `
+            <div style="font-size:.84rem;padding:4px 0;border-bottom:1px solid var(--b);">⭐ Promedio: <b style="color:var(--gold);">${ar}</b></div>
+            <div style="font-size:.84rem;padding:4px 0;border-bottom:1px solid var(--b);">📈 Mejor: <b style="color:var(--gold);">${Math.max(...p.rating).toFixed(1)}</b></div>
+            <div style="font-size:.84rem;padding:4px 0;">📉 Peor: <b style="color:var(--tm);">${Math.min(...p.rating).toFixed(1)}</b></div>
+          ` : '<div style="color:var(--tm);font-size:.8rem;">Sin notas</div>'}
+        </div>
+      </div>
+    </div>
+
+    <!-- Recent matches -->
+    <div class="card">
+      <div class="ct">🕹 Últimos Partidos (${recentMatches.length})</div>
+      ${recentMatches.length ? recentMatches.map(m => {
+        const st = m.playerStats[playerId] || {};
+        const isHome = m.homeId === p.teamId;
+        const oppId = isHome ? m.awayId : m.homeId;
+        const oppName = isHome ? (m.awayDisplayName || tn(m.awayId)) : (m.homeDisplayName || tn(m.homeId));
+        const myGoals = isHome ? m.homeGoals : m.awayGoals;
+        const theirGoals = isHome ? m.awayGoals : m.homeGoals;
+        const res = myGoals > theirGoals ? 'V' : myGoals < theirGoals ? 'D' : 'E';
+        const rc = res === 'V' ? 'var(--g)' : res === 'D' ? 'var(--red)' : 'var(--gold)';
+        return `<div style="display:flex;align-items:center;gap:8px;padding:7px 0;border-bottom:1px solid var(--b);">
+          <span style="font-family:'Bebas Neue',sans-serif;font-size:.9rem;color:${rc};min-width:16px;">${res}</span>
+          <span style="font-size:.76rem;color:var(--tm);">${isHome ? '🏠' : '✈️'}</span>
+          ${getShield(oppId, 'sm')}
+          <span style="font-weight:600;font-size:.84rem;flex:1;cursor:pointer;" onclick="viewTeamProfile('${oppId}')">${oppName}</span>
+          <span style="font-family:'Bebas Neue',sans-serif;font-size:1rem;color:${rc};">${myGoals}–${theirGoals}</span>
+          <div style="display:flex;gap:6px;font-size:.76rem;">
+            ${st.goals ? `<span>⚽${st.goals}</span>` : ''}
+            ${st.assists ? `<span>🎯${st.assists}</span>` : ''}
+            ${st.rating ? `<span style="color:var(--gold);">⭐${st.rating}</span>` : ''}
+            ${st.cs ? `<span>🧤</span>` : ''}
+          </div>
+          <span style="font-size:.66rem;color:var(--tm);">${m.date || ''}</span>
+        </div>`;
+      }).join('') : `<div class="es" style="padding:14px;"><div class="ei">🎮</div>Sin partidos.</div>`}
+    </div>`;
+
+  document._prevTab = document._currentTab || 'leaders';
+  document._currentTab = 'playerprofile';
+  goTab('playerprofile');
+}
+
 function viewTeamProfile(teamId) {
   const s = S(), team = s.teams.find(t => t.id === teamId); if (!team) return;
   const players = s.players.filter(p => p.teamId === teamId);
@@ -1882,7 +1982,7 @@ function renderLB(type) {
   if (!top.length) { el.innerHTML = `<div class="es"><div class="ei">📊</div>Sin datos.</div>`; return; }
   el.innerHTML = top.map((p, i) => {
     const val = type === 'goals' ? p.goals : type === 'assists' ? p.assists : type === 'rating' ? avg(p.rating).toFixed(1) : p.cs;
-    return `<div class="lbr"><div class="lbrk" style="color:${['var(--gold)', 'var(--silver)', 'var(--bronze)'][i] || 'var(--tm)'}">${['🥇', '🥈', '🥉'][i] || i + 1}</div>${getShield(p.teamId, 'sm')}<div><div style="font-weight:600;">${p.name}</div><div class="lbt2" style="cursor:pointer;" onclick="viewTeamProfile('${p.teamId}')">${tn(p.teamId)} · <span class="pb" style="display:inline;">${p.pos || '—'}</span></div></div><div class="lbv">${val}</div></div>`;
+    return `<div class="lbr"><div class="lbrk" style="color:${['var(--gold)', 'var(--silver)', 'var(--bronze)'][i] || 'var(--tm)'}">${['🥇', '🥈', '🥉'][i] || i + 1}</div>${getShield(p.teamId, 'sm')}<div style="cursor:pointer;" onclick="viewPlayerProfile('${p.id}')"><div style="font-weight:600;color:var(--g);text-decoration:underline dotted;">${p.name}</div><div class="lbt2" style="cursor:pointer;" onclick="event.stopPropagation();viewTeamProfile('${p.teamId}')">${tn(p.teamId)} · <span class="pb" style="display:inline;">${p.pos || '—'}</span></div></div><div class="lbv">${val}</div></div>`;
   }).join('');
 }
 
