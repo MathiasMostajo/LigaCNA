@@ -419,10 +419,10 @@ select option{background:var(--s2);}
           <img class="imp" id="cpv-score" style="display:none">
         </div>
       </div>
-      <div><label style="margin-bottom:5px;display:block;">📸 Jugadores</label>
+      <div><label style="margin-bottom:5px;display:block;">📸 IDs de jugadores</label>
         <div class="adz" id="cz-players" ondragover="cdov(event,'players')" ondragleave="cdlv('players')" ondrop="cdop(event,'players')">
           <input type="file" accept="image/*" onchange="chf(event,'players')">
-          <div class="di">👥</div><div class="dl">Lista Jugadores</div><div class="ds">Tocá o arrastrá</div>
+          <div class="di">👥</div><div class="dl">IDs de jugadores</div><div class="ds">Tocá o arrastrá</div>
           <img class="imp" id="cpv-players" style="display:none">
         </div>
       </div>
@@ -495,10 +495,10 @@ select option{background:var(--s2);}
           <img class="imp" id="pv-score" style="display:none">
         </div>
       </div>
-      <div><label style="margin-bottom:5px;display:block;">📸 Jugadores</label>
+      <div><label style="margin-bottom:5px;display:block;">📸 IDs de jugadores</label>
         <div class="adz" id="z-players" ondragover="dov(event,'players')" ondragleave="dlv('players')" ondrop="dop(event,'players')">
           <input type="file" accept="image/*" onchange="hf(event,'players')">
-          <div class="di">👥</div><div class="dl">Lista Jugadores</div><div class="ds">Tocá o arrastrá</div>
+          <div class="di">👥</div><div class="dl">IDs de jugadores</div><div class="ds">Tocá o arrastrá</div>
           <img class="imp" id="pv-players" style="display:none">
         </div>
       </div>
@@ -1265,16 +1265,29 @@ async function callAI(images) {
   const s = S();
   const prompt = `You are a JSON-only API. Respond with raw JSON only, no markdown, no backticks, no explanation. Start with { and end with }.
 
-Analyze these FC26 Pro Clubs match screenshots. FC26 UI is SPANISH or ENGLISH.
-Spanish: Goles=Goals, Asist.=Assists, CR=Rating, PO/GLB=GK, DFC/DCI/DD/DI=DEF, MCO/MC/MDI/MDD/tD/MOD/MOI=MID, DC/EXT=FWD
-Scoreboard: "TEAM A X - Y TEAM B". Stats table: POS|Nombre|CR|G|AST
+You will receive up to 3 FC26 Pro Clubs screenshots:
+1. SCOREBOARD — shows team names and final score
+2. IDs SCREEN — shows the list of real player gamertags/IDs for both teams (JUGADORES/AS screen). This is the ONLY source of truth for who actually played.
+3. STATS SCREEN — shows individual stats: POS, Nombre, CR (rating), G (goals), AST (assists). NOTE: FIFA adds CPU bots to fill empty slots — these bots appear in the STATS SCREEN but NOT in the IDs SCREEN.
 
-REGISTERED PLAYERS: [${s.players.map(p => p.name).join(',') || 'none'}]
+RULES (strictly follow in this order):
+1. Extract score from SCOREBOARD.
+2. Extract the player ID list from the IDs SCREEN for each team. These are the REAL players.
+3. Extract stats from STATS SCREEN.
+4. For each player in STATS: check if their name fuzzy-matches (ignore case, spaces, special chars, numbers substituting letters like 0=O, 1=I/L) any player in the IDs SCREEN.
+   - If NO match in IDs SCREEN → this is a FIFA BOT. COMPLETELY IGNORE. Do not include in players or unregisteredPlayers.
+   - If YES match in IDs SCREEN → this is a real player. Include their stats.
+5. For each real player (matched in IDs SCREEN), check if they fuzzy-match any name in REGISTERED PLAYERS below.
+   - If YES match → registered=true, use the registered name.
+   - If NO match → registered=false, add to unregisteredPlayers list.
+
+REGISTERED PLAYERS (league database): [${s.players.map(p => p.name).join(',') || 'none'}]
 REGISTERED TEAMS: [${s.teams.map(t => t.name).join(',') || 'none'}]
 
-Match each player name from the screenshots against REGISTERED PLAYERS using fuzzy matching (ignore case, spaces, special chars). If a player from the screenshots does NOT match any registered player, add them to unregisteredPlayers.
+Spanish UI terms: Goles=Goals, Asist.=Assists, CR=Rating, PO/GLB=GK, DFC/DCI/DD/DI=DEF, MCO/MC/MDI/MDD/tD/MOD/MOI=MID, DC/EXT=FWD
 
-Return: {"score":{"home":"","away":"","homeGoals":0,"awayGoals":0,"time":"90'"},"players":[{"name":"","team":"home","goals":0,"assists":0,"rating":0,"pos":"MID","registered":true}],"unregisteredPlayers":[],"notes":""}`;
+Return this exact JSON:
+{"score":{"home":"","away":"","homeGoals":0,"awayGoals":0},"players":[{"name":"","team":"home","goals":0,"assists":0,"rating":0,"pos":"MID","registered":true}],"unregisteredPlayers":[],"notes":""}`;
 
   const key = getGeminiKey();
   if (!key) { toast('⚠️ Ingresá tu Claude API key en ⚙️ Config', true); throw new Error('Sin API key'); }
