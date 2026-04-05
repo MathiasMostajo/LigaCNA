@@ -1126,30 +1126,37 @@ function genSchedule() {
   const s = S();
   if (s.teams.length < 2) { toast('⚠️ Necesitás al menos 2 equipos', true); return; }
   const doGen = () => {
-    // Shuffle teams so home/away distribution is varied
-    let teams = [...s.teams.map(t => t.id)];
-    for (let i = teams.length - 1; i > 0; i--) {
+    // Shuffle teams randomly
+    let ids = [...s.teams.map(t => t.id)];
+    for (let i = ids.length - 1; i > 0; i--) {
       const j = Math.floor(Math.random() * (i + 1));
-      [teams[i], teams[j]] = [teams[j], teams[i]];
+      [ids[i], ids[j]] = [ids[j], ids[i]];
     }
-    if (teams.length % 2) teams.push(null);
-    const n = teams.length, leg1 = [];
+    if (ids.length % 2) ids.push(null);
+    const n = ids.length;
+    let teams = [...ids];
+    const leg1 = [];
     for (let r = 0; r < n - 1; r++) {
-      const round = { round: r + 1, fixtures: [] };
+      const fixtures = [];
       for (let i = 0; i < n / 2; i++) {
         const h = teams[i], a = teams[n - 1 - i];
-        if (h && a) round.fixtures.push({ home: h, away: a });
+        if (h !== null && a !== null) fixtures.push({ home: h, away: a });
       }
-      leg1.push(round);
+      leg1.push(fixtures);
       const last = teams[n - 1];
       teams = [teams[0], last, ...teams.slice(1, n - 1)];
     }
-    // Leg 2: same matchups, home/away inverted
-    const leg2 = leg1.map((r, i) => ({
-      round: leg1.length + i + 1,
-      fixtures: r.fixtures.map(f => ({ home: f.away, away: f.home }))
-    }));
-    s.schedule = [...leg1, ...leg2];
+    // Leg 2: same matchups with home/away inverted
+    const leg2 = leg1.map(r => r.map(f => ({ home: f.away, away: f.home })));
+    // Interleave leg1 and leg2 paired by same index
+    // This guarantees max 2 consecutive home or away per team
+    const schedule = [];
+    let rnum = 1;
+    for (let i = 0; i < leg1.length; i++) {
+      schedule.push({ round: rnum++, fixtures: leg1[i] });
+      schedule.push({ round: rnum++, fixtures: leg2[i] });
+    }
+    s.schedule = schedule;
     saveDB(); renderSchedule();
     toast(`📅 ${s.schedule.reduce((x, r) => x + r.fixtures.length, 0)} partidos en ${s.schedule.length} fechas!`);
   };
@@ -2063,7 +2070,7 @@ function renderSchedule() {
   ${s.schedule.map((round, ri) => {
     const rp = round.fixtures.filter(f => getMatchResult(f.home, f.away)).length, rt = round.fixtures.length;
     const st = rp === rt ? 'done' : rp > 0 ? 'partial' : 'pending';
-    const leg = ri === 0 ? `<div style="font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:.76rem;letter-spacing:2px;text-transform:uppercase;color:var(--g);padding:4px 0 8px;border-bottom:1px solid var(--b);margin-bottom:7px;">🏠 IDA — PRIMERA VUELTA</div>` : ri === half ? `<div style="font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:.76rem;letter-spacing:2px;text-transform:uppercase;color:var(--or);padding:4px 0 8px;border-bottom:1px solid var(--b);margin-bottom:7px;">✈️ VUELTA — SEGUNDA VUELTA</div>` : '';
+    const leg = '';
     return `${leg}<div class="rc"><div class="rh" onclick="toggleRound(${ri})"><div class="rhl"><span class="rnum">Fecha ${round.round}</span><span class="rlbl">${rp}/${rt}</span></div><div style="display:flex;align-items:center;gap:5px;"><span class="rst ${st}">${st === 'done' ? 'Listo' : st === 'partial' ? 'En curso' : 'Pendiente'}</span><span id="chev-${ri}" style="color:var(--tm);transition:transform .2s;">▼</span></div></div><div class="rb2" id="rb-${ri}">${round.fixtures.map(fix => { const res = getMatchResult(fix.home, fix.away); const wh = res && res.homeGoals > res.awayGoals, wa = res && res.awayGoals > res.homeGoals; return `<div class="fix"><div class="fh" style="color:${wh ? 'var(--g)' : ''};cursor:pointer;" onclick="viewTeamProfile('${fix.home}')">${tn(fix.home)}</div>${res ? `<div class="fsc">${res.homeGoals}–${res.awayGoals}</div>` : `<div class="fsc pend">vs</div>`}<div class="fa" style="color:${wa ? 'var(--g)' : ''};cursor:pointer;" onclick="viewTeamProfile('${fix.away}')">${tn(fix.away)}</div><div>${!res && mode === 'admin' ? `<button class="ben" onclick="jumpToResult('${fix.home}','${fix.away}')">Cargar</button>` : `<span style="color:${res ? 'var(--g)' : 'var(--tm)'};font-size:.74rem;">${res ? '✓' : ''}</span>`}</div></div>`; }).join('')}</div></div>`;
   }).join('')}`;
 }
