@@ -939,6 +939,34 @@ function jumpSeason(id) { db.currentSeasonId = id; saveDB(); renderSzSel(); rend
 // ════════════════════════════════════════════════════════
 // TEAMS
 // ════════════════════════════════════════════════════════
+function editTeam(id) {
+  const s = S(), t = s.teams.find(t => t.id === id); if (!t) return;
+  $('mttl').textContent = '✏️ Editar ' + t.name;
+  $('mbdy').innerHTML = `
+    <div style="display:flex;flex-direction:column;gap:8px;margin-bottom:4px;">
+      <div class="fg"><label>Nombre</label><input id="eTName" value="${t.name}" style="background:var(--s2);border:1px solid var(--b);border-radius:8px;color:var(--t);font-family:'Barlow',sans-serif;font-size:.88rem;padding:7px 10px;outline:none;width:100%;"></div>
+      <div class="fg"><label>Capitán / WhatsApp</label><input id="eTCap" value="${t.cap||''}" style="background:var(--s2);border:1px solid var(--b);border-radius:8px;color:var(--t);font-family:'Barlow',sans-serif;font-size:.88rem;padding:7px 10px;outline:none;width:100%;"></div>
+      <div class="fg"><label>Inscripción ($)</label><input type="number" id="eTFee" value="${t.fee||10}" min="0" style="background:var(--s2);border:1px solid var(--b);border-radius:8px;color:var(--t);font-family:'Barlow',sans-serif;font-size:.88rem;padding:7px 10px;outline:none;width:100%;"></div>
+      <div class="fg"><label>¿Pagó?</label><select id="eTPaid" style="background:var(--s2);border:1px solid var(--b);border-radius:8px;color:var(--t);font-family:'Barlow',sans-serif;font-size:.88rem;padding:7px 10px;outline:none;width:100%;">
+        <option value="yes"${t.paid==='yes'?' selected':''}>✅ Sí pagó</option>
+        <option value="no"${t.paid!=='yes'?' selected':''}>❌ No pagó</option>
+      </select></div>
+      <div class="fg"><label>Código de Capitán</label><input id="eTCode" value="${t.code||''}" style="background:var(--s2);border:1px solid var(--b);border-radius:8px;color:var(--t);font-family:'Barlow',sans-serif;font-size:.88rem;padding:7px 10px;outline:none;width:100%;text-transform:uppercase;"></div>
+    </div>`;
+  window._modalConfirm = () => {
+    t.name = $('eTName').value.trim() || t.name;
+    t.cap = $('eTCap').value.trim();
+    t.fee = +$('eTFee').value || t.fee;
+    t.paid = $('eTPaid').value;
+    t.code = $('eTCode').value.trim().toUpperCase() || t.code;
+    saveDB(); render(); toast('✅ ' + t.name + ' actualizado!');
+  };
+  $('mbtns').innerHTML = `
+    <button class="btn bg" onclick="closeModal()" style="font-size:.8rem;padding:6px 12px;">Cancelar</button>
+    <button class="btn bp" onclick="closeModal();window._modalConfirm&&window._modalConfirm()" style="font-size:.8rem;padding:6px 12px;">💾 Guardar</button>`;
+  $('modal').classList.add('open');
+}
+
 function addTeam() {
   const s = S(), name = $('tName').value.trim(), cap = $('tCap').value.trim(), fee = +$('tFee').value || 10, paid = $('tPaid').value;
   if (!name) { toast('⚠️ Ingresá nombre', true); return; }
@@ -1097,8 +1125,17 @@ function genSchedule() {
       leg1.push(round);
       const last = teams[n - 1]; teams = [teams[0], last, ...teams.slice(1, n - 1)];
     }
-    const leg2 = leg1.map((r, i) => ({ round: leg1.length + i + 1, fixtures: r.fixtures.map(f => ({ home: f.away, away: f.home })) }));
-    s.schedule = [...leg1, ...leg2]; saveDB(); renderSchedule();
+    // Leg 2: invert home/away
+    const leg2 = leg1.map(r => r.fixtures.map(f => ({ home: f.away, away: f.home })));
+    // Interleave leg1 and leg2 so every team alternates H/A every round
+    const schedule = [];
+    let rnum = 1;
+    for (let i = 0; i < leg1.length; i++) {
+      schedule.push({ round: rnum++, fixtures: leg1[i].fixtures });
+      schedule.push({ round: rnum++, fixtures: leg2[i] });
+    }
+    s.schedule = schedule;
+    saveDB(); renderSchedule();
     toast(`📅 ${s.schedule.reduce((x, r) => x + r.fixtures.length, 0)} partidos en ${s.schedule.length} fechas!`);
   };
   s.schedule?.length ? showModal('¿Regenerar fixture?', 'Se borrará el actual.', 'Regenerar', doGen, true) : doGen();
@@ -1574,6 +1611,7 @@ function renderTeams() {
       </div>
       <div style="display:flex;align-items:center;gap:5px;">
         <span class="tpaid ${t.paid}" onclick="togglePaid('${t.id}')">${t.paid === 'yes' ? '✅ $' + t.fee : '❌ No pagó'}</span>
+        <button class="btn bg" onclick="editTeam('${t.id}')" style="font-size:.68rem;padding:3px 7px;" title="Editar equipo">✏️</button>
         ${!t.replaced ? `<button class="btn bg" onclick="promptReplaceTeam('${t.id}')" style="font-size:.68rem;padding:3px 7px;" title="Reemplazar equipo">🔄</button>` : ''}
         <button class="btn bd" onclick="removeTeam('${t.id}')">✕</button>
       </div>
@@ -1653,11 +1691,11 @@ function renderHistory() {
     const awayShield = m.awayDisplayName ? `<div style="width:20px;height:20px;border-radius:50%;background:var(--s3);border:1px solid var(--b);display:inline-flex;align-items:center;justify-content:center;font-size:.6rem;color:var(--tm);">${awayName[0]}</div>` : getShield(m.awayId, 'sm');
     const editBtn = mode === 'admin' ? `<button class="btn bg" onclick="editMatch('${m.id}')" style="font-size:.62rem;padding:2px 7px;margin-left:4px;">✏️</button>` : '';
     return `<div class="me">
-      <div class="mt home" style="color:${w === 'home' ? 'var(--g)' : ''};">${homeShield} ${homeName}</div>
+      <div class="mt home" style="color:${w === 'home' ? 'var(--g)' : ''};${!m.homeDisplayName?'cursor:pointer;':''}" ${!m.homeDisplayName?`onclick="viewTeamProfile('${m.homeId}')"`:''}>${homeShield} ${homeName}</div>
       <div style="font-family:'Bebas Neue';font-size:1.3rem;color:${w === 'home' ? 'var(--g)' : 'var(--tm)'};">${m.homeGoals}</div>
       <div class="vs">—</div>
       <div style="font-family:'Bebas Neue';font-size:1.3rem;color:${w === 'away' ? 'var(--g)' : 'var(--tm)'};">${m.awayGoals}</div>
-      <div class="mt" style="color:${w === 'away' ? 'var(--g)' : ''};">${awayName} ${awayShield}</div>
+      <div class="mt" style="color:${w === 'away' ? 'var(--g)' : ''};${!m.awayDisplayName?'cursor:pointer;':''}" ${!m.awayDisplayName?`onclick="viewTeamProfile('${m.awayId}')"`:''}>${awayName} ${awayShield}</div>
     </div>
     <div style="font-size:.66rem;color:var(--tm);text-align:center;padding-bottom:5px;display:flex;align-items:center;justify-content:center;gap:4px;">${m.date} ${wb}${(m.homeDisplayName || m.awayDisplayName) ? '<span style="color:var(--or);font-size:.62rem;">📌 equipo reemplazado</span>' : ''}${editBtn}</div>`;
   }).join('');
@@ -1844,7 +1882,7 @@ function renderLB(type) {
   if (!top.length) { el.innerHTML = `<div class="es"><div class="ei">📊</div>Sin datos.</div>`; return; }
   el.innerHTML = top.map((p, i) => {
     const val = type === 'goals' ? p.goals : type === 'assists' ? p.assists : type === 'rating' ? avg(p.rating).toFixed(1) : p.cs;
-    return `<div class="lbr"><div class="lbrk" style="color:${['var(--gold)', 'var(--silver)', 'var(--bronze)'][i] || 'var(--tm)'}">${['🥇', '🥈', '🥉'][i] || i + 1}</div>${getShield(p.teamId, 'sm')}<div><div style="font-weight:600;">${p.name}</div><div class="lbt2">${tn(p.teamId)} · <span class="pb" style="display:inline;">${p.pos || '—'}</span></div></div><div class="lbv">${val}</div></div>`;
+    return `<div class="lbr"><div class="lbrk" style="color:${['var(--gold)', 'var(--silver)', 'var(--bronze)'][i] || 'var(--tm)'}">${['🥇', '🥈', '🥉'][i] || i + 1}</div>${getShield(p.teamId, 'sm')}<div><div style="font-weight:600;">${p.name}</div><div class="lbt2" style="cursor:pointer;" onclick="viewTeamProfile('${p.teamId}')">${tn(p.teamId)} · <span class="pb" style="display:inline;">${p.pos || '—'}</span></div></div><div class="lbv">${val}</div></div>`;
   }).join('');
 }
 
@@ -1921,7 +1959,7 @@ function renderSchedule() {
     const rp = round.fixtures.filter(f => getMatchResult(f.home, f.away)).length, rt = round.fixtures.length;
     const st = rp === rt ? 'done' : rp > 0 ? 'partial' : 'pending';
     const leg = ri === 0 ? `<div style="font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:.76rem;letter-spacing:2px;text-transform:uppercase;color:var(--g);padding:4px 0 8px;border-bottom:1px solid var(--b);margin-bottom:7px;">🏠 IDA — PRIMERA VUELTA</div>` : ri === half ? `<div style="font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:.76rem;letter-spacing:2px;text-transform:uppercase;color:var(--or);padding:4px 0 8px;border-bottom:1px solid var(--b);margin-bottom:7px;">✈️ VUELTA — SEGUNDA VUELTA</div>` : '';
-    return `${leg}<div class="rc"><div class="rh" onclick="toggleRound(${ri})"><div class="rhl"><span class="rnum">Fecha ${round.round}</span><span class="rlbl">${rp}/${rt}</span></div><div style="display:flex;align-items:center;gap:5px;"><span class="rst ${st}">${st === 'done' ? 'Listo' : st === 'partial' ? 'En curso' : 'Pendiente'}</span><span id="chev-${ri}" style="color:var(--tm);transition:transform .2s;">▼</span></div></div><div class="rb2" id="rb-${ri}">${round.fixtures.map(fix => { const res = getMatchResult(fix.home, fix.away); const wh = res && res.homeGoals > res.awayGoals, wa = res && res.awayGoals > res.homeGoals; return `<div class="fix"><div class="fh" style="color:${wh ? 'var(--g)' : ''}">${tn(fix.home)}</div>${res ? `<div class="fsc">${res.homeGoals}–${res.awayGoals}</div>` : `<div class="fsc pend">vs</div>`}<div class="fa" style="color:${wa ? 'var(--g)' : ''}">${tn(fix.away)}</div><div>${!res && mode === 'admin' ? `<button class="ben" onclick="jumpToResult('${fix.home}','${fix.away}')">Cargar</button>` : `<span style="color:${res ? 'var(--g)' : 'var(--tm)'};font-size:.74rem;">${res ? '✓' : ''}</span>`}</div></div>`; }).join('')}</div></div>`;
+    return `${leg}<div class="rc"><div class="rh" onclick="toggleRound(${ri})"><div class="rhl"><span class="rnum">Fecha ${round.round}</span><span class="rlbl">${rp}/${rt}</span></div><div style="display:flex;align-items:center;gap:5px;"><span class="rst ${st}">${st === 'done' ? 'Listo' : st === 'partial' ? 'En curso' : 'Pendiente'}</span><span id="chev-${ri}" style="color:var(--tm);transition:transform .2s;">▼</span></div></div><div class="rb2" id="rb-${ri}">${round.fixtures.map(fix => { const res = getMatchResult(fix.home, fix.away); const wh = res && res.homeGoals > res.awayGoals, wa = res && res.awayGoals > res.homeGoals; return `<div class="fix"><div class="fh" style="color:${wh ? 'var(--g)' : ''};cursor:pointer;" onclick="viewTeamProfile('${fix.home}')">${tn(fix.home)}</div>${res ? `<div class="fsc">${res.homeGoals}–${res.awayGoals}</div>` : `<div class="fsc pend">vs</div>`}<div class="fa" style="color:${wa ? 'var(--g)' : ''};cursor:pointer;" onclick="viewTeamProfile('${fix.away}')">${tn(fix.away)}</div><div>${!res && mode === 'admin' ? `<button class="ben" onclick="jumpToResult('${fix.home}','${fix.away}')">Cargar</button>` : `<span style="color:${res ? 'var(--g)' : 'var(--tm)'};font-size:.74rem;">${res ? '✓' : ''}</span>`}</div></div>`; }).join('')}</div></div>`;
   }).join('')}`;
 }
 function toggleRound(ri) { const b = $('rb-' + ri), c = $('chev-' + ri); if (!b) return; const h = b.style.display === 'none'; b.style.display = h ? 'block' : 'none'; if (c) c.style.transform = h ? '' : 'rotate(-90deg)'; }
