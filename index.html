@@ -1131,20 +1131,20 @@ function genSchedule() {
     const n = teams.length, leg1 = [];
     for (let r = 0; r < n - 1; r++) {
       const round = { round: r + 1, fixtures: [] };
-      for (let i = 0; i < n / 2; i++) { const h = teams[i], a = teams[n - 1 - i]; if (h && a) round.fixtures.push({ home: h, away: a }); }
+      for (let i = 0; i < n / 2; i++) {
+        const h = teams[i], a = teams[n - 1 - i];
+        if (h && a) round.fixtures.push({ home: h, away: a });
+      }
       leg1.push(round);
-      const last = teams[n - 1]; teams = [teams[0], last, ...teams.slice(1, n - 1)];
+      const last = teams[n - 1];
+      teams = [teams[0], last, ...teams.slice(1, n - 1)];
     }
-    // Leg 2: invert home/away
-    const leg2 = leg1.map(r => r.fixtures.map(f => ({ home: f.away, away: f.home })));
-    // Interleave leg1 and leg2 so every team alternates H/A every round
-    const schedule = [];
-    let rnum = 1;
-    for (let i = 0; i < leg1.length; i++) {
-      schedule.push({ round: rnum++, fixtures: leg1[i].fixtures });
-      schedule.push({ round: rnum++, fixtures: leg2[i] });
-    }
-    s.schedule = schedule;
+    // Leg 2: same fixtures, local/visitante invertido
+    const leg2 = leg1.map((r, i) => ({
+      round: leg1.length + i + 1,
+      fixtures: r.fixtures.map(f => ({ home: f.away, away: f.home }))
+    }));
+    s.schedule = [...leg1, ...leg2];
     saveDB(); renderSchedule();
     toast(`📅 ${s.schedule.reduce((x, r) => x + r.fixtures.length, 0)} partidos en ${s.schedule.length} fechas!`);
   };
