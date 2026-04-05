@@ -1126,102 +1126,32 @@ function genSchedule() {
   const s = S();
   if (s.teams.length < 2) { toast('⚠️ Necesitás al menos 2 equipos', true); return; }
   const doGen = () => {
-    const ids = s.teams.map(t => t.id);
-    const schedule = buildBalancedSchedule(ids);
+    let teams = [...s.teams.map(t => t.id)];
+    if (teams.length % 2) teams.push(null);
+    const n = teams.length, leg1 = [];
+    for (let r = 0; r < n - 1; r++) {
+      const fixtures = [];
+      for (let i = 0; i < n / 2; i++) {
+        const h = teams[i], a = teams[n - 1 - i];
+        if (h !== null && a !== null) fixtures.push({ home: h, away: a });
+      }
+      leg1.push(fixtures);
+      const last = teams[n - 1];
+      teams = [teams[0], last, ...teams.slice(1, n - 1)];
+    }
+    // Leg2: inverted H/A, shifted by half so no team plays same rival consecutively
+    const leg2 = leg1.map(r => r.map(f => ({ home: f.away, away: f.home })));
+    const shift = Math.floor(leg1.length / 2);
+    const leg2shifted = [...leg2.slice(shift), ...leg2.slice(0, shift)];
+    const schedule = [];
+    let rnum = 1;
+    leg1.forEach(r => schedule.push({ round: rnum++, fixtures: r }));
+    leg2shifted.forEach(r => schedule.push({ round: rnum++, fixtures: r }));
     s.schedule = schedule;
     saveDB(); renderSchedule();
     toast(`📅 ${schedule.reduce((x, r) => x + r.fixtures.length, 0)} partidos en ${schedule.length} fechas!`);
   };
   s.schedule?.length ? showModal('¿Regenerar fixture?', 'Se borrará el actual.', 'Regenerar', doGen, true) : doGen();
-}
-
-function buildBalancedSchedule(ids) {
-  // Step 1: Generate round-robin PAIRS (who plays who, ignoring H/A)
-  let teams = [...ids];
-  if (teams.length % 2) teams.push(null);
-  const n = teams.length, pairRounds = [];
-  for (let r = 0; r < n - 1; r++) {
-    const pairs = [];
-    for (let i = 0; i < n / 2; i++) {
-      if (teams[i] !== null && teams[n - 1 - i] !== null)
-        pairs.push([teams[i], teams[n - 1 - i]]);
-    }
-    pairRounds.push(pairs);
-    const last = teams[n - 1];
-    teams = [teams[0], last, ...teams.slice(1, n - 1)];
-  }
-
-  // Step 2: Greedily assign H/A to minimize consecutive streaks
-  function buildLeg1(seed) {
-    const streak = {};
-    ids.forEach(id => streak[id] = 0);
-    const leg1 = [];
-    for (const pairs of pairRounds) {
-      const fixtures = [];
-      for (const [a, b] of pairs) {
-        const sa = streak[a], sb = streak[b];
-        let home, away;
-        if (sa >= 2) { home = b; away = a; }
-        else if (sb >= 2) { home = a; away = b; }
-        else if (sa <= -2) { home = a; away = b; }
-        else if (sb <= -2) { home = b; away = a; }
-        else {
-          // Small random nudge to vary results
-          home = (sa + seed * 0.1) <= (sb + seed * 0.1) ? a : b;
-          away = home === a ? b : a;
-        }
-        fixtures.push({ home, away });
-      }
-      fixtures.forEach(f => {
-        streak[f.home] = streak[f.home] > 0 ? streak[f.home] + 1 : 1;
-        streak[f.away] = streak[f.away] < 0 ? streak[f.away] - 1 : -1;
-      });
-      leg1.push(fixtures);
-    }
-    return leg1;
-  }
-
-  // Step 3: Score a schedule
-  function score(schedule) {
-    let worstHA = 0, rivalViol = 0;
-    ids.forEach(t => {
-      let max = 1, cur = 1, lastType = null, lastRival = null;
-      schedule.forEach(r => r.forEach(f => {
-        if (f.home === t || f.away === t) {
-          const type = f.home === t ? 'H' : 'A';
-          const rival = f.home === t ? f.away : f.home;
-          if (rival === lastRival) rivalViol++;
-          cur = type === lastType ? cur + 1 : 1;
-          max = Math.max(max, cur);
-          lastType = type; lastRival = rival;
-        }
-      }));
-      worstHA = Math.max(worstHA, max);
-    });
-    return rivalViol * 1000 + worstHA;
-  }
-
-  // Step 4: Try different leg1 seeds + random leg2 orderings, pick best
-  let bestScore = Infinity, bestSchedule = null;
-
-  for (let seed = 0; seed < 30 && bestScore > 3; seed++) {
-    const leg1 = buildLeg1(seed);
-    const leg2base = leg1.map(r => r.map(f => ({ home: f.away, away: f.home })));
-
-    for (let attempt = 0; attempt < 200 && bestScore > 3; attempt++) {
-      const leg2 = [...leg2base];
-      for (let i = leg2.length - 1; i > 0; i--) {
-        const j = Math.floor(Math.random() * (i + 1));
-        [leg2[i], leg2[j]] = [leg2[j], leg2[i]];
-      }
-      const full = [...leg1.map((r, i) => ({ round: i + 1, fixtures: r })),
-                    ...leg2.map((r, i) => ({ round: leg1.length + i + 1, fixtures: r }))];
-      const s = score(full);
-      if (s < bestScore) { bestScore = s; bestSchedule = full; }
-    }
-  }
-
-  return bestSchedule;
 }
 
 function clearSchedule() { showModal('¿Borrar fixture?', 'Los resultados no se tocan.', 'Borrar', () => { S().schedule = []; saveDB(); renderSchedule(); toast('🗑 Fixture borrado.'); }, true); }
