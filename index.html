@@ -1126,41 +1126,111 @@ function genSchedule() {
   const s = S();
   if (s.teams.length < 2) { toast('⚠️ Necesitás al menos 2 equipos', true); return; }
   const doGen = () => {
-    // Shuffle teams randomly
-    let ids = [...s.teams.map(t => t.id)];
-    for (let i = ids.length - 1; i > 0; i--) {
-      const j = Math.floor(Math.random() * (i + 1));
-      [ids[i], ids[j]] = [ids[j], ids[i]];
-    }
-    if (ids.length % 2) ids.push(null);
-    const n = ids.length;
-    let teams = [...ids];
-    const leg1 = [];
-    for (let r = 0; r < n - 1; r++) {
-      const fixtures = [];
-      for (let i = 0; i < n / 2; i++) {
-        const h = teams[i], a = teams[n - 1 - i];
-        if (h !== null && a !== null) fixtures.push({ home: h, away: a });
-      }
-      leg1.push(fixtures);
-      const last = teams[n - 1];
-      teams = [teams[0], last, ...teams.slice(1, n - 1)];
-    }
-    // Leg 2: same matchups with home/away inverted
-    const leg2 = leg1.map(r => r.map(f => ({ home: f.away, away: f.home })));
-    // Interleave leg1 and leg2 paired by same index
-    // This guarantees max 2 consecutive home or away per team
-    const schedule = [];
-    let rnum = 1;
-    for (let i = 0; i < leg1.length; i++) {
-      schedule.push({ round: rnum++, fixtures: leg1[i] });
-      schedule.push({ round: rnum++, fixtures: leg2[i] });
-    }
+    const ids = s.teams.map(t => t.id);
+    const schedule = buildOptimalSchedule(ids);
     s.schedule = schedule;
     saveDB(); renderSchedule();
-    toast(`📅 ${s.schedule.reduce((x, r) => x + r.fixtures.length, 0)} partidos en ${s.schedule.length} fechas!`);
+    toast(`📅 ${schedule.reduce((x, r) => x + r.fixtures.length, 0)} partidos en ${schedule.length} fechas!`);
   };
   s.schedule?.length ? showModal('¿Regenerar fixture?', 'Se borrará el actual.', 'Regenerar', doGen, true) : doGen();
+}
+
+function buildOptimalSchedule(ids) {
+  // Generate round-robin PAIRS (who plays who each round, ignoring H/A)
+  let teams = [...ids];
+  if (teams.length % 2) teams.push(null);
+  const n = teams.length, pairRounds = [];
+  for (let r = 0; r < n - 1; r++) {
+    const pairs = [];
+    for (let i = 0; i < n / 2; i++) {
+      if (teams[i] !== null && teams[n - 1 - i] !== null) pairs.push([teams[i], teams[n - 1 - i]]);
+    }
+    pairRounds.push(pairs);
+    const last = teams[n - 1];
+    teams = [teams[0], last, ...teams.slice(1, n - 1)];
+  }
+
+  function evalSchedule(schedule) {
+    let worstHA = 0, rivalViol = 0;
+    ids.forEach(t => {
+      let max = 1, cur = 1, lastType = null, lastRival = null;
+      schedule.forEach(r => r.forEach(f => {
+        if (f.home === t || f.away === t) {
+          const type = f.home === t ? 'H' : 'A';
+          const rival = f.home === t ? f.away : f.home;
+          if (rival === lastRival) rivalViol++;
+          cur = type === lastType ? cur + 1 : 1;
+          max = Math.max(max, cur);
+          lastType = type; lastRival = rival;
+        }
+      }));
+      worstHA = Math.max(worstHA, max);
+    });
+    return rivalViol * 1000 + worstHA;
+  }
+
+  function buildLeg1() {
+    // Map team id -> index for streak tracking
+    const idxOf = {};
+    ids.forEach((id, i) => idxOf[id] = i);
+    const streak = new Array(ids.length).fill(0);
+    const leg1 = [];
+    for (const pairs of pairRounds) {
+      const fixtures = [];
+      for (const [a, b] of pairs) {
+        const sa = streak[idxOf[a]], sb = streak[idxOf[b]];
+        let home, away;
+        if (sa <= -2) { home = a; away = b; }
+        else if (sb <= -2) { home = b; away = a; }
+        else if (sa >= 2) { home = b; away = a; }
+        else if (sb >= 2) { home = a; away = b; }
+        else {
+          const aScore = sa + (Math.random() - 0.5) * 0.6;
+          const bScore = sb + (Math.random() - 0.5) * 0.6;
+          if (aScore <= bScore) { home = a; away = b; }
+          else { home = b; away = a; }
+        }
+        fixtures.push({ home, away });
+      }
+      fixtures.forEach(f => {
+        const hi = idxOf[f.home], ai = idxOf[f.away];
+        streak[hi] = streak[hi] > 0 ? streak[hi] + 1 : 1;
+        streak[ai] = streak[ai] < 0 ? streak[ai] - 1 : -1;
+      });
+      leg1.push(fixtures);
+    }
+    return leg1;
+  }
+
+  // Try many combinations and pick the best
+  let bestScore = Infinity, bestSchedule = null;
+
+  for (let outer = 0; outer < 300; outer++) {
+    const leg1 = buildLeg1();
+    const leg2base = leg1.map(r => r.map(f => ({ home: f.away, away: f.home })));
+
+    // Try random orderings of leg2
+    for (let inner = 0; inner < 200; inner++) {
+      const leg2 = [...leg2base];
+      for (let i = leg2.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [leg2[i], leg2[j]] = [leg2[j], leg2[i]];
+      }
+      const schedule = [
+        ...leg1.map((r, i) => ({ round: i + 1, fixtures: r })),
+        ...leg2.map((r, i) => ({ round: leg1.length + i + 1, fixtures: r }))
+      ];
+      const score = evalSchedule(schedule);
+      if (score < bestScore) {
+        bestScore = score;
+        bestSchedule = schedule;
+        if (bestScore <= 3) break;
+      }
+    }
+    if (bestScore <= 3) break;
+  }
+
+  return bestSchedule;
 }
 
 function clearSchedule() { showModal('¿Borrar fixture?', 'Los resultados no se tocan.', 'Borrar', () => { S().schedule = []; saveDB(); renderSchedule(); toast('🗑 Fixture borrado.'); }, true); }
