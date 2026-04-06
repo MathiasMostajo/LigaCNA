@@ -775,7 +775,8 @@ function doAdminLogin() {
   const pwd = $('adminPwd').value;
   if (pwd === (localStorage.getItem(PWD_KEY) || DEFAULT_PWD)) {
     mode = 'admin'; closeLogin(); applyMode(); render(); pollSubmissions();
-    toast('✅ Modo admin');
+    if (!localStorage.getItem(PWD_KEY)) toast('⚠️ Cambiá la contraseña por defecto en ⚙️ Config!', true);
+    else toast('✅ Modo admin');
   } else {
     $('adminErr').style.display = 'block';
   }
@@ -1137,7 +1138,7 @@ function generateCalendar(teamIds) {
   // Handle odd number of teams with a BYE
   let teams = [...teamIds];
   const hasBye = teams.length % 2 !== 0;
-  if (hasBye) teams.push('BYE');
+  if (hasBye) teams.push('__WO__');
   const n = teams.length;
 
   // --- STEP 1: Generate all round-robin PAIRS for leg1 ---
@@ -1150,7 +1151,7 @@ function generateCalendar(teamIds) {
     for (let i = 0; i < n / 2; i++) {
       const t1 = rotation[i];
       const t2 = rotation[n - 1 - i];
-      if (t1 !== 'BYE' && t2 !== 'BYE') {
+      if (t1 !== '__WO__' && t2 !== '__WO__') {
         // Alternate who is home each round to balance streaks
         // Even rounds: t1 is home; odd rounds: t2 is home
         if (r % 2 === 0) roundPairs.push([t1, t2]);
@@ -1310,14 +1311,14 @@ function setPlayoffScore(roundIdx, matchId, side) {
 // GEMINI API KEY
 // ════════════════════════════════════════════════════════
 // API key stored in Supabase so all devices (including captain phones) can use it
-function getGeminiKey() { return db._groqKey || localStorage.getItem('ligacna_gemini_key') || ''; }
-function saveGeminiKey(k) { localStorage.setItem('ligacna_gemini_key', k); db._groqKey = k; saveDB(); }
+function getGeminiKey() { return localStorage.getItem('ligacna_gemini_key') || db._apiKey || ''; }
+function saveGeminiKey(k) { localStorage.setItem('ligacna_gemini_key', k); db._apiKey = k; saveDB(); }
 function saveGeminiKeyUI() {
   const k = $('geminiKeyInput').value.trim();
   if (!k.startsWith('sk-ant-')) { toast('⚠️ Key inválida — debe empezar con sk-ant-', true); return; }
   saveGeminiKey(k); $('geminiKeyInput').value = ''; updateGeminiKeyStatus(); toast('✅ Claude API key guardada en todos los dispositivos!');
 }
-function clearGeminiKeyUI() { localStorage.removeItem('ligacna_gemini_key'); db._groqKey = null; saveDB(); updateGeminiKeyStatus(); toast('🗑 Key borrada.'); }
+function clearGeminiKeyUI() { localStorage.removeItem('ligacna_gemini_key'); db._apiKey = null; saveDB(); updateGeminiKeyStatus(); toast('🗑 Key borrada.'); }
 function updateGeminiKeyStatus() {
   const k = getGeminiKey(), el = $('geminiKeyStatus'); if (!el) return;
   el.innerHTML = k ? `<span style="color:var(--g);">✅ Key guardada — ···${k.slice(-6)}</span>` : `<span style="color:var(--or);">⚠️ Sin key — ingresá tu Claude API key (console.anthropic.com)</span>`;
@@ -1694,7 +1695,7 @@ function renderPlayers() {
   el.innerHTML = Object.entries(byTeam).map(([tid, ps]) => `
     <div style="margin-bottom:12px;">
       <div style="display:flex;align-items:center;gap:7px;font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:.78rem;letter-spacing:1px;color:var(--tm);text-transform:uppercase;margin-bottom:5px;padding-bottom:4px;border-bottom:1px solid var(--b);">${getShield(tid, 'sm')} ${tn(tid)}</div>
-      ${ps.map(p => { const ar = p.rating.length ? avg(p.rating).toFixed(1) : '—'; return `<div class="pr"><div class="pi"><span class="pb">${p.pos || '—'}</span><span style="font-weight:600;">${p.name}</span></div><div class="psm"><span>⚽${p.goals}</span><span>🎯${p.assists}</span><span>⭐${ar}</span><span>🧤${p.cs}</span><span style="color:var(--b);">|</span><span>${p.matchesPlayed}GP</span></div><div style="display:flex;gap:3px;"><button class="btn bg" onclick="editPos('${p.id}')" style="font-size:.66rem;padding:2px 6px;">✏️</button><button class="btn bd" onclick="removePlayer('${p.id}')">✕</button></div></div>`; }).join('')}
+      ${ps.map(p => { const ar = p.rating.length ? avg(p.rating).toFixed(1) : '—'; return `<div class="pr"><div class="pi"><span class="pb">${p.pos || '—'}</span><span style="font-weight:600;cursor:pointer;color:var(--g);text-decoration:underline dotted;" onclick="viewPlayerProfile('${p.id}')">${p.name}</span></div><div class="psm"><span>⚽${p.goals}</span><span>🎯${p.assists}</span><span>⭐${ar}</span><span>🧤${p.cs}</span><span style="color:var(--b);">|</span><span>${p.matchesPlayed}GP</span></div><div style="display:flex;gap:3px;"><button class="btn bg" onclick="editPos('${p.id}')" style="font-size:.66rem;padding:2px 6px;">✏️</button><button class="btn bd" onclick="removePlayer('${p.id}')">✕</button></div></div>`; }).join('')}
     </div>`).join('');
 }
 
@@ -1957,7 +1958,7 @@ function viewTeamProfile(teamId) {
       <div class="ct">👤 Jugadores (${players.length})</div>
       ${players.length ? players.map(p => {
         const ar = p.rating.length ? avg(p.rating).toFixed(1) : '—';
-        return `<div class="pr"><div class="pi"><span class="pb">${p.pos||'—'}</span><span style="font-weight:600;">${p.name}</span></div><div class="psm"><span>⚽${p.goals}</span><span>🎯${p.assists}</span><span>⭐${ar}</span><span>🧤${p.cs}</span><span>${p.matchesPlayed}GP</span></div></div>`;
+        return `<div class="pr"><div class="pi"><span class="pb">${p.pos||'—'}</span><span style="font-weight:600;cursor:pointer;color:var(--g);text-decoration:underline dotted;" onclick="viewPlayerProfile('${p.id}')">${p.name}</span></div><div class="psm"><span>⚽${p.goals}</span><span>🎯${p.assists}</span><span>⭐${ar}</span><span>🧤${p.cs}</span><span>${p.matchesPlayed}GP</span></div></div>`;
       }).join('') : `<div class="es" style="padding:14px;"><div class="ei">👤</div>Sin jugadores.</div>`}
     </div>
 
@@ -1995,7 +1996,7 @@ function viewTeamProfile(teamId) {
           <span style="font-size:.76rem;color:var(--tm);">Fecha ${fix.round}</span>
           <span style="font-size:.76rem;color:var(--tm);">${fix.isHome?'🏠':'✈️'}</span>
           ${getShield(fix.oppId,'sm')}
-          <span style="font-weight:600;font-size:.84rem;">${tn(fix.oppId)}</span>
+          <span style="font-weight:600;font-size:.84rem;cursor:pointer;color:var(--g);text-decoration:underline dotted;" onclick="viewTeamProfile('${fix.oppId}')">${tn(fix.oppId)}</span>
         </div>`).join('') : `<div class="es" style="padding:14px;"><div class="ei">📅</div>Sin pendientes.</div>`}
     </div>`;
   goTab('teamprofile');
@@ -2097,7 +2098,7 @@ function renderSchedule() {
     const rp = round.fixtures.filter(f => getMatchResult(f.home, f.away)).length, rt = round.fixtures.length;
     const st = rp === rt ? 'done' : rp > 0 ? 'partial' : 'pending';
     const leg = '';
-    return `${leg}<div class="rc"><div class="rh" onclick="toggleRound(${ri})"><div class="rhl"><span class="rnum">Fecha ${round.round}</span><span class="rlbl">${rp}/${rt}</span></div><div style="display:flex;align-items:center;gap:5px;"><span class="rst ${st}">${st === 'done' ? 'Listo' : st === 'partial' ? 'En curso' : 'Pendiente'}</span><span id="chev-${ri}" style="color:var(--tm);transition:transform .2s;">▼</span></div></div><div class="rb2" id="rb-${ri}">${round.fixtures.map(fix => { const res = getMatchResult(fix.home, fix.away); const wh = res && res.homeGoals > res.awayGoals, wa = res && res.awayGoals > res.homeGoals; return `<div class="fix"><div class="fh" style="color:${wh ? 'var(--g)' : ''};cursor:pointer;" onclick="viewTeamProfile('${fix.home}')">${tn(fix.home)}</div>${res ? `<div class="fsc">${res.homeGoals}–${res.awayGoals}</div>` : `<div class="fsc pend">vs</div>`}<div class="fa" style="color:${wa ? 'var(--g)' : ''};cursor:pointer;" onclick="viewTeamProfile('${fix.away}')">${tn(fix.away)}</div><div>${!res && mode === 'admin' ? `<button class="ben" onclick="jumpToResult('${fix.home}','${fix.away}')">Cargar</button>` : `<span style="color:${res ? 'var(--g)' : 'var(--tm)'};font-size:.74rem;">${res ? '✓' : ''}</span>`}</div></div>`; }).join('')}</div></div>`;
+    return `${leg}<div class="rc"><div class="rh" onclick="toggleRound(${ri})"><div class="rhl"><span class="rnum">Fecha ${round.round}</span><span class="rlbl">${rp}/${rt}</span></div><div style="display:flex;align-items:center;gap:5px;"><span class="rst ${st}">${st === 'done' ? 'Listo' : st === 'partial' ? 'En curso' : 'Pendiente'}</span><span id="chev-${ri}" style="color:var(--tm);transition:transform .2s;">▼</span></div></div><div class="rb2" id="rb-${ri}">${round.fixtures.map(fix => { const res = getMatchResult(fix.home, fix.away); const wh = res && res.homeGoals > res.awayGoals, wa = res && res.awayGoals > res.homeGoals; return `<div class="fix"><div class="fh" style="color:${wh ? 'var(--g)' : ''};cursor:pointer;" onclick="viewTeamProfile('${fix.home}')">🏠 ${tn(fix.home)}</div>${res ? `<div class="fsc">${res.homeGoals}–${res.awayGoals}</div>` : `<div class="fsc pend">vs</div>`}<div class="fa" style="color:${wa ? 'var(--g)' : ''};cursor:pointer;" onclick="viewTeamProfile('${fix.away}')">${tn(fix.away)} ✈️</div><div>${!res && mode === 'admin' ? `<button class="ben" onclick="jumpToResult('${fix.home}','${fix.away}')">Cargar</button>` : `<span style="color:${res ? 'var(--g)' : 'var(--tm)'};font-size:.74rem;">${res ? '✓' : ''}</span>`}</div></div>`; }).join('')}</div></div>`;
   }).join('')}`;
 }
 function toggleRound(ri) { const b = $('rb-' + ri), c = $('chev-' + ri); if (!b) return; const h = b.style.display === 'none'; b.style.display = h ? 'block' : 'none'; if (c) c.style.transform = h ? '' : 'rotate(-90deg)'; }
