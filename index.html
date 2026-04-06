@@ -1126,32 +1126,67 @@ function genSchedule() {
   const s = S();
   if (s.teams.length < 2) { toast('⚠️ Necesitás al menos 2 equipos', true); return; }
   const doGen = () => {
-    let teams = [...s.teams.map(t => t.id)];
-    if (teams.length % 2) teams.push(null);
-    const n = teams.length, leg1 = [];
-    for (let r = 0; r < n - 1; r++) {
-      const fixtures = [];
-      for (let i = 0; i < n / 2; i++) {
-        const h = teams[i], a = teams[n - 1 - i];
-        if (h !== null && a !== null) fixtures.push({ home: h, away: a });
-      }
-      leg1.push(fixtures);
-      const last = teams[n - 1];
-      teams = [teams[0], last, ...teams.slice(1, n - 1)];
-    }
-    // Leg2: inverted H/A, shifted by half so no team plays same rival consecutively
-    const leg2 = leg1.map(r => r.map(f => ({ home: f.away, away: f.home })));
-    const shift = Math.floor(leg1.length / 2);
-    const leg2shifted = [...leg2.slice(shift), ...leg2.slice(0, shift)];
-    const schedule = [];
-    let rnum = 1;
-    leg1.forEach(r => schedule.push({ round: rnum++, fixtures: r }));
-    leg2shifted.forEach(r => schedule.push({ round: rnum++, fixtures: r }));
-    s.schedule = schedule;
+    s.schedule = generateCalendar(s.teams.map(t => t.id));
     saveDB(); renderSchedule();
-    toast(`📅 ${schedule.reduce((x, r) => x + r.fixtures.length, 0)} partidos en ${schedule.length} fechas!`);
+    toast(`📅 ${s.schedule.reduce((x, r) => x + r.fixtures.length, 0)} partidos en ${s.schedule.length} fechas!`);
   };
   s.schedule?.length ? showModal('¿Regenerar fixture?', 'Se borrará el actual.', 'Regenerar', doGen, true) : doGen();
+}
+
+function generateCalendar(teamIds) {
+  // Handle odd number of teams with a BYE
+  let teams = [...teamIds];
+  const hasBye = teams.length % 2 !== 0;
+  if (hasBye) teams.push('BYE');
+  const n = teams.length;
+
+  // --- STEP 1: Generate all round-robin PAIRS for leg1 ---
+  // Using standard circle rotation: fix teams[0], rotate the rest
+  let rotation = [...teams];
+  const leg1Pairs = []; // array of rounds, each round is array of [home, away]
+
+  for (let r = 0; r < n - 1; r++) {
+    const roundPairs = [];
+    for (let i = 0; i < n / 2; i++) {
+      const t1 = rotation[i];
+      const t2 = rotation[n - 1 - i];
+      if (t1 !== 'BYE' && t2 !== 'BYE') {
+        // Alternate who is home each round to balance streaks
+        // Even rounds: t1 is home; odd rounds: t2 is home
+        if (r % 2 === 0) roundPairs.push([t1, t2]);
+        else roundPairs.push([t2, t1]);
+      }
+    }
+    leg1Pairs.push(roundPairs);
+    // Rotate: keep index 0 fixed, rotate the rest
+    const last = rotation.pop();
+    rotation.splice(1, 0, last);
+  }
+
+  // --- STEP 2: Build leg2 — same matchups, H/A inverted ---
+  const leg2Pairs = leg1Pairs.map(round =>
+    round.map(([home, away]) => [away, home])
+  );
+
+  // --- STEP 3: Shift leg2 by n/2 rounds ---
+  // This ensures the last rival of leg1 ≠ first rival of leg2
+  const shift = Math.floor((n - 1) / 2);
+  const leg2Shifted = [
+    ...leg2Pairs.slice(shift),
+    ...leg2Pairs.slice(0, shift)
+  ];
+
+  // --- STEP 4: Build final schedule with round numbers ---
+  const schedule = [];
+  let rnum = 1;
+  leg1Pairs.forEach(pairs => {
+    schedule.push({ round: rnum++, fixtures: pairs.map(([h, a]) => ({ home: h, away: a })) });
+  });
+  leg2Shifted.forEach(pairs => {
+    schedule.push({ round: rnum++, fixtures: pairs.map(([h, a]) => ({ home: h, away: a })) });
+  });
+
+  return schedule;
 }
 
 function clearSchedule() { showModal('¿Borrar fixture?', 'Los resultados no se tocan.', 'Borrar', () => { S().schedule = []; saveDB(); renderSchedule(); toast('🗑 Fixture borrado.'); }, true); }
