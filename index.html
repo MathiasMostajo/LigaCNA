@@ -1362,12 +1362,13 @@ RULES (strictly follow in this order):
 1. Extract score from SCOREBOARD.
 2. Extract the player ID list from the IDs SCREEN for each team. These are the REAL players.
 3. Extract stats from STATS SCREEN.
-4. For each player in STATS: check if their name fuzzy-matches (ignore case, spaces, special chars, numbers substituting letters like 0=O, 1=I/L) any player in the IDs SCREEN.
-   - If NO match in IDs SCREEN → this is a FIFA BOT. COMPLETELY IGNORE. Do not include in players or unregisteredPlayers.
-   - If YES match in IDs SCREEN → this is a real player. Include their stats.
-5. For each real player (matched in IDs SCREEN), check if they fuzzy-match any name in REGISTERED PLAYERS below.
-   - If YES match → registered=true, use the registered name.
-   - If NO match → registered=false, add to unregisteredPlayers list.
+4. For each player in STATS SCREEN: check if their name fuzzy-matches any name in the IDs SCREEN list.
+   FUZZY MATCH RULES: ignore case, spaces, special chars. Also handle truncation — if the stats name is a PREFIX of the ID name (e.g. stats shows "xSlick", ID shows "xSlick69") → it IS a match. Numbers can substitute letters (0=O, 1=I/L, 3=E, etc).
+   - If NO match in IDs SCREEN → FIFA BOT. COMPLETELY IGNORE. Do NOT include in players or unregisteredPlayers. Do not mention them at all.
+   - If YES match → real player. Use the EXACT name from the IDs SCREEN (not the stats screen). Include their stats.
+5. For each real player (confirmed in IDs SCREEN), fuzzy-match their ID SCREEN name against REGISTERED PLAYERS list.
+   - If YES match → registered=true.
+   - If NO match → registered=false, add their ID SCREEN name to unregisteredPlayers.
 
 REGISTERED PLAYERS (league database): [${s.players.map(p => p.name).join(',') || 'none'}]
 REGISTERED TEAMS: [${s.teams.map(t => t.name).join(',') || 'none'}]
@@ -1434,12 +1435,68 @@ async function runCapScan() {
   btn.disabled = false; updateCapScanBtn();
 }
 
+function fixNoReg(playerIdx, source) {
+  const r = source === 'cap' ? window._lastCapScanResult : window._lastScanResult;
+  if (!r) return;
+  const p = r.players[playerIdx];
+  if (!p) return;
+  const s = S();
+  // Determine which team this player belongs to based on their team field
+  const teamSide = p.team; // 'home' or 'away'
+  const scoreHome = r.score?.home || '';
+  const scoreAway = r.score?.away || '';
+  const homeTeam = s.teams.find(t => t.name.toLowerCase().includes(scoreHome.toLowerCase().substring(0,4)));
+  const awayTeam = s.teams.find(t => t.name.toLowerCase().includes(scoreAway.toLowerCase().substring(0,4)));
+  const relevantTeam = teamSide === 'home' ? homeTeam : awayTeam;
+  const teamPlayers = s.players.filter(pl => relevantTeam && pl.teamId == relevantTeam.id);
+
+  $('mttl').textContent = `🔗 Hacer match — ${p.name}`;
+  $('mbdy').innerHTML = `
+    <div style="font-size:.82rem;color:var(--tm);margin-bottom:8px;">El escáner leyó "<b style="color:var(--or);">${p.name}</b>". ¿Con qué jugador registrado hacés match?</div>
+    <select id="matchPlayerSel" style="background:var(--s2);border:1px solid var(--b);border-radius:8px;color:var(--t);font-family:'Barlow',sans-serif;font-size:.88rem;padding:7px 10px;outline:none;width:100%;">
+      <option value="">— Seleccionar jugador —</option>
+      ${teamPlayers.map(pl => `<option value="${pl.id}">${pl.name} (${pl.pos||'?'})</option>`).join('')}
+    </select>`;
+
+  window._modalConfirm = () => {
+    const sel = $('matchPlayerSel');
+    if (!sel?.value) { toast('⚠️ Seleccioná un jugador', true); return; }
+    // Update the scan result: change the unregistered player to match the registered one
+    const matched = s.players.find(pl => pl.id == sel.value);
+    if (!matched) return;
+    r.players[playerIdx].name = matched.name;
+    r.players[playerIdx].registered = true;
+    // Remove from unregisteredPlayers if present
+    r.unregisteredPlayers = (r.unregisteredPlayers || []).filter(n => n !== p.name);
+    // Re-render the scan result
+    if (source === 'cap') { capScanResult = r; renderCapResult(r); }
+    else renderScanResult(r);
+    toast(`✅ Match hecho: ${p.name} → ${matched.name}`);
+  };
+
+  $('mbtns').innerHTML = `
+    <button class="btn bg" onclick="closeModal()" style="font-size:.8rem;padding:6px 12px;">Cancelar</button>
+    <button class="btn bp" onclick="closeModal();window._modalConfirm&&window._modalConfirm()" style="font-size:.8rem;padding:6px 12px;">🔗 Confirmar match</button>`;
+  $('modal').classList.add('open');
+}
+
 function renderScanResult(r) {
   const sc = r.score || {}, pl = r.players || [], ur = r.unregisteredPlayers || [];
   let h = `<div class="card"><div class="ct">✅ Escaneo Completo</div>`;
   if (sc.home) h += `<div class="ar" style="margin-bottom:9px;"><div class="art">Resultado</div><div class="asd">${sc.home} ${sc.homeGoals ?? '?'} — ${sc.awayGoals ?? '?'} ${sc.away}</div></div>`;
   if (ur.length) h += `<div class="wb">⚠️ ${ur.length} NO registrado(s): ${ur.join(', ')}</div>`;
-  if (pl.length) { h += `<div class="ar"><div class="art">Jugadores (${pl.length})</div>`; pl.forEach(p => { h += `<div class="api"><div style="display:flex;align-items:center;gap:5px;"><span class="pb">${p.pos || '?'}</span><span style="font-weight:600;">${p.name}</span></div><div style="display:flex;align-items:center;gap:4px;">${p.goals ? `<span>⚽${p.goals}</span>` : ''}${p.assists ? `<span>🎯${p.assists}</span>` : ''}${p.rating ? `<span style="color:var(--gold);">⭐${p.rating}</span>` : ''}<span class="${p.registered ? 'rb' : 'urb'}">${p.registered ? '✓ OK' : '⚠ NO REG'}</span></div></div>`; }); h += `</div>`; }
+  if (pl.length) {
+    // Store scan result globally so NO REG fix can access it
+    window._lastScanResult = r;
+    h += `<div class="ar"><div class="art">Jugadores (${pl.length})</div>`;
+    pl.forEach((p, pi) => {
+      const noRegBadge = p.registered
+        ? `<span class="rb">✓ OK</span>`
+        : `<span class="urb" style="cursor:pointer;" title="Click para hacer match" onclick="fixNoReg(${pi},'scan')">⚠ NO REG 🔗</span>`;
+      h += `<div class="api"><div style="display:flex;align-items:center;gap:5px;"><span class="pb">${p.pos || '?'}</span><span style="font-weight:600;">${p.name}</span></div><div style="display:flex;align-items:center;gap:4px;">${p.goals ? `<span>⚽${p.goals}</span>` : ''}${p.assists ? `<span>🎯${p.assists}</span>` : ''}${p.rating ? `<span style="color:var(--gold);">⭐${p.rating}</span>` : ''}${noRegBadge}</div></div>`;
+    });
+    h += `</div>`;
+  }
   if (sc.home) { const rs = JSON.stringify(r).replace(/"/g, '&quot;'); h += `<div style="margin-top:10px;"><button class="btn bp" onclick='prefill(${rs})'>→ Pre-cargar en Resultados</button></div>`; }
   h += `</div>`; $('aiRes').innerHTML = h;
 }
@@ -1449,7 +1506,17 @@ function renderCapResult(r) {
   let h = `<div class="card"><div class="ct">✅ Revisá antes de enviar</div>`;
   if (sc.home) h += `<div class="ar" style="margin-bottom:9px;"><div class="art">Resultado</div><div class="asd">${sc.home} ${sc.homeGoals ?? '?'} — ${sc.awayGoals ?? '?'} ${sc.away}</div></div>`;
   if (ur.length) h += `<div class="wb">⚠️ ${ur.length} no registrado(s): ${ur.join(', ')}</div>`;
-  if (pl.length) { h += `<div class="ar"><div class="art">Jugadores (${pl.length})</div>`; pl.forEach(p => { h += `<div class="api"><div style="display:flex;align-items:center;gap:5px;"><span class="pb">${p.pos || '?'}</span><span style="font-weight:600;">${p.name}</span></div><div style="display:flex;align-items:center;gap:4px;">${p.goals ? `<span>⚽${p.goals}</span>` : ''}${p.assists ? `<span>🎯${p.assists}</span>` : ''}${p.rating ? `<span style="color:var(--gold);">⭐${p.rating}</span>` : ''}<span class="${p.registered ? 'rb' : 'urb'}">${p.registered ? '✓' : '⚠ NO REG'}</span></div></div>`; }); h += `</div>`; }
+  if (pl.length) {
+    window._lastCapScanResult = r;
+    h += `<div class="ar"><div class="art">Jugadores (${pl.length})</div>`;
+    pl.forEach((p, pi) => {
+      const noRegBadge = p.registered
+        ? `<span class="rb">✓</span>`
+        : `<span class="urb" style="cursor:pointer;" title="Click para hacer match" onclick="fixNoReg(${pi},'cap')">⚠ NO REG 🔗</span>`;
+      h += `<div class="api"><div style="display:flex;align-items:center;gap:5px;"><span class="pb">${p.pos || '?'}</span><span style="font-weight:600;">${p.name}</span></div><div style="display:flex;align-items:center;gap:4px;">${p.goals ? `<span>⚽${p.goals}</span>` : ''}${p.assists ? `<span>🎯${p.assists}</span>` : ''}${p.rating ? `<span style="color:var(--gold);">⭐${p.rating}</span>` : ''}${noRegBadge}</div></div>`;
+    });
+    h += `</div>`;
+  }
   h += `</div>`; $('capScanRes').innerHTML = h; $('capSubmitWrap').style.display = 'block';
 }
 
