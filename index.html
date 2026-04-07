@@ -1060,7 +1060,10 @@ function addPlayer() {
   if (!teamId) { toast('⚠️ Seleccioná equipo', true); return; }
   s.players.push({ id: Date.now().toString(), name, teamId, pos, goals: 0, assists: 0, rating: [], cs: 0, matchesPlayed: 0 });
   $('pName').value = ''; $('pPos').value = '';
-  saveDB(); render(); toast('✅ ' + name);
+  saveDB(); render();
+  // Keep team selector on same team
+  if ($('pTeam')) $('pTeam').value = teamId;
+  toast('✅ ' + name);
 }
 
 function removePlayer(id) { const s = S(); s.players = s.players.filter(p => p.id != id); saveDB(); render(); }
@@ -1415,7 +1418,7 @@ RULES (strictly follow in this order):
    - Numbers substitute letters: 0=O, 1=I/L, 3=E, 4=A, 9=G/Q
    - If stats name is a PREFIX or SUFFIX of the ID name → MATCH (e.g. "xSlick" matches "xSlick69", "Rex" matches "Os Rex l20l")
    - If ID name CONTAINS the stats name or vice versa → MATCH
-   - If names share 70%+ of characters in order → MATCH
+   - If names share 60%+ of characters in order → MATCH
    - When in doubt → assume it IS a match (false positive is better than missing a real player)
    - If NO match at all in IDs SCREEN → FIFA BOT. COMPLETELY IGNORE. Do NOT include in players or unregisteredPlayers.
    - If YES match → real player. Use the EXACT name from the IDs SCREEN (not the stats screen). Include their stats.
@@ -2216,6 +2219,36 @@ function viewPlayerProfile(playerId) {
   goTab('playerprofile');
 }
 
+function addPlayerFromProfile(teamId) {
+  const s = S(), team = s.teams.find(t => t.id === teamId); if (!team) return;
+  $('mttl').textContent = `➕ Agregar jugador — ${team.name}`;
+  $('mbdy').innerHTML = `
+    <div style="display:flex;flex-direction:column;gap:8px;">
+      <div class="fg"><label>Nombre / ID</label><input id="profPName" placeholder="Nombre del jugador..." style="background:var(--s2);border:1px solid var(--b);border-radius:8px;color:var(--t);font-family:'Barlow',sans-serif;font-size:.88rem;padding:7px 10px;outline:none;width:100%;"></div>
+      <div class="fg"><label>Posición</label>
+        <select id="profPPos" style="background:var(--s2);border:1px solid var(--b);border-radius:8px;color:var(--t);font-family:'Barlow',sans-serif;font-size:.88rem;padding:7px 10px;outline:none;width:100%;">
+          <option value="GK">GK</option>
+          <option value="DEF">DEF</option>
+          <option value="MID" selected>MID</option>
+          <option value="FWD">FWD</option>
+        </select>
+      </div>
+    </div>`;
+  window._modalConfirm = () => {
+    const name = $('profPName')?.value.trim();
+    const pos = $('profPPos')?.value || 'MID';
+    if (!name) { toast('⚠️ Ingresá un nombre', true); return; }
+    s.players.push({ id: Date.now().toString(), name, teamId, pos, goals: 0, assists: 0, rating: [], cs: 0, matchesPlayed: 0 });
+    saveDB();
+    viewTeamProfile(teamId);
+    toast(`✅ ${name} agregado a ${team.name}`);
+  };
+  $('mbtns').innerHTML = `
+    <button class="btn bg" onclick="closeModal()" style="font-size:.8rem;padding:6px 12px;">Cancelar</button>
+    <button class="btn bp" onclick="closeModal();window._modalConfirm&&window._modalConfirm()" style="font-size:.8rem;padding:6px 12px;">➕ Agregar</button>`;
+  $('modal').classList.add('open');
+}
+
 function viewTeamProfile(teamId) {
   const s = S(), team = s.teams.find(t => t.id === teamId); if (!team) return;
   const players = s.players.filter(p => p.teamId === teamId);
@@ -2252,7 +2285,10 @@ function viewTeamProfile(teamId) {
 
     <!-- Players -->
     <div class="card">
-      <div class="ct">👤 Jugadores (${players.length})</div>
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
+        <div class="ct" style="margin:0;">👤 Jugadores (${players.length})</div>
+        ${mode === 'admin' ? `<button class="btn bp" onclick="addPlayerFromProfile('${teamId}')" style="font-size:.72rem;padding:4px 10px;">➕ Agregar</button>` : ''}
+      </div>
       ${players.length ? players.map(p => {
         const ar = p.rating.length ? avg(p.rating).toFixed(1) : '—';
         return `<div class="pr"><div class="pi"><span class="pb">${p.pos||'—'}</span><span style="font-weight:600;cursor:pointer;color:var(--g);text-decoration:underline dotted;" onclick="viewPlayerProfile('${p.id}')">${p.name}</span></div><div class="psm"><span>⚽${p.goals}</span><span>🎯${p.assists}</span><span>⭐${ar}</span><span>🧤${p.cs}</span><span>${p.matchesPlayed}GP</span></div></div>`;
