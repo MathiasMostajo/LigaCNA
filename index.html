@@ -1211,85 +1211,132 @@ function jumpToResult(homeId, awayId) { goTab('results'); setTimeout(() => { $('
 function genPlayoffs() {
   const s = S();
   const format = +$('playoffFormat').value;
-  const stand = getStandings();
-  if (stand.length < format) { toast('⚠️ No hay suficientes equipos', true); return; }
+  const stand = getStandings().filter(t => !t.bye);
+  const teamOpts = s.teams.filter(t => !t.replaced).map(t =>
+    `<option value="${t.name}">${t.name}${stand.findIndex(st=>st.name===t.name)>=0?' ('+((stand.findIndex(st=>st.name===t.name))+1)+'°)':''}</option>`
+  ).join('');
+  const sel = (id, label) => `<div class="fg"><label style="font-size:.74rem;">${label}</label><select id="${id}" style="background:var(--s2);border:1px solid var(--b);border-radius:8px;color:var(--t);font-family:'Barlow',sans-serif;font-size:.82rem;padding:5px 8px;outline:none;width:100%;"><option value="TBD">— Elegir —</option>${teamOpts}</select></div>`;
 
-  // format 4: 4 teams → semis (1v4, 2v3)
-  // format 6: 6 teams → 1st & 2nd get bye to semis, 3v6, 4v5 play quarters
-  // format 8: 8 teams → 1v8, 2v7, 3v6, 4v5 play quarters
+  // Pre-fill from standings
+  const pre = (i) => stand[i]?.name || 'TBD';
 
-  const rounds = [];
+  let html = `<div style="font-size:.78rem;color:var(--tm);margin-bottom:10px;">Los equipos están pre-llenados según la tabla pero podés cambiarlos.</div>`;
 
   if (format === 4) {
-    rounds.push({
-      name: 'SEMIFINALES',
-      matches: [
-        { id: 'sf1', home: stand[0].name, away: stand[3].name, homeGoals: null, awayGoals: null, leg: 'ida' },
-        { id: 'sf1r', home: stand[3].name, away: stand[0].name, homeGoals: null, awayGoals: null, leg: 'vuelta' },
-        { id: 'sf2', home: stand[1].name, away: stand[2].name, homeGoals: null, awayGoals: null, leg: 'ida' },
-        { id: 'sf2r', home: stand[2].name, away: stand[1].name, homeGoals: null, awayGoals: null, leg: 'vuelta' }
-      ],
-      pairs: [
-        { name: '1° vs 4°', matchIds: ['sf1', 'sf1r'], team1: stand[0].name, team2: stand[3].name },
-        { name: '2° vs 3°', matchIds: ['sf2', 'sf2r'], team1: stand[1].name, team2: stand[2].name }
-      ]
-    });
-    rounds.push({ name: 'FINAL', matches: [{ id: 'f1', home: 'TBD', away: 'TBD', homeGoals: null, awayGoals: null, leg: 'ida' }, { id: 'f1r', home: 'TBD', away: 'TBD', homeGoals: null, awayGoals: null, leg: 'vuelta' }], pairs: [{ name: 'Final', matchIds: ['f1', 'f1r'], team1: 'TBD', team2: 'TBD' }] });
+    html += `<div style="font-weight:700;font-size:.8rem;color:var(--g);margin-bottom:6px;text-transform:uppercase;letter-spacing:1px;">SEMIFINALES</div>`;
+    html += `<div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:10px;">`;
+    html += sel('pf_sf1a','Cruce 1 — Equipo A') + sel('pf_sf1b','Cruce 1 — Equipo B');
+    html += sel('pf_sf2a','Cruce 2 — Equipo A') + sel('pf_sf2b','Cruce 2 — Equipo B');
+    html += `</div>`;
   } else if (format === 6) {
-    rounds.push({
-      name: 'CUARTOS',
-      matches: [
-        { id: 'q1', home: stand[2].name, away: stand[5].name, homeGoals: null, awayGoals: null, leg: 'ida' },
-        { id: 'q1r', home: stand[5].name, away: stand[2].name, homeGoals: null, awayGoals: null, leg: 'vuelta' },
-        { id: 'q2', home: stand[3].name, away: stand[4].name, homeGoals: null, awayGoals: null, leg: 'ida' },
-        { id: 'q2r', home: stand[4].name, away: stand[3].name, homeGoals: null, awayGoals: null, leg: 'vuelta' }
-      ],
-      pairs: [
-        { name: '3° vs 6°', matchIds: ['q1', 'q1r'], team1: stand[2].name, team2: stand[5].name },
-        { name: '4° vs 5°', matchIds: ['q2', 'q2r'], team1: stand[3].name, team2: stand[4].name }
-      ],
-      byes: [{ seed: '1°', name: stand[0].name }, { seed: '2°', name: stand[1].name }]
-    });
-    rounds.push({
-      name: 'SEMIFINALES',
-      matches: [
-        { id: 'sf1', home: stand[0].name, away: 'TBD', homeGoals: null, awayGoals: null, leg: 'ida' },
-        { id: 'sf1r', home: 'TBD', away: stand[0].name, homeGoals: null, awayGoals: null, leg: 'vuelta' },
-        { id: 'sf2', home: stand[1].name, away: 'TBD', homeGoals: null, awayGoals: null, leg: 'ida' },
-        { id: 'sf2r', home: 'TBD', away: stand[1].name, homeGoals: null, awayGoals: null, leg: 'vuelta' }
-      ],
-      pairs: [
-        { name: '1° vs Q1', matchIds: ['sf1', 'sf1r'], team1: stand[0].name, team2: 'TBD' },
-        { name: '2° vs Q2', matchIds: ['sf2', 'sf2r'], team1: stand[1].name, team2: 'TBD' }
-      ]
-    });
-    rounds.push({ name: 'FINAL', matches: [{ id: 'f1', home: 'TBD', away: 'TBD', homeGoals: null, awayGoals: null, leg: 'ida' }, { id: 'f1r', home: 'TBD', away: 'TBD', homeGoals: null, awayGoals: null, leg: 'vuelta' }], pairs: [{ name: 'Final', matchIds: ['f1', 'f1r'], team1: 'TBD', team2: 'TBD' }] });
+    html += `<div style="font-weight:700;font-size:.8rem;color:var(--or);margin-bottom:6px;text-transform:uppercase;letter-spacing:1px;">BYES — pasan directo a semis</div>`;
+    html += `<div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:10px;">`;
+    html += sel('pf_bye1','Bye 1 (mejor clasificado)') + sel('pf_bye2','Bye 2');
+    html += `</div>`;
+    html += `<div style="font-weight:700;font-size:.8rem;color:var(--g);margin-bottom:6px;text-transform:uppercase;letter-spacing:1px;">CUARTOS</div>`;
+    html += `<div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;">`;
+    html += sel('pf_q1a','Cuarto 1 — Equipo A') + sel('pf_q1b','Cuarto 1 — Equipo B');
+    html += sel('pf_q2a','Cuarto 2 — Equipo A') + sel('pf_q2b','Cuarto 2 — Equipo B');
+    html += `</div>`;
   } else {
-    rounds.push({
-      name: 'CUARTOS',
-      matches: [
-        { id: 'q1', home: stand[0].name, away: stand[7].name, homeGoals: null, awayGoals: null, leg: 'ida' },
-        { id: 'q1r', home: stand[7].name, away: stand[0].name, homeGoals: null, awayGoals: null, leg: 'vuelta' },
-        { id: 'q2', home: stand[1].name, away: stand[6].name, homeGoals: null, awayGoals: null, leg: 'ida' },
-        { id: 'q2r', home: stand[6].name, away: stand[1].name, homeGoals: null, awayGoals: null, leg: 'vuelta' },
-        { id: 'q3', home: stand[2].name, away: stand[5].name, homeGoals: null, awayGoals: null, leg: 'ida' },
-        { id: 'q3r', home: stand[5].name, away: stand[2].name, homeGoals: null, awayGoals: null, leg: 'vuelta' },
-        { id: 'q4', home: stand[3].name, away: stand[4].name, homeGoals: null, awayGoals: null, leg: 'ida' },
-        { id: 'q4r', home: stand[4].name, away: stand[3].name, homeGoals: null, awayGoals: null, leg: 'vuelta' }
-      ],
-      pairs: [
-        { name: '1° vs 8°', matchIds: ['q1', 'q1r'], team1: stand[0].name, team2: stand[7].name },
-        { name: '2° vs 7°', matchIds: ['q2', 'q2r'], team1: stand[1].name, team2: stand[6].name },
-        { name: '3° vs 6°', matchIds: ['q3', 'q3r'], team1: stand[2].name, team2: stand[5].name },
-        { name: '4° vs 5°', matchIds: ['q4', 'q4r'], team1: stand[3].name, team2: stand[4].name }
-      ]
-    });
-    rounds.push({ name: 'SEMIFINALES', matches: [], pairs: [{ name: 'Q1 vs Q2', matchIds: [], team1: 'TBD', team2: 'TBD' }, { name: 'Q3 vs Q4', matchIds: [], team1: 'TBD', team2: 'TBD' }] });
-    rounds.push({ name: 'FINAL', matches: [{ id: 'f1', home: 'TBD', away: 'TBD', homeGoals: null, awayGoals: null, leg: 'ida' }, { id: 'f1r', home: 'TBD', away: 'TBD', homeGoals: null, awayGoals: null, leg: 'vuelta' }], pairs: [{ name: 'Final', matchIds: ['f1', 'f1r'], team1: 'TBD', team2: 'TBD' }] });
+    html += `<div style="font-weight:700;font-size:.8rem;color:var(--g);margin-bottom:6px;text-transform:uppercase;letter-spacing:1px;">CUARTOS DE FINAL</div>`;
+    html += `<div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;">`;
+    html += sel('pf_q1a','Cuarto 1 — A') + sel('pf_q1b','Cuarto 1 — B');
+    html += sel('pf_q2a','Cuarto 2 — A') + sel('pf_q2b','Cuarto 2 — B');
+    html += sel('pf_q3a','Cuarto 3 — A') + sel('pf_q3b','Cuarto 3 — B');
+    html += sel('pf_q4a','Cuarto 4 — A') + sel('pf_q4b','Cuarto 4 — B');
+    html += `</div>`;
   }
 
-  s.playoffs = { format, rounds };
-  saveDB(); renderPlayoffs(); toast('⚡ Bracket generado!');
+  $('mttl').textContent = '⚡ Armar Bracket de Playoffs';
+  $('mbdy').innerHTML = html;
+
+  // Pre-fill selects from standings
+  setTimeout(() => {
+    const setVal = (id, val) => { const el = $(id); if (el && val) el.value = val; };
+    if (format === 4) {
+      setVal('pf_sf1a', pre(0)); setVal('pf_sf1b', pre(3));
+      setVal('pf_sf2a', pre(1)); setVal('pf_sf2b', pre(2));
+    } else if (format === 6) {
+      setVal('pf_bye1', pre(0)); setVal('pf_bye2', pre(1));
+      setVal('pf_q1a', pre(2)); setVal('pf_q1b', pre(5));
+      setVal('pf_q2a', pre(3)); setVal('pf_q2b', pre(4));
+    } else {
+      setVal('pf_q1a', pre(0)); setVal('pf_q1b', pre(7));
+      setVal('pf_q2a', pre(1)); setVal('pf_q2b', pre(6));
+      setVal('pf_q3a', pre(2)); setVal('pf_q3b', pre(5));
+      setVal('pf_q4a', pre(3)); setVal('pf_q4b', pre(4));
+    }
+  }, 80);
+
+  window._modalConfirm = () => {
+    const g = id => $(id)?.value || 'TBD';
+    const mkPair = (id, name, t1, t2) => ({
+      id, name, home: t1, away: t2, homeGoals: null, awayGoals: null, leg: 'ida'
+    });
+    const mkPairR = (id, t1, t2) => ({
+      id, home: t2, away: t1, homeGoals: null, awayGoals: null, leg: 'vuelta'
+    });
+    const rounds = [];
+
+    if (format === 4) {
+      const [sf1a,sf1b,sf2a,sf2b] = [g('pf_sf1a'),g('pf_sf1b'),g('pf_sf2a'),g('pf_sf2b')];
+      rounds.push({ name:'SEMIFINALES', matches:[
+        mkPair('sf1','',sf1a,sf1b), mkPairR('sf1r',sf1a,sf1b),
+        mkPair('sf2','',sf2a,sf2b), mkPairR('sf2r',sf2a,sf2b)
+      ], pairs:[
+        {name:`${sf1a} vs ${sf1b}`,matchIds:['sf1','sf1r'],team1:sf1a,team2:sf1b},
+        {name:`${sf2a} vs ${sf2b}`,matchIds:['sf2','sf2r'],team1:sf2a,team2:sf2b}
+      ]});
+    } else if (format === 6) {
+      const [bye1,bye2,q1a,q1b,q2a,q2b] = [g('pf_bye1'),g('pf_bye2'),g('pf_q1a'),g('pf_q1b'),g('pf_q2a'),g('pf_q2b')];
+      rounds.push({ name:'CUARTOS', matches:[
+        mkPair('q1','',q1a,q1b), mkPairR('q1r',q1a,q1b),
+        mkPair('q2','',q2a,q2b), mkPairR('q2r',q2a,q2b)
+      ], pairs:[
+        {name:`${q1a} vs ${q1b}`,matchIds:['q1','q1r'],team1:q1a,team2:q1b},
+        {name:`${q2a} vs ${q2b}`,matchIds:['q2','q2r'],team1:q2a,team2:q2b}
+      ], byes:[{seed:'Bye 1',name:bye1},{seed:'Bye 2',name:bye2}]});
+      rounds.push({ name:'SEMIFINALES', matches:[
+        mkPair('sf1','',bye1,'TBD'), mkPairR('sf1r',bye1,'TBD'),
+        mkPair('sf2','',bye2,'TBD'), mkPairR('sf2r',bye2,'TBD')
+      ], pairs:[
+        {name:`${bye1} vs Q1`,matchIds:['sf1','sf1r'],team1:bye1,team2:'TBD'},
+        {name:`${bye2} vs Q2`,matchIds:['sf2','sf2r'],team1:bye2,team2:'TBD'}
+      ]});
+    } else {
+      const [q1a,q1b,q2a,q2b,q3a,q3b,q4a,q4b] = [g('pf_q1a'),g('pf_q1b'),g('pf_q2a'),g('pf_q2b'),g('pf_q3a'),g('pf_q3b'),g('pf_q4a'),g('pf_q4b')];
+      rounds.push({ name:'CUARTOS', matches:[
+        mkPair('q1','',q1a,q1b), mkPairR('q1r',q1a,q1b),
+        mkPair('q2','',q2a,q2b), mkPairR('q2r',q2a,q2b),
+        mkPair('q3','',q3a,q3b), mkPairR('q3r',q3a,q3b),
+        mkPair('q4','',q4a,q4b), mkPairR('q4r',q4a,q4b)
+      ], pairs:[
+        {name:`${q1a} vs ${q1b}`,matchIds:['q1','q1r'],team1:q1a,team2:q1b},
+        {name:`${q2a} vs ${q2b}`,matchIds:['q2','q2r'],team1:q2a,team2:q2b},
+        {name:`${q3a} vs ${q3b}`,matchIds:['q3','q3r'],team1:q3a,team2:q3b},
+        {name:`${q4a} vs ${q4b}`,matchIds:['q4','q4r'],team1:q4a,team2:q4b}
+      ]});
+      rounds.push({ name:'SEMIFINALES', matches:[], pairs:[
+        {name:'Q1 vs Q2',matchIds:[],team1:'TBD',team2:'TBD'},
+        {name:'Q3 vs Q4',matchIds:[],team1:'TBD',team2:'TBD'}
+      ]});
+    }
+
+    // Always add final
+    rounds.push({ name:'FINAL', matches:[
+      {id:'f1',home:'TBD',away:'TBD',homeGoals:null,awayGoals:null,leg:'ida'},
+      {id:'f1r',home:'TBD',away:'TBD',homeGoals:null,awayGoals:null,leg:'vuelta'}
+    ], pairs:[{name:'Final',matchIds:['f1','f1r'],team1:'TBD',team2:'TBD'}]});
+
+    s.playoffs = { format, rounds };
+    saveDB(); renderPlayoffs(); toast('⚡ Bracket generado!');
+  };
+
+  $('mbtns').innerHTML = `
+    <button class="btn bg" onclick="closeModal()" style="font-size:.8rem;padding:6px 12px;">Cancelar</button>
+    <button class="btn bp" onclick="closeModal();window._modalConfirm&&window._modalConfirm()" style="font-size:.8rem;padding:6px 12px;">⚡ Generar Bracket</button>`;
+  $('modal').classList.add('open');
 }
 
 function clearPlayoffs() {
@@ -1363,8 +1410,14 @@ RULES (strictly follow in this order):
 2. Extract the player ID list from the IDs SCREEN for each team. These are the REAL players.
 3. Extract stats from STATS SCREEN.
 4. For each player in STATS SCREEN: check if their name fuzzy-matches any name in the IDs SCREEN list.
-   FUZZY MATCH RULES: ignore case, spaces, special chars. Also handle truncation — if the stats name is a PREFIX of the ID name (e.g. stats shows "xSlick", ID shows "xSlick69") → it IS a match. Numbers can substitute letters (0=O, 1=I/L, 3=E, etc).
-   - If NO match in IDs SCREEN → FIFA BOT. COMPLETELY IGNORE. Do NOT include in players or unregisteredPlayers. Do not mention them at all.
+   FUZZY MATCH RULES (apply ALL of these):
+   - Ignore case, spaces, underscores, special chars
+   - Numbers substitute letters: 0=O, 1=I/L, 3=E, 4=A, 9=G/Q
+   - If stats name is a PREFIX or SUFFIX of the ID name → MATCH (e.g. "xSlick" matches "xSlick69", "Rex" matches "Os Rex l20l")
+   - If ID name CONTAINS the stats name or vice versa → MATCH
+   - If names share 70%+ of characters in order → MATCH
+   - When in doubt → assume it IS a match (false positive is better than missing a real player)
+   - If NO match at all in IDs SCREEN → FIFA BOT. COMPLETELY IGNORE. Do NOT include in players or unregisteredPlayers.
    - If YES match → real player. Use the EXACT name from the IDs SCREEN (not the stats screen). Include their stats.
 5. For each real player (confirmed in IDs SCREEN), fuzzy-match their ID SCREEN name against REGISTERED PLAYERS list.
    - If YES match → registered=true.
@@ -1507,12 +1560,9 @@ function renderCapResult(r) {
   if (sc.home) h += `<div class="ar" style="margin-bottom:9px;"><div class="art">Resultado</div><div class="asd">${sc.home} ${sc.homeGoals ?? '?'} — ${sc.awayGoals ?? '?'} ${sc.away}</div></div>`;
   if (ur.length) h += `<div class="wb">⚠️ ${ur.length} no registrado(s): ${ur.join(', ')}</div>`;
   if (pl.length) {
-    window._lastCapScanResult = r;
     h += `<div class="ar"><div class="art">Jugadores (${pl.length})</div>`;
-    pl.forEach((p, pi) => {
-      const noRegBadge = p.registered
-        ? `<span class="rb">✓</span>`
-        : `<span class="urb" style="cursor:pointer;" title="Click para hacer match" onclick="fixNoReg(${pi},'cap')">⚠ NO REG 🔗</span>`;
+    pl.forEach(p => {
+      const noRegBadge = p.registered ? `<span class="rb">✓</span>` : `<span class="urb">⚠ NO REG</span>`;
       h += `<div class="api"><div style="display:flex;align-items:center;gap:5px;"><span class="pb">${p.pos || '?'}</span><span style="font-weight:600;">${p.name}</span></div><div style="display:flex;align-items:center;gap:4px;">${p.goals ? `<span>⚽${p.goals}</span>` : ''}${p.assists ? `<span>🎯${p.assists}</span>` : ''}${p.rating ? `<span style="color:var(--gold);">⭐${p.rating}</span>` : ''}${noRegBadge}</div></div>`;
     });
     h += `</div>`;
@@ -1608,6 +1658,42 @@ async function pollSubmissions() {
   setTimeout(pollSubmissions, 30000);
 }
 
+function fixNoRegSub(subId, playerIdx) {
+  const sub = subsCache[subId]; if (!sub) return;
+  const r = sub.scan_result; if (!r) return;
+  const p = r.players[playerIdx]; if (!p) return;
+  const s = S();
+  const sc = r.score || {};
+  const homeTeam = s.teams.find(t => t.name.toLowerCase().includes((sc.home||'').toLowerCase().substring(0,4)));
+  const awayTeam = s.teams.find(t => t.name.toLowerCase().includes((sc.away||'').toLowerCase().substring(0,4)));
+  const relevantTeam = p.team === 'home' ? homeTeam : awayTeam;
+  const teamPlayers = s.players.filter(pl => relevantTeam && pl.teamId == relevantTeam.id);
+  $('mttl').textContent = `🔗 Hacer match — ${p.name}`;
+  $('mbdy').innerHTML = `
+    <div style="font-size:.82rem;color:var(--tm);margin-bottom:8px;">El escáner leyó "<b style="color:var(--or);">${p.name}</b>". ¿Con qué jugador registrado hacés match?</div>
+    <select id="matchSubSel" style="background:var(--s2);border:1px solid var(--b);border-radius:8px;color:var(--t);font-family:'Barlow',sans-serif;font-size:.88rem;padding:7px 10px;outline:none;width:100%;">
+      <option value="">— Seleccionar jugador —</option>
+      ${teamPlayers.map(pl => `<option value="${pl.id}">${pl.name} (${pl.pos||'?'})</option>`).join('')}
+    </select>`;
+  window._modalConfirm = () => {
+    const sel = $('matchSubSel');
+    if (!sel?.value) { toast('⚠️ Seleccioná un jugador', true); return; }
+    const matched = s.players.find(pl => pl.id == sel.value);
+    if (!matched) return;
+    const oldName = p.name;
+    r.players[playerIdx].name = matched.name;
+    r.players[playerIdx].registered = true;
+    r.unregisteredPlayers = (r.unregisteredPlayers || []).filter(n => n !== oldName);
+    subsCache[subId].scan_result = r;
+    renderSubs(Object.values(subsCache).filter(s => s.status === 'pending'));
+    toast(`✅ Match hecho: ${oldName} → ${matched.name}`);
+  };
+  $('mbtns').innerHTML = `
+    <button class="btn bg" onclick="closeModal()" style="font-size:.8rem;padding:6px 12px;">Cancelar</button>
+    <button class="btn bp" onclick="closeModal();window._modalConfirm&&window._modalConfirm()" style="font-size:.8rem;padding:6px 12px;">🔗 Confirmar match</button>`;
+  $('modal').classList.add('open');
+}
+
 function renderSubs(subs) {
   const el = $('subsList'); if (!el) return;
   if (!subs.length) { el.innerHTML = `<div class="es"><div class="ei">📥</div>Sin submissions.</div>`; return; }
@@ -1635,7 +1721,7 @@ function renderSubs(subs) {
         ${shots.stats?`<img src="${shots.stats}" style="width:100%;border-radius:6px;border:1px solid var(--b);cursor:pointer;" onclick="showSubImg('${sub.id}','stats')">`:'' }
       </div>` : `<div style="font-size:.72rem;color:var(--tm);margin-bottom:6px;">Sin capturas adjuntas</div>`;
     const urHtml = ur.length ? `<div class="wb" style="margin-bottom:6px;">⚠️ No registrados: <strong>${ur.join(', ')}</strong></div>` : '';
-    const playersHtml = pl.length ? `<div class="ar" style="margin-bottom:6px;"><div class="art">Jugadores (${pl.length})</div>${pl.map(p=>`<div class="api"><div style="display:flex;align-items:center;gap:5px;"><span class="pb">${p.pos||'?'}</span><span style="font-weight:600;">${p.name}</span><span class="${p.registered?'rb':'urb'}">${p.registered?'✓ OK':'⚠ NO REG'}</span></div><div style="display:flex;gap:4px;">${p.goals?`<span>⚽${p.goals}</span>`:''}${p.assists?`<span>🎯${p.assists}</span>`:''}${p.rating?`<span style="color:var(--gold);">⭐${p.rating}</span>`:''}</div></div>`).join('')}</div>` : '';
+    const playersHtml = pl.length ? `<div class="ar" style="margin-bottom:6px;"><div class="art">Jugadores (${pl.length})</div>${pl.map((p,pi)=>`<div class="api"><div style="display:flex;align-items:center;gap:5px;"><span class="pb">${p.pos||'?'}</span><span style="font-weight:600;">${p.name}</span></div><div style="display:flex;gap:4px;">${p.goals?`<span>⚽${p.goals}</span>`:''}${p.assists?`<span>🎯${p.assists}</span>`:''}${p.rating?`<span style="color:var(--gold);">⭐${p.rating}</span>`:''}<span class="${p.registered?'rb':'urb'}"${!p.registered?` style="cursor:pointer;" onclick="fixNoRegSub('${sub.id}',${pi})" title="Click para hacer match"`:''}>${p.registered?'✓ OK':'⚠ NO REG 🔗'}</span></div></div>`).join('')}</div>` : '';
     return `<div class="subc">
       <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:7px;">
         <div>
