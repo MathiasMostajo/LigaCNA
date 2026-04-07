@@ -1753,34 +1753,85 @@ function showSubImg(subId, type) {
 async function approveSub(subId) {
   const sub = subsCache[subId];
   if (!sub) { toast('⚠️ Recargá la página e intentá de nuevo', true); return; }
-  try {
-    const r = sub.scan_result || {}, sc = r.score || {};
-    const s = S();
-    const hT = s.teams.find(t => t.name.toLowerCase().includes((sc.home||'').toLowerCase().substring(0,4)));
-    const aT = s.teams.find(t => t.name.toLowerCase().includes((sc.away||'').toLowerCase().substring(0,4)));
-    if (!hT || !aT) { toast('⚠️ No se encontraron los equipos — cargá manualmente', true); prefill(r); goTab('results'); await supa.from('submissions').update({ status: 'approved' }).eq('id', subId); pollSubmissions(); return; }
-    // Find correct fixture order
-    let fixtureHomeId = hT.id, fixtureAwayId = aT.id;
-    let swapped = false;
-    for (const round of s.schedule||[]) {
-      for (const fix of round.fixtures) {
-        if ((fix.home==hT.id&&fix.away==aT.id)||(fix.home==aT.id&&fix.away==hT.id)) {
-          fixtureHomeId = fix.home; fixtureAwayId = fix.away;
-          swapped = (fix.home == aT.id); break;
-        }
-      }
-    }
-    let homeGoals = sc.homeGoals??0, awayGoals = sc.awayGoals??0;
-    if (swapped) { [homeGoals, awayGoals] = [awayGoals, homeGoals]; }
-    const ps = {};
-    (r.players||[]).forEach(rp => {
-      const p = s.players.find(sp => sp.name.toLowerCase() === rp.name.toLowerCase()); if (!p) return;
-      if (rp.goals||rp.assists||rp.rating) ps[p.id] = { goals: rp.goals||0, assists: rp.assists||0, rating: rp.rating||0, played: true, cs: false };
-    });
-    _saveResult(fixtureHomeId, fixtureAwayId, homeGoals, awayGoals, ps, null);
+  const r = sub.scan_result || {}, sc = r.score || {};
+  const s = S();
+
+  // Find both teams
+  const hT = s.teams.find(t => t.name.toLowerCase().includes((sc.home||'').toLowerCase().substring(0,4)));
+  const aT = s.teams.find(t => t.name.toLowerCase().includes((sc.away||'').toLowerCase().substring(0,4)));
+
+  if (!hT || !aT) {
+    toast('⚠️ No se encontraron los equipos — cargá manualmente', true);
+    prefill(r); goTab('results');
     await supa.from('submissions').update({ status: 'approved' }).eq('id', subId);
-    toast('✅ Resultado guardado!'); pollSubmissions();
-  } catch (e) { toast('⚠️ Error: ' + e.message, true); }
+    pollSubmissions(); return;
+  }
+
+  // Find ALL pending fixtures between these two teams
+  const pendingFixtures = [];
+  (s.schedule||[]).forEach(round => {
+    round.fixtures.forEach(fix => {
+      const isPair = (fix.home==hT.id&&fix.away==aT.id)||(fix.home==aT.id&&fix.away==hT.id);
+      if (isPair && !getMatchResult(fix.home, fix.away)) {
+        pendingFixtures.push({ round: round.round, homeId: fix.home, awayId: fix.away });
+      }
+    });
+  });
+
+  // Show modal to select which fixture was played
+  $('mttl').textContent = '📅 ¿Cuál partido fue?';
+  const fixtureOpts = pendingFixtures.map((f, i) =>
+    `<label style="display:flex;align-items:center;gap:8px;padding:8px;border:1px solid var(--b);border-radius:8px;cursor:pointer;margin-bottom:5px;">
+      <input type="radio" name="fixSel" value="${i}" ${i===0?'checked':''}>
+      <span>Fecha ${f.round}: <b>${tn(f.homeId)}</b> 🏠 vs ✈️ <b>${tn(f.awayId)}</b></span>
+    </label>`
+  ).join('');
+
+  $('mbdy').innerHTML = `
+    <div style="font-size:.82rem;color:var(--tm);margin-bottom:10px;">
+      El escáner leyó: <b style="color:var(--g);">${sc.home} ${sc.homeGoals??'?'}–${sc.awayGoals??'?'} ${sc.away}</b><br>
+      Seleccioná el partido correcto del fixture para respetar la localía:
+    </div>
+    ${fixtureOpts.length ? fixtureOpts : `<div style="color:var(--or);font-size:.82rem;">⚠️ No se encontraron partidos pendientes entre estos equipos. Se guardará con la localía del escáner.</div>`}`;
+
+  window._modalConfirm = async () => {
+    try {
+      let fixtureHomeId = hT.id, fixtureAwayId = aT.id;
+      if (pendingFixtures.length) {
+        const sel = document.querySelector('input[name="fixSel"]:checked');
+        const idx = sel ? +sel.value : 0;
+        const chosen = pendingFixtures[idx];
+        fixtureHomeId = chosen.homeId;
+        fixtureAwayId = chosen.awayId;
+      }
+      // Determine if we need to swap goals based on fixture vs scan
+      const scanHomeIsFixtureHome = (hT.id === fixtureHomeId);
+      let homeGoals = sc.homeGoals??0, awayGoals = sc.awayGoals??0;
+      if (!scanHomeIsFixtureHome) { [homeGoals, awayGoals] = [awayGoals, homeGoals]; }
+
+      // Build player stats with fuzzy matching
+      const norm = str => str.toLowerCase().replace(/[^a-z0-9]/g,'');
+      const ps = {};
+      (r.players||[]).forEach(rp => {
+        const rpN = norm(rp.name);
+        const p = s.players.find(sp => {
+          const spN = norm(sp.name);
+          return spN === rpN || spN.includes(rpN) || rpN.includes(spN);
+        });
+        if (!p) return;
+        ps[p.id] = { goals: rp.goals||0, assists: rp.assists||0, rating: rp.rating||0, played: true, cs: false };
+      });
+
+      _saveResult(fixtureHomeId, fixtureAwayId, homeGoals, awayGoals, ps, null);
+      await supa.from('submissions').update({ status: 'approved' }).eq('id', subId);
+      toast('✅ Resultado guardado!'); pollSubmissions();
+    } catch (e) { toast('⚠️ Error: ' + e.message, true); }
+  };
+
+  $('mbtns').innerHTML = `
+    <button class="btn bg" onclick="closeModal()" style="font-size:.8rem;padding:6px 12px;">Cancelar</button>
+    <button class="btn bp" onclick="closeModal();window._modalConfirm&&window._modalConfirm()" style="font-size:.8rem;padding:6px 12px;">✅ Aprobar y guardar</button>`;
+  $('modal').classList.add('open');
 }
 async function rejectSub(subId) {
   showModal('¿Rechazar?', 'El capitán tendrá que reenviar.', 'Rechazar', async () => { await supa.from('submissions').update({ status: 'rejected' }).eq('id', subId); toast('🗑 Rechazado.'); pollSubmissions(); }, true);
