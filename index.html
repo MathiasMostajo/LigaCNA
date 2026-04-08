@@ -420,7 +420,13 @@ select option{background:var(--s2);}
 <div class="sec" id="tab-capscan">
   <div class="card" style="border-color:rgba(168,85,247,.3);">
     <div class="ct" style="color:var(--pu);">📤 Enviar Resultado</div>
-    <div class="ib" id="capTeamLbl">Subí las 3 capturas. La IA lee todo. Tu DT revisa y confirma.</div>
+    <div class="ib" id="capTeamLbl">Seleccioná el partido y subí las 3 capturas.</div>
+    <div class="fg" style="margin-bottom:10px;">
+      <label style="font-size:.78rem;color:var(--tm);font-family:'Barlow Condensed',sans-serif;text-transform:uppercase;letter-spacing:1px;">📅 Partido</label>
+      <select id="capMatchSel" style="background:var(--s2);border:1px solid var(--b);border-radius:8px;color:var(--t);font-family:'Barlow',sans-serif;font-size:.88rem;padding:7px 10px;outline:none;width:100%;">
+        <option value="">— Seleccioná el partido —</option>
+      </select>
+    </div>
     <div class="apg">
       <div><label style="margin-bottom:5px;display:block;">📸 Marcador</label>
         <div class="adz" id="cz-score" ondragover="cdov(event,'score')" ondragleave="cdlv('score')" ondrop="cdop(event,'score')">
@@ -764,8 +770,26 @@ function doCapLogin() {
   if (found) {
     capTeamCode = code; mode = 'captain'; closeLogin();
     const lbl = $('capTeamLbl');
-    if (lbl) lbl.textContent = '⚽ ' + found.team.name + ' — Subí las 3 capturas. La IA lee todo. Tu DT revisa.';
+    if (lbl) lbl.textContent = '⚽ ' + found.team.name + ' — Seleccioná el partido y subí las 3 capturas.';
     applyMode(); updateCapScanBtn();
+    // Populate pending matches for this team
+    const sel = $('capMatchSel');
+    if (sel) {
+      const s = S();
+      const myTeam = s.teams.find(t => t.id === found.team.id);
+      const pending = [];
+      (s.schedule || []).forEach(round => {
+        round.fixtures.forEach(fix => {
+          if ((fix.home === found.team.id || fix.away === found.team.id) && !getMatchResult(fix.home, fix.away)) {
+            const isHome = fix.home === found.team.id;
+            const oppId = isHome ? fix.away : fix.home;
+            pending.push({ round: round.round, homeId: fix.home, awayId: fix.away, isHome, oppName: tn(oppId) });
+          }
+        });
+      });
+      sel.innerHTML = `<option value="">— Seleccioná el partido —</option>` +
+        pending.map(p => `<option value="${p.round}_${p.homeId}_${p.awayId}">${p.isHome ? '🏠' : '✈️'} Fecha ${p.round} vs ${p.oppName}</option>`).join('');
+    }
     setTimeout(() => goTab('capscan'), 100);
     toast('✅ Bienvenido, ' + found.team.name + '!');
   } else {
@@ -1399,80 +1423,149 @@ function clearCapScan() { capImgData = { score: null, players: null, stats: null
 // AI SCAN (Claude Haiku)
 // ════════════════════════════════════════════════════════
 
-async function callAI(images) {
-  const s = S();
-  const prompt = `You are a JSON-only API. Respond with raw JSON only, no markdown, no backticks, no explanation. Start with { and end with }.
+// ── OPTION B: Two-step AI scan ──────────────────────────────────────────
+// Step 1: Claude ONLY reads text from images (score, IDs list, stats list)
+// Step 2: JavaScript does ALL matching (IDs vs stats, stats vs league DB)
 
-You will receive up to 3 FC26 Pro Clubs screenshots:
-1. SCOREBOARD — shows team names and final score
-2. IDs SCREEN — shows the list of real player gamertags/IDs for both teams (JUGADORES/AS screen). This is the ONLY source of truth for who actually played.
-3. STATS SCREEN — shows individual stats: POS, Nombre, CR (rating), G (goals), AST (assists). NOTE: FIFA adds CPU bots to fill empty slots — these bots appear in the STATS SCREEN but NOT in the IDs SCREEN.
-
-RULES (strictly follow in this order):
-1. Extract score from SCOREBOARD.
-2. Extract the player ID list from the IDs SCREEN for each team. These are the REAL players.
-3. Extract stats from STATS SCREEN.
-4. For each player in STATS SCREEN: check if their name fuzzy-matches any name in the IDs SCREEN list.
-   FUZZY MATCH RULES (apply ALL of these):
-   - Ignore case, spaces, underscores, special chars
-   - Numbers substitute letters: 0=O, 1=I/L, 3=E, 4=A, 9=G/Q
-   - If stats name is a PREFIX or SUFFIX of the ID name → MATCH (e.g. "xSlick" matches "xSlick69", "Rex" matches "Os Rex l20l")
-   - If ID name CONTAINS the stats name or vice versa → MATCH
-   - If names share 60%+ of characters in order → MATCH
-   - When in doubt → assume it IS a match (false positive is better than missing a real player)
-   - If NO match at all in IDs SCREEN → FIFA BOT. COMPLETELY IGNORE. Do NOT include in players or unregisteredPlayers.
-   - If YES match → real player. Use the EXACT name from the IDs SCREEN (not the stats screen). Include their stats.
-5. For each real player (confirmed in IDs SCREEN), fuzzy-match their ID SCREEN name against REGISTERED PLAYERS list.
-   - If YES match → registered=true.
-   - If NO match → registered=false, add their ID SCREEN name to unregisteredPlayers.
-
-REGISTERED PLAYERS (league database): [${s.players.map(p => p.name).join(',') || 'none'}]
-REGISTERED TEAMS: [${s.teams.map(t => t.name).join(',') || 'none'}]
-
-Spanish UI terms: Goles=Goals, Asist.=Assists, CR=Rating, PO/GLB=GK, DFC/DCI/DD/DI=DEF, MCO/MC/MDI/MDD/tD/MOD/MOI=MID, DC/EXT=FWD
-
-Return this exact JSON:
-{"score":{"home":"","away":"","homeGoals":0,"awayGoals":0},"players":[{"name":"","team":"home","goals":0,"assists":0,"rating":0,"pos":"MID","registered":true}],"unregisteredPlayers":[],"notes":""}`;
-
+async function aiRequest(content) {
   const key = getGeminiKey();
   if (!key) { toast('⚠️ Ingresá tu Claude API key en ⚙️ Config', true); throw new Error('Sin API key'); }
-
-  // Build content with full-quality images (no compression — Claude reads originals)
-  const toMime = d => d.split(';')[0].replace('data:', '');
-  const toB64 = d => d.split(',')[1];
-  const content = [{ type: 'text', text: prompt }];
-  if (images.score) content.push({ type: 'image', source: { type: 'base64', media_type: toMime(images.score), data: toB64(images.score) } });
-  if (images.players) content.push({ type: 'image', source: { type: 'base64', media_type: toMime(images.players), data: toB64(images.players) } });
-  if (images.stats) content.push({ type: 'image', source: { type: 'base64', media_type: toMime(images.stats), data: toB64(images.stats) } });
-
   const res = await fetch(CLAUDE_URL, {
     method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'x-api-key': key,
-      'anthropic-version': '2023-06-01',
-      'anthropic-dangerous-direct-browser-access': 'true'
-    },
-    body: JSON.stringify({
-      model: 'claude-haiku-4-5',
-      max_tokens: 1500,
-      messages: [{ role: 'user', content }]
-    })
+    headers: { 'Content-Type': 'application/json', 'x-api-key': key, 'anthropic-version': '2023-06-01', 'anthropic-dangerous-direct-browser-access': 'true' },
+    body: JSON.stringify({ model: 'claude-haiku-4-5', max_tokens: 1500, messages: [{ role: 'user', content }] })
   });
   const data = await res.json();
   if (data.error) throw new Error('Claude: ' + data.error.message);
   const raw = (data.content?.[0]?.text || '').trim();
-  let result;
-  try { result = JSON.parse(raw); }
+  try { return JSON.parse(raw); }
   catch (e) {
     const fm = raw.match(/```(?:json)?\s*([\s\S]*?)```/);
     const clean = fm ? fm[1].trim() : raw.replace(/`/g, '').trim();
     const si = clean.indexOf('{'), ei = clean.lastIndexOf('}') + 1;
     if (si === -1) throw new Error('Sin JSON. Claude dijo: ' + raw.slice(0, 150));
-    result = JSON.parse(clean.slice(si, ei));
+    return JSON.parse(clean.slice(si, ei));
   }
-  result.players = result.players || []; result.unregisteredPlayers = result.unregisteredPlayers || []; result.score = result.score || {};
-  return result;
+}
+
+// Compress image only if over 4.5MB
+async function maybeCompress(dataUrl) {
+  if (!dataUrl) return null;
+  if ((dataUrl.length * 3/4) <= 4.5 * 1024 * 1024) return dataUrl;
+  return new Promise(res => {
+    const img = new Image();
+    img.onload = () => {
+      const tryQ = (q) => {
+        const cv = document.createElement('canvas');
+        cv.width = Math.round(img.width * 0.9); cv.height = Math.round(img.height * 0.9);
+        cv.getContext('2d').drawImage(img, 0, 0, cv.width, cv.height);
+        const out = cv.toDataURL('image/jpeg', q);
+        if ((out.length * 3/4) <= 4.5 * 1024 * 1024 || q <= 0.5) { res(out); return; }
+        tryQ(q - 0.1);
+      };
+      tryQ(0.9);
+    };
+    img.src = dataUrl;
+  });
+}
+
+function imgBlock(dataUrl) {
+  const mime = dataUrl.split(';')[0].replace('data:', '');
+  const b64 = dataUrl.split(',')[1];
+  return { type: 'image', source: { type: 'base64', media_type: mime, data: b64 } };
+}
+
+// JS fuzzy match: normalize and check if strings are similar enough
+function fuzzyMatch(a, b) {
+  const norm = s => s.toLowerCase().replace(/[^a-z0-9]/g,'').replace(/[il1]/g,'1').replace(/[o0]/g,'0');
+  const na = norm(a), nb = norm(b);
+  if (!na || !nb) return false;
+  if (na === nb) return true;
+  if (na.includes(nb) || nb.includes(na)) return true;
+  // Check if shorter is prefix of longer (handles truncation like "xSlick" → "xSlick69")
+  const [shorter, longer] = na.length <= nb.length ? [na, nb] : [nb, na];
+  if (longer.startsWith(shorter) && shorter.length >= 3) return true;
+  // Count matching chars in order (60% threshold)
+  let matches = 0, j = 0;
+  for (let i = 0; i < na.length && j < nb.length; i++) {
+    if (na[i] === nb[j]) { matches++; j++; }
+  }
+  return matches / Math.max(na.length, nb.length) >= 0.6;
+}
+
+async function callAI(images) {
+  const s = S();
+  const [imgScore, imgPlayers, imgStats] = await Promise.all([
+    maybeCompress(images.score),
+    maybeCompress(images.players),
+    maybeCompress(images.stats)
+  ]);
+
+  // ── STEP 1A: Read scoreboard ──────────────────────────────────────────
+  const scorePrompt = 'You are a JSON-only API. No markdown. Read the scoreboard and return: {"home":"TEAM NAME","away":"TEAM NAME","homeGoals":0,"awayGoals":0}';
+  const scoreContent = [{ type: 'text', text: scorePrompt }];
+  if (imgScore) scoreContent.push(imgBlock(imgScore));
+  const scoreData = imgScore ? await aiRequest(scoreContent) : { home: '', away: '', homeGoals: 0, awayGoals: 0 };
+
+  // ── STEP 1B: Read IDs screen ─────────────────────────────────────────
+  const idsPrompt = 'You are a JSON-only API. No markdown. Read the JUGADORES/AS screen showing two teams. Return the exact gamertags/IDs as shown. Return: {"home":["id1","id2",...],"away":["id1","id2",...]}. Left column = home team, right column = away team. Copy names EXACTLY as shown including numbers and special chars.';
+  const idsContent = [{ type: 'text', text: idsPrompt }];
+  if (imgPlayers) idsContent.push(imgBlock(imgPlayers));
+  const idsData = imgPlayers ? await aiRequest(idsContent) : { home: [], away: [] };
+  const homeIds = idsData.home || [];
+  const awayIds = idsData.away || [];
+  const allIds = [...homeIds.map(n => ({ name: n, team: 'home' })), ...awayIds.map(n => ({ name: n, team: 'away' }))];
+
+  // ── STEP 1C: Read stats screen ────────────────────────────────────────
+  const statsPrompt = 'You are a JSON-only API. No markdown. Read the Rendimiento/Stats table. Return only the players shown (ignore bots/CPU). Return: {"players":[{"name":"exact name from screen","goals":0,"assists":0,"rating":0,"pos":"MID"}]}. Spanish: Goles=goals, Asist.=assists, CR=rating. PO/GLB=GK, DFC/DCI/DD/DI=DEF, MCO/MC/MDI/MDD/MOD/MOI=MID, DC/EXT=FWD.';
+  const statsContent = [{ type: 'text', text: statsPrompt }];
+  if (imgStats) statsContent.push(imgBlock(imgStats));
+  const statsData = imgStats ? await aiRequest(statsContent) : { players: [] };
+  const statsList = statsData.players || [];
+
+  // ── STEP 2: JavaScript does ALL matching ──────────────────────────────
+
+  // Match each stats player to an ID from the IDs screen
+  const matchedPlayers = [];
+  statsList.forEach(sp => {
+    const idMatch = allIds.find(idp => fuzzyMatch(sp.name, idp.name));
+    if (!idMatch) return; // No match in IDs screen = FIFA bot, ignore completely
+    // Match the ID name against registered league players
+    const regMatch = s.players.find(lp => fuzzyMatch(idMatch.name, lp.name));
+    matchedPlayers.push({
+      name: regMatch ? regMatch.name : idMatch.name,
+      team: idMatch.team,
+      goals: sp.goals || 0,
+      assists: sp.assists || 0,
+      rating: sp.rating || 0,
+      pos: sp.pos || 'MID',
+      registered: !!regMatch
+    });
+  });
+
+  // Find IDs that had no stats (played but no stats recorded — still count as played)
+  allIds.forEach(idp => {
+    const alreadyMatched = matchedPlayers.find(mp => fuzzyMatch(mp.name, idp.name));
+    if (!alreadyMatched) {
+      const regMatch = s.players.find(lp => fuzzyMatch(idp.name, lp.name));
+      matchedPlayers.push({
+        name: regMatch ? regMatch.name : idp.name,
+        team: idp.team,
+        goals: 0, assists: 0, rating: 0, pos: '?',
+        registered: !!regMatch
+      });
+    }
+  });
+
+  // Unregistered = appeared in IDs but not in league DB
+  const unregisteredPlayers = matchedPlayers.filter(p => !p.registered).map(p => p.name);
+
+  return {
+    score: scoreData,
+    players: matchedPlayers.filter(p => p.registered),
+    unregisteredPlayers,
+    notes: ''
+  };
 }
 
 async function runScan() {
@@ -1559,46 +1652,78 @@ function renderScanResult(r) {
 
 function renderCapResult(r) {
   const sc = r.score || {}, pl = r.players || [], ur = r.unregisteredPlayers || [];
+  const s = S();
+
+  // Find the captain's team to know which side is home/away
+  const myTeam = s.teams.find(t => t.code === capTeamCode);
+  const homeName = sc.home || 'Local';
+  const awayName = sc.away || 'Visitante';
+
+  const homePlayers = pl.filter(p => p.team === 'home');
+  const awayPlayers = pl.filter(p => p.team === 'away');
+
+  const renderCol = (players, teamName, side) => {
+    const isMyTeam = myTeam && (
+      (side === 'home' && fuzzyMatch(teamName, myTeam.name)) ||
+      (side === 'away' && fuzzyMatch(teamName, myTeam.name))
+    );
+    const label = isMyTeam ? `🫵 ${teamName}` : `🆚 ${teamName}`;
+    const rows = players.map(p => {
+      const noRegBadge = p.registered ? `<span class="rb">✓</span>` : `<span class="urb">⚠ NO REG</span>`;
+      const stats = isMyTeam
+        ? `${p.goals ? `<span>⚽${p.goals}</span>` : ''}${p.assists ? `<span>🎯${p.assists}</span>` : ''}${p.rating ? `<span style="color:var(--gold);">⭐${p.rating}</span>` : ''}`
+        : '';
+      return `<div class="api" style="flex-wrap:wrap;">
+        <div style="display:flex;align-items:center;gap:4px;flex:1;">
+          ${p.pos && p.pos !== '?' ? `<span class="pb" style="font-size:.6rem;">${p.pos}</span>` : ''}
+          <span style="font-weight:600;font-size:.8rem;">${p.name}</span>
+        </div>
+        <div style="display:flex;gap:3px;align-items:center;">${stats}${noRegBadge}</div>
+      </div>`;
+    }).join('');
+    return `<div style="flex:1;min-width:0;">
+      <div style="font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:.78rem;letter-spacing:1px;color:${isMyTeam?'var(--g)':'var(--tm)'};text-transform:uppercase;margin-bottom:6px;padding-bottom:4px;border-bottom:1px solid var(--b);">${label}</div>
+      ${rows || `<div style="font-size:.74rem;color:var(--tm);">Sin jugadores</div>`}
+    </div>`;
+  };
+
   let h = `<div class="card"><div class="ct">✅ Revisá antes de enviar</div>`;
   if (sc.home) h += `<div class="ar" style="margin-bottom:9px;"><div class="art">Resultado</div><div class="asd">${sc.home} ${sc.homeGoals ?? '?'} — ${sc.awayGoals ?? '?'} ${sc.away}</div></div>`;
-  if (ur.length) h += `<div class="wb">⚠️ ${ur.length} no registrado(s): ${ur.join(', ')}</div>`;
-  if (pl.length) {
-    h += `<div class="ar"><div class="art">Jugadores (${pl.length})</div>`;
-    pl.forEach(p => {
-      const noRegBadge = p.registered ? `<span class="rb">✓</span>` : `<span class="urb">⚠ NO REG</span>`;
-      h += `<div class="api"><div style="display:flex;align-items:center;gap:5px;"><span class="pb">${p.pos || '?'}</span><span style="font-weight:600;">${p.name}</span></div><div style="display:flex;align-items:center;gap:4px;">${p.goals ? `<span>⚽${p.goals}</span>` : ''}${p.assists ? `<span>🎯${p.assists}</span>` : ''}${p.rating ? `<span style="color:var(--gold);">⭐${p.rating}</span>` : ''}${noRegBadge}</div></div>`;
-    });
-    h += `</div>`;
-  }
-  h += `</div>`; $('capScanRes').innerHTML = h; $('capSubmitWrap').style.display = 'block';
+  if (ur.length) h += `<div class="wb" style="margin-bottom:8px;">⚠️ No registrados: ${ur.join(', ')}</div>`;
+  h += `<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+    ${renderCol(homePlayers, homeName, 'home')}
+    ${renderCol(awayPlayers, awayName, 'away')}
+  </div>`;
+  h += `</div>`;
+  $('capScanRes').innerHTML = h;
+  $('capSubmitWrap').style.display = 'block';
 }
 
 async function submitCapResult() {
   if (!capScanResult || !capTeamCode) { toast('⚠️ Escaneá primero', true); return; }
+  const matchSel = $('capMatchSel');
+  if (matchSel && !matchSel.value) { toast('⚠️ Seleccioná el partido primero', true); return; }
   const s = S();
   const myTeam = s.teams.find(t => t.code === capTeamCode);
-  if (myTeam) {
-    const sc = capScanResult.score || {};
-    const homeMatch = (sc.home || '').toLowerCase();
-    const awayMatch = (sc.away || '').toLowerCase();
-    const myName = myTeam.name.toLowerCase().substring(0, 4);
-    if (!homeMatch.includes(myName) && !awayMatch.includes(myName)) {
-      toast('⚠️ Solo podés enviar partidos de tu equipo', true); return;
-    }
-  }
   const btn = document.querySelector('#capSubmitWrap button'); btn.disabled = true; btn.textContent = 'Enviando...';
   try {
     const teamName = myTeam?.name || capTeamCode;
+    // Include selected fixture info in payload
+    let selectedFixture = null;
+    if (matchSel?.value) {
+      const [round, homeId, awayId] = matchSel.value.split('_');
+      selectedFixture = { round: +round, homeId, awayId };
+    }
     // Compress screenshots to small thumbnails for storage
     const compressImg = async (dataUrl) => {
       if (!dataUrl) return null;
       return new Promise(res => {
         const img = new Image(); img.onload = () => {
           const c = document.createElement('canvas');
-          const max = 400; const ratio = Math.min(max/img.width, max/img.height);
-          c.width = img.width * ratio; c.height = img.height * ratio;
+          const max = 1200; const ratio = Math.min(max/img.width, max/img.height, 1);
+          c.width = Math.round(img.width * ratio); c.height = Math.round(img.height * ratio);
           c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
-          res(c.toDataURL('image/jpeg', 0.6));
+          res(c.toDataURL('image/jpeg', 0.85));
         }; img.src = dataUrl;
       });
     };
@@ -1607,7 +1732,7 @@ async function submitCapResult() {
       players: await compressImg(capImgData.players),
       stats: await compressImg(capImgData.stats)
     };
-    const payload = { ...capScanResult, _screenshots: screenshots };
+    const payload = { ...capScanResult, _screenshots: screenshots, _selectedFixture: selectedFixture };
     const { error } = await supa.from('submissions').insert({ team_code: capTeamCode, team_name: teamName, scan_result: payload, status: 'pending' });
     if (error) throw error;
     $('capScanRes').innerHTML = `<div class="card" style="text-align:center;padding:22px;"><div style="font-size:1.8rem;margin-bottom:7px;">✅</div><div style="font-family:'Bebas Neue',sans-serif;font-size:1.3rem;color:var(--g);">¡Enviado!</div><div style="font-size:.8rem;color:var(--tm);margin-top:5px;">Tu DT va a revisar y confirmar.</div></div>`;
@@ -1771,15 +1896,22 @@ async function approveSub(subId) {
   }
 
   // Find ALL pending fixtures between these two teams
+  // If captain already selected a specific fixture, use that directly
+  const preSelected = r._selectedFixture;
   const pendingFixtures = [];
-  (s.schedule||[]).forEach(round => {
-    round.fixtures.forEach(fix => {
-      const isPair = (fix.home==hT.id&&fix.away==aT.id)||(fix.home==aT.id&&fix.away==hT.id);
-      if (isPair && !getMatchResult(fix.home, fix.away)) {
-        pendingFixtures.push({ round: round.round, homeId: fix.home, awayId: fix.away });
-      }
+  if (preSelected) {
+    pendingFixtures.push({ round: preSelected.round, homeId: preSelected.homeId, awayId: preSelected.awayId });
+  }
+  if (!preSelected) {
+    (s.schedule||[]).forEach(round => {
+      round.fixtures.forEach(fix => {
+        const isPair = (fix.home==hT.id&&fix.away==aT.id)||(fix.home==aT.id&&fix.away==hT.id);
+        if (isPair && !getMatchResult(fix.home, fix.away)) {
+          pendingFixtures.push({ round: round.round, homeId: fix.home, awayId: fix.away });
+        }
+      });
     });
-  });
+  }
 
   // Show modal to select which fixture was played
   $('mttl').textContent = '📅 ¿Cuál partido fue?';
@@ -1907,11 +2039,18 @@ function renderPlayers() {
   if (!players.length) { el.innerHTML = `<div class="es"><div class="ei">👤</div>Sin jugadores.</div>`; return; }
   const byTeam = {};
   players.forEach(p => { if (!byTeam[p.teamId]) byTeam[p.teamId] = []; byTeam[p.teamId].push(p); });
-  el.innerHTML = Object.entries(byTeam).map(([tid, ps]) => `
-    <div style="margin-bottom:12px;">
-      <div style="display:flex;align-items:center;gap:7px;font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:.78rem;letter-spacing:1px;color:var(--tm);text-transform:uppercase;margin-bottom:5px;padding-bottom:4px;border-bottom:1px solid var(--b);">${getShield(tid, 'sm')} ${tn(tid)}</div>
-      ${ps.map(p => { const ar = p.rating.length ? avg(p.rating).toFixed(1) : '—'; return `<div class="pr"><div class="pi"><span class="pb">${p.pos || '—'}</span><span style="font-weight:600;cursor:pointer;color:var(--g);text-decoration:underline dotted;" onclick="viewPlayerProfile('${p.id}')">${p.name}</span></div><div class="psm"><span>⚽${p.goals}</span><span>🎯${p.assists}</span><span>⭐${ar}</span><span>🧤${p.cs}</span><span style="color:var(--b);">|</span><span>${p.matchesPlayed}GP</span></div><div style="display:flex;gap:3px;"><button class="btn bg" onclick="editPos('${p.id}')" style="font-size:.66rem;padding:2px 6px;">✏️</button><button class="btn bd" onclick="removePlayer('${p.id}')">✕</button></div></div>`; }).join('')}
-    </div>`).join('');
+  el.innerHTML = Object.entries(byTeam).map(([tid, ps]) => {
+    const teamName = tn(tid);
+    const colId = 'tc_' + tid;
+    const rows = ps.map(p => { const ar = p.rating.length ? avg(p.rating).toFixed(1) : '—'; return `<div class="pr"><div class="pi"><span class="pb">${p.pos || '—'}</span><span style="font-weight:600;cursor:pointer;color:var(--g);text-decoration:underline dotted;" onclick="viewPlayerProfile('${p.id}')">${p.name}</span></div><div class="psm"><span>⚽${p.goals}</span><span>🎯${p.assists}</span><span>⭐${ar}</span><span>🧤${p.cs}</span><span style="color:var(--b);">|</span><span>${p.matchesPlayed}GP</span></div><div style="display:flex;gap:3px;"><button class="btn bg" onclick="editPos('${p.id}')" style="font-size:.66rem;padding:2px 6px;">✏️</button><button class="btn bd" onclick="removePlayer('${p.id}')">✕</button></div></div>`; }).join('');
+    return `<div style="margin-bottom:6px;border:1px solid var(--b);border-radius:10px;overflow:hidden;">
+      <div style="display:flex;align-items:center;justify-content:space-between;padding:8px 12px;cursor:pointer;background:var(--s2);" onclick="const el=document.getElementById('${colId}');const chev=this.querySelector('.chev');if(el.style.display==='none'){el.style.display='block';chev.textContent='▼';}else{el.style.display='none';chev.textContent='▶';}">
+        <div style="display:flex;align-items:center;gap:7px;font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:.82rem;letter-spacing:1px;color:var(--g);text-transform:uppercase;">${getShield(tid, 'sm')} ${teamName} <span style="font-size:.7rem;color:var(--tm);font-weight:400;">(${ps.length} jug.)</span></div>
+        <span class="chev" style="color:var(--tm);font-size:.7rem;">▶</span>
+      </div>
+      <div id="${colId}" style="display:none;padding:6px 12px 8px;">${rows}</div>
+    </div>`;
+  }).join('');
 }
 
 function renderDropdowns() {
@@ -2338,7 +2477,7 @@ function viewTeamProfile(teamId) {
 function renderStandings() {
   const el = $('standTable'), stand = getStandings();
   if (!stand.length) { el.innerHTML = `<div class="es"><div class="ei">📊</div>Sin datos.</div>`; return; }
-  el.innerHTML = `<table class="st"><thead><tr><th>#</th><th>Equipo</th><th>PJ</th><th>G</th><th>E</th><th>P</th><th>GF</th><th>GC</th><th>DG</th><th>Pts</th><th>Forma</th></tr></thead><tbody>${stand.map((s, i) => `<tr><td><span class="rnk ${['r1', 'r2', 'r3'][i] || ''}">${i + 1}</span></td><td><div style="display:flex;align-items:center;gap:7px;cursor:pointer;" onclick="viewTeamProfile('${s.id}')">${getShield(s.id, 'md')}<b style="color:var(--g);text-decoration:underline dotted;">${s.name}</b></div></td><td>${s.P}</td><td>${s.W}</td><td>${s.D}</td><td>${s.L}</td><td>${s.GF}</td><td>${s.GA}</td><td style="color:${s.GD > 0 ? 'var(--g)' : s.GD < 0 ? 'var(--red)' : ''}">${s.GD > 0 ? '+' : ''}${s.GD}</td><td><span class="pts">${s.Pts}</span></td><td><div class="fp">${s.form.slice(-5).map(f => `<div class="fpill ${f}">${f}</div>`).join('')}</div></td></tr>`).join('')}</tbody></table>`;
+  el.innerHTML = `<table class="st"><thead><tr><th>#</th><th>Equipo</th><th>PJ</th><th>G</th><th>E</th><th>P</th><th>GF</th><th>GC</th><th>DG</th><th>Pts</th><th>Forma</th></tr></thead><tbody>${stand.map((s, i) => `<tr><td><span class="rnk ${['r1', 'r2', 'r3'][i] || ''}">${i + 1}</span></td><td><div style="display:flex;align-items:center;gap:7px;cursor:pointer;" onclick="viewTeamProfile('${s.id}')">${getShield(s.id, 'md')}<div><b style="color:var(--g);text-decoration:underline dotted;">${s.name}</b><div style="font-size:.64rem;color:var(--tm);">👤 ${S().players.filter(p=>p.teamId==s.id).length}</div></div></div></td><td>${s.P}</td><td>${s.W}</td><td>${s.D}</td><td>${s.L}</td><td>${s.GF}</td><td>${s.GA}</td><td style="color:${s.GD > 0 ? 'var(--g)' : s.GD < 0 ? 'var(--red)' : ''}">${s.GD > 0 ? '+' : ''}${s.GD}</td><td><span class="pts">${s.Pts}</span></td><td><div class="fp">${s.form.slice(-5).map(f => `<div class="fpill ${f}">${f}</div>`).join('')}</div></td></tr>`).join('')}</tbody></table>`;
 }
 
 function showLB(type, el) { currentLB = type; document.querySelectorAll('.lbtab').forEach(t => t.classList.remove('active')); if (el) el.classList.add('active'); renderLB(type); }
