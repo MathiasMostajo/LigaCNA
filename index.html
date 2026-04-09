@@ -2292,6 +2292,14 @@ function editMatch(matchId) {
       <div style="font-family:'Bebas Neue',sans-serif;font-size:1.5rem;color:var(--tm);padding-top:16px;">—</div>
       <div style="text-align:center;"><div style="font-size:.68rem;color:var(--tm);margin-bottom:3px;">Visitante</div><input type="number" id="eAG" value="${m.awayGoals}" min="0" style="width:60px;text-align:center;font-size:1.3rem;font-family:'Bebas Neue',sans-serif;background:var(--s2);border:1px solid var(--b);border-radius:8px;color:var(--g);padding:6px;"></div>
     </div>
+    <!-- AI Stats Scanner -->
+    <div style="margin-bottom:10px;padding:8px;background:rgba(168,85,247,.08);border:1px solid rgba(168,85,247,.25);border-radius:8px;">
+      <div style="font-size:.72rem;color:var(--pu);font-family:'Barlow Condensed',sans-serif;letter-spacing:1px;text-transform:uppercase;margin-bottom:6px;">🤖 Escanear Stats con IA</div>
+      <div style="display:flex;gap:7px;align-items:center;flex-wrap:wrap;">
+        <input type="file" accept="image/*" id="editStatsImg" style="font-size:.72rem;color:var(--tm);flex:1;min-width:0;" onchange="editMatchScan(this,'${matchId}')">
+        <span id="editScanStatus" style="font-size:.72rem;color:var(--tm);"></span>
+      </div>
+    </div>
     <div style="font-size:.74rem;color:var(--tm);margin-bottom:8px;font-family:'Barlow Condensed',sans-serif;letter-spacing:1px;text-transform:uppercase;">Stats de jugadores</div>
     <div id="eMatchPlayers" style="max-height:220px;overflow-y:auto;">
       ${s.players.filter(p => p.teamId == m.homeId || p.teamId == m.awayId).map(p => {
@@ -2311,6 +2319,39 @@ function editMatch(matchId) {
     <button class="btn bg" onclick="closeModal()" style="font-size:.8rem;padding:6px 12px;">Cancelar</button>
     <button class="btn bp" onclick="closeModal();window._modalConfirm&&window._modalConfirm()" style="font-size:.8rem;padding:6px 12px;">💾 Guardar</button>`;
   $('modal').classList.add('open');
+}
+
+async function editMatchScan(input, matchId) {
+  const file = input.files[0]; if (!file) return;
+  const status = $('editScanStatus');
+  status.textContent = '⏳ Leyendo...';
+  const dataUrl = await new Promise(res => {
+    const r = new FileReader(); r.onload = e => res(e.target.result); r.readAsDataURL(file);
+  });
+  const compressed = await maybeCompress(dataUrl);
+  const prompt = 'You are a JSON-only API. No markdown. Read the Rendimiento/Stats table. Return only the players shown. Return: {"players":[{"name":"exact name from screen","goals":0,"assists":0,"rating":0}]}. Spanish: Goles=goals, Asist.=assists, CR=rating.';
+  try {
+    const result = await aiRequest([{ type: 'text', text: prompt }, imgBlock(compressed)]);
+    const players = result.players || [];
+    const s = S(), m = s.matches.find(x => x.id === matchId);
+    const allPlayers = s.players.filter(p => p.teamId == m?.homeId || p.teamId == m?.awayId);
+    let filled = 0;
+    players.forEach(rp => {
+      const match = allPlayers.find(p => fuzzyMatch(rp.name, p.name));
+      if (!match) return;
+      const gEl = document.querySelector(`.ep-g[data-pid="${match.id}"]`);
+      const aEl = document.querySelector(`.ep-a[data-pid="${match.id}"]`);
+      const rEl = document.querySelector(`.ep-r[data-pid="${match.id}"]`);
+      const pEl = document.querySelector(`.ep-played[data-pid="${match.id}"]`);
+      if (gEl) { gEl.value = rp.goals || 0; filled++; }
+      if (aEl) aEl.value = rp.assists || 0;
+      if (rEl && rp.rating) rEl.value = rp.rating;
+      if (pEl) pEl.checked = true;
+    });
+    status.textContent = `✅ ${filled} jugadores pre-llenados`;
+  } catch(e) {
+    status.textContent = '⚠️ Error: ' + e.message;
+  }
 }
 
 function saveEditMatch(matchId) {
@@ -2660,7 +2701,7 @@ function renderSchedule() {
     const rp = round.fixtures.filter(f => getMatchResult(f.home, f.away)).length, rt = round.fixtures.length;
     const st = rp === rt ? 'done' : rp > 0 ? 'partial' : 'pending';
     const leg = '';
-    return `${leg}<div class="rc"><div class="rh" onclick="toggleRound(${ri})"><div class="rhl"><span class="rnum">Fecha ${round.round}</span><span class="rlbl">${rp}/${rt}</span></div><div style="display:flex;align-items:center;gap:5px;"><span class="rst ${st}">${st === 'done' ? 'Listo' : st === 'partial' ? 'En curso' : 'Pendiente'}</span><span id="chev-${ri}" style="color:var(--tm);transition:transform .2s;">▼</span></div></div><div class="rb2" id="rb-${ri}">${round.fixtures.map(fix => { const res = getMatchResult(fix.home, fix.away); const wh = res && res.homeGoals > res.awayGoals, wa = res && res.awayGoals > res.homeGoals; return `<div class="fix"><div class="fh" style="color:${wh ? 'var(--g)' : ''};cursor:pointer;" onclick="viewTeamProfile('${fix.home}')">🏠 ${tn(fix.home)}</div>${res ? `<div class="fsc">${res.homeGoals}–${res.awayGoals}</div>` : `<div class="fsc pend">vs</div>`}<div class="fa" style="color:${wa ? 'var(--g)' : ''};cursor:pointer;" onclick="viewTeamProfile('${fix.away}')">${tn(fix.away)} ✈️</div><div>${!res && mode === 'admin' ? `<div style="display:flex;gap:3px;"><button class="ben" onclick="jumpToResult('${fix.home}','${fix.away}')">✏️</button><button class="ben" onclick="jumpToScan('${fix.home}','${fix.away}')" style="background:rgba(168,85,247,.2);border-color:rgba(168,85,247,.4);color:var(--pu);">🤖</button></div>` : `<span style="color:${res ? 'var(--g)' : 'var(--tm)'};font-size:.74rem;">${res ? '✓' : ''}</span>`}</div></div>`; }).join('')}</div></div>`;
+    return `${leg}<div class="rc"><div class="rh" onclick="toggleRound(${ri})"><div class="rhl"><span class="rnum">Fecha ${round.round}</span><span class="rlbl">${rp}/${rt}</span></div><div style="display:flex;align-items:center;gap:5px;"><span class="rst ${st}">${st === 'done' ? 'Listo' : st === 'partial' ? 'En curso' : 'Pendiente'}</span><span id="chev-${ri}" style="color:var(--tm);transition:transform .2s;">▼</span></div></div><div class="rb2" id="rb-${ri}">${round.fixtures.map(fix => { const res = getMatchResult(fix.home, fix.away); const wh = res && res.homeGoals > res.awayGoals, wa = res && res.awayGoals > res.homeGoals; return `<div class="fix"><div class="fh" style="color:${wh ? 'var(--g)' : ''};cursor:pointer;" onclick="viewTeamProfile('${fix.home}')">🏠 ${tn(fix.home)}</div>${res ? `<div class="fsc">${res.homeGoals}–${res.awayGoals}</div>` : `<div class="fsc pend">vs</div>`}<div class="fa" style="color:${wa ? 'var(--g)' : ''};cursor:pointer;" onclick="viewTeamProfile('${fix.away}')">${tn(fix.away)} ✈️</div><div>${!res && mode === 'admin' ? `<div style="display:flex;gap:3px;"><button class="ben" onclick="jumpToResult('${fix.home}','${fix.away}')">✏️</button><button class="ben" onclick="jumpToScan('${fix.home}','${fix.away}')" style="background:rgba(168,85,247,.2);border-color:rgba(168,85,247,.4);color:var(--pu);">🤖</button></div>` : `${res && mode === 'admin' ? `<button class="ben" onclick="editMatch('${res.id}')" style="font-size:.64rem;padding:2px 5px;">✏️</button>` : `<span style="color:${res ? 'var(--g)' : 'var(--tm)'}; font-size:.74rem;">${res ? '✓' : ''}</span>`}`}</div></div>`; }).join('')}</div></div>`;
   }).join('')}`;
 }
 function toggleRound(ri) { const b = $('rb-' + ri), c = $('chev-' + ri); if (!b) return; const h = b.style.display === 'none'; b.style.display = h ? 'block' : 'none'; if (c) c.style.transform = h ? '' : 'rotate(-90deg)'; }
