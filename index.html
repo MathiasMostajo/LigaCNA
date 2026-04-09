@@ -518,11 +518,18 @@ select option{background:var(--s2);}
           <img class="imp" id="pv-players" style="display:none">
         </div>
       </div>
-      <div><label style="margin-bottom:5px;display:block;">📸 Rendimiento</label>
+      <div><label style="margin-bottom:5px;display:block;">📸 Stats Local</label>
         <div class="adz" id="z-stats" ondragover="dov(event,'stats')" ondragleave="dlv('stats')" ondrop="dop(event,'stats')">
           <input type="file" accept="image/*" onchange="hf(event,'stats')">
-          <div class="di">📈</div><div class="dl">Stats</div><div class="ds">Tocá o arrastrá</div>
+          <div class="di">📈</div><div class="dl">Stats Local</div><div class="ds">Tocá o arrastrá</div>
           <img class="imp" id="pv-stats" style="display:none">
+        </div>
+      </div>
+      <div><label style="margin-bottom:5px;display:block;">📸 Stats Visitante</label>
+        <div class="adz" id="z-stats2" ondragover="dov(event,'stats2')" ondragleave="dlv('stats2')" ondrop="dop(event,'stats2')">
+          <input type="file" accept="image/*" onchange="hf(event,'stats2')">
+          <div class="di">📈</div><div class="dl">Stats Visitante</div><div class="ds">Tocá o arrastrá (opcional)</div>
+          <img class="imp" id="pv-stats2" style="display:none">
         </div>
       </div>
     </div>
@@ -684,7 +691,7 @@ let mode = 'public'; // 'public' | 'captain' | 'admin'
 let capTeamCode = null;
 let capScanResult = null;
 let subsCache = {}; // store full submission objects by id to avoid passing base64 through onclick
-let imgData = { score: null, players: null, stats: null };
+let imgData = { score: null, players: null, stats: null, stats2: null };
 let capImgData = { score: null, players: null, stats: null };
 let currentLB = 'goals';
 let isSyncing = false;
@@ -1232,6 +1239,14 @@ function resetAllData() {
 function getMatchResult(homeId, awayId) { return S().matches.find(m => m.homeId == homeId && m.awayId == awayId); }
 function jumpToResult(homeId, awayId) { goTab('results'); setTimeout(() => { $('homeTeam').value = homeId; $('awayTeam').value = awayId; renderPSI(); toast('📝 Cargado!'); }, 200); }
 
+function jumpToScan(homeId, awayId) {
+  // Store the pre-selected fixture so after scan it auto-fills results
+  window._scanFixture = { homeId, awayId };
+  clearScan();
+  goTab('scan');
+  toast(`🤖 Escaneá las fotos del partido: ${tn(homeId)} vs ${tn(awayId)}`);
+}
+
 // ════════════════════════════════════════════════════════
 // PLAYOFFS (visual bracket)
 // ════════════════════════════════════════════════════════
@@ -1409,7 +1424,7 @@ function hf(e, t) { const f = e.target.files[0]; if (!f) return; const r = new F
 function dov(e, t) { e.preventDefault(); $('z-' + t).classList.add('drag-over'); }
 function dlv(t) { $('z-' + t).classList.remove('drag-over'); }
 function dop(e, t) { e.preventDefault(); dlv(t); const f = e.dataTransfer.files[0]; if (!f) return; const r = new FileReader(); r.onload = ev => { imgData[t] = ev.target.result; const p = $('pv-' + t); p.src = ev.target.result; p.style.display = 'block'; $('z-' + t).classList.add('has-img'); updateScanBtn(); }; r.readAsDataURL(f); }
-function clearScan() { imgData = { score: null, players: null, stats: null }; ['score', 'players', 'stats'].forEach(t => { const p = $('pv-' + t); if (p) { p.style.display = 'none'; p.src = ''; } $('z-' + t).classList.remove('has-img'); }); $('aiRes').innerHTML = ''; updateScanBtn(); }
+function clearScan() { imgData = { score: null, players: null, stats: null, stats2: null }; ['score', 'players', 'stats', 'stats2'].forEach(t => { const p = $('pv-' + t); if (p) { p.style.display = 'none'; p.src = ''; } const z = $('z-' + t); if(z) z.classList.remove('has-img'); }); $('aiRes').innerHTML = ''; updateScanBtn(); }
 
 // FILE HANDLERS (captain scan)
 function chf(e, t) { const f = e.target.files[0]; if (!f) return; const r = new FileReader(); r.onload = ev => { capImgData[t] = ev.target.result; const p = $('cpv-' + t); p.src = ev.target.result; p.style.display = 'block'; $('cz-' + t).classList.add('has-img'); updateCapScanBtn(); }; r.readAsDataURL(f); }
@@ -1531,10 +1546,11 @@ function fuzzyMatch(a, b) {
 
 async function callAI(images) {
   const s = S();
-  const [imgScore, imgPlayers, imgStats] = await Promise.all([
+  const [imgScore, imgPlayers, imgStats, imgStats2] = await Promise.all([
     maybeCompress(images.score),
     maybeCompress(images.players),
-    maybeCompress(images.stats)
+    maybeCompress(images.stats),
+    maybeCompress(images.stats2 || null)
   ]);
 
   // ── STEP 1A: Read scoreboard ──────────────────────────────────────────
@@ -1554,10 +1570,18 @@ async function callAI(images) {
 
   // ── STEP 1C: Read stats screen ────────────────────────────────────────
   const statsPrompt = 'You are a JSON-only API. No markdown. Read the Rendimiento/Stats table. Return only the players shown (ignore bots/CPU). Return: {"players":[{"name":"exact name from screen","goals":0,"assists":0,"rating":0,"pos":"MID"}]}. Spanish: Goles=goals, Asist.=assists, CR=rating. PO/GLB=GK, DFC/DCI/DD/DI=DEF, MCO/MC/MDI/MDD/MOD/MOI=MID, DC/EXT=FWD.';
-  const statsContent = [{ type: 'text', text: statsPrompt }];
-  if (imgStats) statsContent.push(imgBlock(imgStats));
-  const statsData = imgStats ? await aiRequest(statsContent) : { players: [] };
-  const statsList = statsData.players || [];
+  // Read stats from both images and merge results
+  let statsList = [];
+  if (imgStats) {
+    const statsContent = [{ type: 'text', text: statsPrompt }, imgBlock(imgStats)];
+    const statsData = await aiRequest(statsContent);
+    statsList = [...statsList, ...(statsData.players || [])];
+  }
+  if (imgStats2) {
+    const statsContent2 = [{ type: 'text', text: statsPrompt }, imgBlock(imgStats2)];
+    const statsData2 = await aiRequest(statsContent2);
+    statsList = [...statsList, ...(statsData2.players || [])];
+  }
 
   // ── STEP 2: JavaScript does ALL matching ──────────────────────────────
 
@@ -1682,7 +1706,11 @@ function renderScanResult(r) {
     });
     h += `</div>`;
   }
-  if (sc.home) { const rs = JSON.stringify(r).replace(/"/g, '&quot;'); h += `<div style="margin-top:10px;"><button class="btn bp" onclick='prefill(${rs})'>→ Pre-cargar en Resultados</button></div>`; }
+  if (sc.home) {
+    const rs = JSON.stringify(r).replace(/"/g, '&quot;');
+    const fixBtn = window._scanFixture ? `<button class="btn bg" onclick='prefillFixture(${rs})' style="font-size:.76rem;">→ Cargar partido fixture</button>` : '';
+    h += `<div style="margin-top:10px;display:flex;gap:7px;flex-wrap:wrap;"><button class="btn bp" onclick='prefill(${rs})'>→ Pre-cargar en Resultados</button>${fixBtn}</div>`;
+  }
   h += `</div>`; $('aiRes').innerHTML = h;
 }
 
@@ -1775,6 +1803,32 @@ async function submitCapResult() {
     $('capSubmitWrap').style.display = 'none'; clearCapScan(); toast('📤 Resultado enviado!');
   } catch (e) { toast('⚠️ Error: ' + e.message, true); }
   btn.disabled = false; btn.textContent = '📤 Enviar para Revisión';
+}
+
+function prefillFixture(r) {
+  if (!window._scanFixture) { prefill(r); return; }
+  const { homeId, awayId } = window._scanFixture;
+  goTab('results');
+  setTimeout(() => {
+    $('homeTeam').value = homeId; $('awayTeam').value = awayId;
+    if (r.score?.homeGoals !== undefined) $('homeGoals').value = r.score.homeGoals;
+    if (r.score?.awayGoals !== undefined) $('awayGoals').value = r.score.awayGoals;
+    renderPSI();
+    setTimeout(() => {
+      const norm = s => s.toLowerCase().replace(/[^a-z0-9]/g,'').replace(/[il1]/g,'1').replace(/[o0]/g,'0');
+      (r.players || []).forEach(rp => {
+        const rpN = norm(rp.name);
+        const p = S().players.find(sp => fuzzyMatch(rp.name, sp.name));
+        if (!p) return;
+        const row = document.querySelector(`.psr[data-pid="${p.id}"]`); if (!row) return;
+        if (rp.goals !== undefined) row.querySelector('.pg').value = rp.goals || 0;
+        if (rp.assists !== undefined) row.querySelector('.pa').value = rp.assists || 0;
+        if (rp.rating) row.querySelector('.pr2').value = rp.rating;
+      });
+      toast('✅ Pre-cargado con el partido del fixture!');
+      window._scanFixture = null;
+    }, 200);
+  }, 300);
 }
 
 function prefill(r) {
@@ -2606,7 +2660,7 @@ function renderSchedule() {
     const rp = round.fixtures.filter(f => getMatchResult(f.home, f.away)).length, rt = round.fixtures.length;
     const st = rp === rt ? 'done' : rp > 0 ? 'partial' : 'pending';
     const leg = '';
-    return `${leg}<div class="rc"><div class="rh" onclick="toggleRound(${ri})"><div class="rhl"><span class="rnum">Fecha ${round.round}</span><span class="rlbl">${rp}/${rt}</span></div><div style="display:flex;align-items:center;gap:5px;"><span class="rst ${st}">${st === 'done' ? 'Listo' : st === 'partial' ? 'En curso' : 'Pendiente'}</span><span id="chev-${ri}" style="color:var(--tm);transition:transform .2s;">▼</span></div></div><div class="rb2" id="rb-${ri}">${round.fixtures.map(fix => { const res = getMatchResult(fix.home, fix.away); const wh = res && res.homeGoals > res.awayGoals, wa = res && res.awayGoals > res.homeGoals; return `<div class="fix"><div class="fh" style="color:${wh ? 'var(--g)' : ''};cursor:pointer;" onclick="viewTeamProfile('${fix.home}')">🏠 ${tn(fix.home)}</div>${res ? `<div class="fsc">${res.homeGoals}–${res.awayGoals}</div>` : `<div class="fsc pend">vs</div>`}<div class="fa" style="color:${wa ? 'var(--g)' : ''};cursor:pointer;" onclick="viewTeamProfile('${fix.away}')">${tn(fix.away)} ✈️</div><div>${!res && mode === 'admin' ? `<button class="ben" onclick="jumpToResult('${fix.home}','${fix.away}')">Cargar</button>` : `<span style="color:${res ? 'var(--g)' : 'var(--tm)'};font-size:.74rem;">${res ? '✓' : ''}</span>`}</div></div>`; }).join('')}</div></div>`;
+    return `${leg}<div class="rc"><div class="rh" onclick="toggleRound(${ri})"><div class="rhl"><span class="rnum">Fecha ${round.round}</span><span class="rlbl">${rp}/${rt}</span></div><div style="display:flex;align-items:center;gap:5px;"><span class="rst ${st}">${st === 'done' ? 'Listo' : st === 'partial' ? 'En curso' : 'Pendiente'}</span><span id="chev-${ri}" style="color:var(--tm);transition:transform .2s;">▼</span></div></div><div class="rb2" id="rb-${ri}">${round.fixtures.map(fix => { const res = getMatchResult(fix.home, fix.away); const wh = res && res.homeGoals > res.awayGoals, wa = res && res.awayGoals > res.homeGoals; return `<div class="fix"><div class="fh" style="color:${wh ? 'var(--g)' : ''};cursor:pointer;" onclick="viewTeamProfile('${fix.home}')">🏠 ${tn(fix.home)}</div>${res ? `<div class="fsc">${res.homeGoals}–${res.awayGoals}</div>` : `<div class="fsc pend">vs</div>`}<div class="fa" style="color:${wa ? 'var(--g)' : ''};cursor:pointer;" onclick="viewTeamProfile('${fix.away}')">${tn(fix.away)} ✈️</div><div>${!res && mode === 'admin' ? `<div style="display:flex;gap:3px;"><button class="ben" onclick="jumpToResult('${fix.home}','${fix.away}')">✏️</button><button class="ben" onclick="jumpToScan('${fix.home}','${fix.away}')" style="background:rgba(168,85,247,.2);border-color:rgba(168,85,247,.4);color:var(--pu);">🤖</button></div>` : `<span style="color:${res ? 'var(--g)' : 'var(--tm)'};font-size:.74rem;">${res ? '✓' : ''}</span>`}</div></div>`; }).join('')}</div></div>`;
   }).join('')}`;
 }
 function toggleRound(ri) { const b = $('rb-' + ri), c = $('chev-' + ri); if (!b) return; const h = b.style.display === 'none'; b.style.display = h ? 'block' : 'none'; if (c) c.style.transform = h ? '' : 'rotate(-90deg)'; }
