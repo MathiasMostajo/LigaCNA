@@ -308,6 +308,8 @@ select option{background:var(--s2);}
   <!-- Captain only -->
   <button class="tab tcap cap-only" onclick="goTab('capscan',this)" style="display:none;">📤 Enviar</button>
   <!-- Admin only -->
+  <button class="tab captain-only" onclick="goTab('fichajes',this)" style="display:none;" id="fichajesTabBtn">📋 Fichajes</button>
+  <button class="tab admin-only" onclick="goTab('twadmin',this);renderTWAdmin()" style="display:none;" id="twAdminBtn">📋 Fichajes</button>
   <button class="tab admin-only" onclick="goTab('teams',this)" style="display:none;">⚽ Equipos</button>
   <button class="tab admin-only" onclick="goTab('players',this)" style="display:none;">👤 Jugadores</button>
   <button class="tab admin-only" onclick="goTab('scan',this)" style="display:none;">🤖 AI Scan</button>
@@ -460,6 +462,41 @@ select option{background:var(--s2);}
   <div id="capSubmitWrap" style="display:none;margin-top:7px;">
     <button class="btn bp" style="width:100%;" onclick="submitCapResult()">📤 Enviar para Revisión</button>
   </div>
+</div>
+
+<!-- ════ TAB: FICHAJES (captain) ════ -->
+<div class="sec" id="tab-fichajes">
+  <div class="card" style="border-color:rgba(168,85,247,.3);">
+    <div class="ct" style="color:var(--pu);">📋 Solicitud de Fichaje</div>
+    <div class="ib" id="twCapStatus">Cargando...</div>
+    <div id="twCapForm">
+      <div class="fg" style="margin-top:10px;">
+        <label>Gamertag / ID del jugador</label>
+        <input id="twPlayerName" placeholder="Ej: xSlick69" style="background:var(--s2);border:1px solid var(--b);border-radius:8px;color:var(--t);font-family:'Barlow',sans-serif;font-size:.88rem;padding:7px 10px;outline:none;width:100%;">
+      </div>
+      <div class="fg">
+        <label>Posición</label>
+        <select id="twPlayerPos" style="background:var(--s2);border:1px solid var(--b);border-radius:8px;color:var(--t);font-family:'Barlow',sans-serif;font-size:.88rem;padding:7px 10px;outline:none;width:100%;">
+          <option value="GK">GK</option>
+          <option value="DEF">DEF</option>
+          <option value="MID" selected>MID</option>
+          <option value="FWD">FWD</option>
+        </select>
+      </div>
+      <button class="btn bp" style="width:100%;margin-top:4px;" onclick="submitFichaje()">📤 Enviar Solicitud</button>
+    </div>
+  </div>
+  <!-- All teams players (transparency) -->
+  <div class="card">
+    <div class="ct">👥 Jugadores de la Liga</div>
+    <div class="ib">Todos los jugadores registrados en la liga para tu referencia.</div>
+    <div id="twAllPlayers"></div>
+  </div>
+</div>
+
+<!-- ════ TAB: FICHAJES ADMIN (admin) ════ -->
+<div class="sec" id="tab-twadmin">
+  <div id="twAdminContent"></div>
 </div>
 
 <!-- ════ TAB: TEAMS (admin) ════ -->
@@ -656,6 +693,23 @@ select option{background:var(--s2);}
     <div class="ib">Compartí estos códigos con los capitanes.</div>
     <div id="teamCodes"><div class="es"><div class="ei">🔑</div>Sin equipos.</div></div>
   </div>
+  <div class="card">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
+      <div class="ct" style="margin:0;">📋 Ventana de Fichajes</div>
+      <label style="display:flex;align-items:center;gap:8px;cursor:pointer;">
+        <span style="font-size:.78rem;color:var(--tm);" id="twStatusLbl">Cerrada</span>
+        <div style="position:relative;width:42px;height:24px;" onclick="toggleTransferWindow()">
+          <div id="twTrack" style="position:absolute;inset:0;border-radius:12px;background:var(--s3);border:1px solid var(--b);transition:background .2s;"></div>
+          <div id="twThumb" style="position:absolute;top:3px;left:3px;width:18px;height:18px;border-radius:50%;background:var(--tm);transition:transform .2s,background .2s;"></div>
+        </div>
+      </label>
+    </div>
+    <div class="ib" style="margin-bottom:8px;">Cuando está abierta, los DTs pueden enviar solicitudes de fichaje.</div>
+    <div class="fg"><label style="font-size:.76rem;">Fecha límite (opcional)</label>
+      <input type="date" id="twDeadline" style="background:var(--s2);border:1px solid var(--b);border-radius:8px;color:var(--t);font-family:'Barlow',sans-serif;font-size:.88rem;padding:7px 10px;outline:none;width:100%;" onchange="saveTransferWindowDeadline()">
+    </div>
+    <div id="twPendingCount" style="font-size:.78rem;color:var(--tm);margin-top:6px;"></div>
+  </div>
 </div>
 
 </main>
@@ -825,6 +879,16 @@ function doLogout() {
 function applyMode() {
   document.querySelectorAll('.admin-only').forEach(el => el.style.display = mode === 'admin' ? '' : 'none');
   document.querySelectorAll('button.admin-only').forEach(el => el.style.display = mode === 'admin' ? 'inline-flex' : 'none');
+  document.querySelectorAll('.captain-only').forEach(el => el.style.display = mode === 'captain' ? '' : 'none');
+  document.querySelectorAll('button.captain-only').forEach(el => el.style.display = mode === 'captain' ? 'inline-flex' : 'none');
+  // Show fichajes tab for captain only if window is open
+  const ftb = $('fichajesTabBtn');
+  if (ftb) {
+    const tw = S()?.transferWindow;
+    const isOpen = tw?.open && (!tw.deadline || new Date(tw.deadline) >= new Date());
+    ftb.style.display = (mode === 'captain' && isOpen) ? 'inline-flex' : 'none';
+  }
+  updateTWToggleUI();
   document.querySelectorAll('.cap-only').forEach(el => el.style.display = mode === 'captain' ? '' : 'none');
   document.querySelectorAll('button.cap-only').forEach(el => el.style.display = mode === 'captain' ? 'inline-flex' : 'none');
   const sab = $('schedAdminBtns'); if (sab) sab.style.display = mode === 'admin' ? 'block' : 'none';
@@ -854,6 +918,8 @@ function goTab(name, el) {
   if (sec) sec.classList.add('active');
   if (el) { el.classList.add('active'); }
   else { document.querySelectorAll('.tab').forEach(t => { if (t.getAttribute('onclick') && t.getAttribute('onclick').includes("'" + name + "'")) t.classList.add('active'); }); }
+  if (name === 'fichajes') renderFichajesTab();
+  if (name === 'twadmin') renderTWAdmin();
   render();
 }
 
@@ -1029,6 +1095,170 @@ function removeTeam(id) {
 }
 
 function togglePaid(id) { const t = S().teams.find(t => t.id == id); if (t) { t.paid = t.paid === 'yes' ? 'no' : 'yes'; saveDB(); render(); } }
+
+// ════════════════════════════════════════════════════════
+// TRANSFER WINDOW
+// ════════════════════════════════════════════════════════
+function updateTWToggleUI() {
+  const s = S(), tw = s?.transferWindow || {};
+  const isOpen = tw.open && (!tw.deadline || new Date(tw.deadline) >= new Date());
+  const track = $('twTrack'), thumb = $('twThumb'), lbl = $('twStatusLbl');
+  if (track) track.style.background = isOpen ? 'var(--g)' : 'var(--s3)';
+  if (thumb) { thumb.style.transform = isOpen ? 'translateX(18px)' : 'none'; thumb.style.background = isOpen ? '#fff' : 'var(--tm)'; }
+  if (lbl) lbl.textContent = isOpen ? '✅ Abierta' : '❌ Cerrada';
+  const dl = $('twDeadline'); if (dl && tw.deadline) dl.value = tw.deadline;
+  const cnt = $('twPendingCount');
+  if (cnt) {
+    const pending = (s.fichajeRequests || []).filter(r => r.status === 'pending').length;
+    cnt.textContent = pending ? `📥 ${pending} solicitud(es) pendiente(s)` : '';
+    const twBtn = $('twAdminBtn');
+    if (twBtn) twBtn.textContent = pending ? `📋 Fichajes (${pending})` : '📋 Fichajes';
+  }
+}
+
+function toggleTransferWindow() {
+  const s = S();
+  if (!s.transferWindow) s.transferWindow = { open: false, deadline: null };
+  s.transferWindow.open = !s.transferWindow.open;
+  saveDB(); applyMode();
+  toast(s.transferWindow.open ? '✅ Ventana de fichajes ABIERTA' : '❌ Ventana de fichajes CERRADA');
+}
+
+function saveTransferWindowDeadline() {
+  const s = S();
+  if (!s.transferWindow) s.transferWindow = { open: false, deadline: null };
+  s.transferWindow.deadline = $('twDeadline')?.value || null;
+  saveDB(); applyMode();
+  toast('📅 Fecha límite guardada');
+}
+
+function renderFichajesTab() {
+  const s = S();
+  const tw = s.transferWindow || {};
+  const isOpen = tw.open && (!tw.deadline || new Date(tw.deadline) >= new Date());
+  const myTeam = s.teams.find(t => t.code === capTeamCode);
+  const statusEl = $('twCapStatus');
+  const formEl = $('twCapForm');
+
+  if (statusEl) {
+    if (!isOpen) {
+      statusEl.textContent = '❌ La ventana de fichajes está cerrada. Contactá al admin.';
+      if (formEl) formEl.style.display = 'none';
+    } else {
+      const deadline = tw.deadline ? ` — Cierra el ${new Date(tw.deadline).toLocaleDateString()}` : '';
+      statusEl.textContent = `✅ Ventana abierta${deadline}. Enviá tu solicitud abajo.`;
+      if (formEl) formEl.style.display = 'block';
+    }
+  }
+
+  // Show all teams players for transparency
+  const allEl = $('twAllPlayers');
+  if (allEl) {
+    allEl.innerHTML = s.teams.filter(t => !t.replaced).map(t => {
+      const players = s.players.filter(p => p.teamId === t.id);
+      return `<div style="margin-bottom:10px;border:1px solid var(--b);border-radius:8px;overflow:hidden;">
+        <div style="display:flex;align-items:center;gap:8px;padding:7px 10px;background:var(--s2);font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:.82rem;color:${myTeam?.id===t.id?'var(--g)':'var(--t)'};">
+          ${getShield(t.id,'sm')} ${t.name} <span style="font-weight:400;color:var(--tm);">(${players.length} jug.)</span>
+        </div>
+        <div style="padding:6px 10px;">
+          ${players.map(p=>`<span style="font-size:.76rem;color:var(--tm);margin-right:8px;">${p.pos||'?'} ${p.name}</span>`).join('')||'<span style="font-size:.74rem;color:var(--tm);">Sin jugadores</span>'}
+        </div>
+      </div>`;
+    }).join('');
+  }
+}
+
+async function submitFichaje() {
+  const s = S();
+  const name = $('twPlayerName')?.value.trim();
+  const pos = $('twPlayerPos')?.value || 'MID';
+  if (!name) { toast('⚠️ Ingresá el gamertag del jugador', true); return; }
+  const myTeam = s.teams.find(t => t.code === capTeamCode);
+  if (!myTeam) { toast('⚠️ Error: equipo no encontrado', true); return; }
+
+  // Check if player already registered
+  const exists = s.players.find(p => fuzzyMatch(p.name, name));
+  if (exists) { toast(`⚠️ "${exists.name}" ya está registrado en la liga`, true); return; }
+
+  try {
+    const req = { id: Date.now().toString(), teamId: myTeam.id, teamName: myTeam.name, playerName: name, pos, status: 'pending', createdAt: new Date().toISOString() };
+    if (!s.fichajeRequests) s.fichajeRequests = [];
+    s.fichajeRequests.push(req);
+    saveDB();
+    $('twPlayerName').value = '';
+    toast(`✅ Solicitud enviada: ${name}`);
+    updateTWToggleUI();
+  } catch(e) { toast('⚠️ Error: ' + e.message, true); }
+}
+
+function renderTWAdmin() {
+  const s = S(), el = $('twAdminContent'); if (!el) return;
+  const requests = s.fichajeRequests || [];
+  if (!requests.length) { el.innerHTML = `<div class="card"><div class="es"><div class="ei">📋</div>No hay solicitudes.</div></div>`; return; }
+
+  const pending = requests.filter(r => r.status === 'pending');
+  const resolved = requests.filter(r => r.status !== 'pending');
+
+  let h = '';
+  if (pending.length) {
+    h += `<div class="card"><div class="ct">📥 Solicitudes Pendientes (${pending.length})</div>`;
+    h += pending.map(r => {
+      const team = s.teams.find(t => t.id === r.teamId);
+      return `<div style="display:flex;align-items:center;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--b);flex-wrap:wrap;gap:6px;">
+        <div style="display:flex;align-items:center;gap:8px;">
+          ${getShield(r.teamId,'sm')}
+          <div>
+            <div style="font-weight:600;font-size:.88rem;">${r.playerName} <span class="pb" style="font-size:.64rem;">${r.pos}</span></div>
+            <div style="font-size:.72rem;color:var(--tm);">${r.teamName} · ${new Date(r.createdAt).toLocaleDateString()}</div>
+          </div>
+        </div>
+        <div style="display:flex;gap:5px;">
+          <button class="btn bp" style="font-size:.72rem;padding:4px 8px;" onclick="approveFichaje('${r.id}')">✅ Aprobar</button>
+          <button class="btn bd" style="font-size:.72rem;padding:4px 8px;" onclick="rejectFichaje('${r.id}')">✕ Rechazar</button>
+        </div>
+      </div>`;
+    }).join('');
+    h += `</div>`;
+  }
+
+  if (resolved.length) {
+    h += `<div class="card"><div class="ct">✅ Resueltas (${resolved.length})</div>`;
+    h += resolved.slice().reverse().map(r => {
+      const badge = r.status === 'approved'
+        ? `<span class="rb">✅ Aprobado</span>`
+        : `<span class="urb">✕ Rechazado</span>`;
+      return `<div style="display:flex;align-items:center;justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--b);">
+        <div style="display:flex;align-items:center;gap:8px;">
+          ${getShield(r.teamId,'sm')}
+          <div><div style="font-size:.84rem;font-weight:600;">${r.playerName} <span class="pb" style="font-size:.62rem;">${r.pos}</span></div>
+          <div style="font-size:.7rem;color:var(--tm);">${r.teamName}</div></div>
+        </div>
+        ${badge}
+      </div>`;
+    }).join('');
+    h += `</div>`;
+  }
+  el.innerHTML = h;
+}
+
+function approveFichaje(reqId) {
+  const s = S(), req = (s.fichajeRequests||[]).find(r => r.id === reqId); if (!req) return;
+  showModal(`✅ Aprobar: ${req.playerName}?`, `Se agregará a ${req.teamName}.`, 'Aprobar', () => {
+    req.status = 'approved';
+    s.players.push({ id: Date.now().toString(), name: req.playerName, teamId: req.teamId, pos: req.pos, goals: 0, assists: 0, rating: [], cs: 0, matchesPlayed: 0 });
+    saveDB(); render(); renderTWAdmin(); updateTWToggleUI();
+    toast(`✅ ${req.playerName} agregado a ${req.teamName}`);
+  }, true);
+}
+
+function rejectFichaje(reqId) {
+  const s = S(), req = (s.fichajeRequests||[]).find(r => r.id === reqId); if (!req) return;
+  showModal(`✕ Rechazar: ${req.playerName}?`, `El DT de ${req.teamName} será notificado.`, 'Rechazar', () => {
+    req.status = 'rejected';
+    saveDB(); renderTWAdmin(); updateTWToggleUI();
+    toast(`✕ Solicitud de ${req.playerName} rechazada`);
+  }, true);
+}
 
 function uploadShield(e, teamId) {
   const f = e.target.files[0]; if (!f) return;
