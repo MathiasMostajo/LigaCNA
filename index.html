@@ -887,11 +887,7 @@ function applyMode() {
   document.querySelectorAll('button.captain-only').forEach(el => el.style.display = mode === 'captain' ? 'inline-flex' : 'none');
   // Show fichajes tab for captain only if window is open
   const ftb = $('fichajesTabBtn');
-  if (ftb) {
-    const tw = S()?.transferWindow;
-    const isOpen = tw?.open && (!tw.deadline || new Date(tw.deadline) >= new Date());
-    ftb.style.display = (mode === 'captain' && isOpen) ? 'inline-flex' : 'none';
-  }
+  if (ftb) ftb.style.display = mode === 'captain' ? 'inline-flex' : 'none';
   updateTWToggleUI();
   document.querySelectorAll('.cap-only').forEach(el => el.style.display = mode === 'captain' ? '' : 'none');
   document.querySelectorAll('button.cap-only').forEach(el => el.style.display = mode === 'captain' ? 'inline-flex' : 'none');
@@ -1124,7 +1120,9 @@ function toggleTransferWindow() {
   const s = S();
   if (!s.transferWindow) s.transferWindow = { open: false, deadline: null };
   s.transferWindow.open = !s.transferWindow.open;
-  saveDB(); applyMode();
+  saveDB();
+  updateTWToggleUI();
+  applyMode();
   toast(s.transferWindow.open ? '✅ Ventana de fichajes ABIERTA' : '❌ Ventana de fichajes CERRADA');
 }
 
@@ -1470,7 +1468,7 @@ function resetAllData() {
   }, true);
 }
 
-function getMatchResult(homeId, awayId) { return S().matches.find(m => m.homeId == homeId && m.awayId == awayId); }
+function getMatchResult(homeId, awayId) { return S().matches.find(m => (m.homeId == homeId && m.awayId == awayId) || (m.homeId == awayId && m.awayId == homeId && m.flag === 'wo')); }
 function jumpToResult(homeId, awayId) { goTab('results'); setTimeout(() => { $('homeTeam').value = homeId; $('awayTeam').value = awayId; renderPSI(); toast('📝 Cargado!'); }, 200); }
 
 function jumpToScan(homeId, awayId) {
@@ -1682,7 +1680,7 @@ async function aiRequest(content) {
   const res = await fetch(CLAUDE_URL, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', 'x-api-key': key, 'anthropic-version': '2023-06-01', 'anthropic-dangerous-direct-browser-access': 'true' },
-    body: JSON.stringify({ model: 'claude-haiku-4-5', max_tokens: 1500, messages: [{ role: 'user', content }] })
+    body: JSON.stringify({ model: 'claude-haiku-4-5', max_tokens: 3000, messages: [{ role: 'user', content }] })
   });
   const data = await res.json();
   if (data.error) throw new Error('Claude: ' + data.error.message);
@@ -1697,7 +1695,7 @@ async function aiRequest(content) {
   }
 }
 
-// Always compress to stay under 4MB — keeps quality readable for AI
+// Always compress and convert to JPEG — fixes HEIC and unsupported formats
 async function maybeCompress(dataUrl) {
   if (!dataUrl) return null;
   return new Promise(res => {
@@ -1708,24 +1706,23 @@ async function maybeCompress(dataUrl) {
         cv.width = Math.round(img.width * scale);
         cv.height = Math.round(img.height * scale);
         cv.getContext('2d').drawImage(img, 0, 0, cv.width, cv.height);
-        const out = cv.toDataURL('image/jpeg', quality);
+        const out = cv.toDataURL('image/jpeg', quality); // Always JPEG
         const bytes = out.length * 0.75;
         if (bytes <= 4 * 1024 * 1024) { res(out); return; }
-        // Still too big — reduce further
         if (quality > 0.5) tryCompress(scale, quality - 0.1);
         else tryCompress(scale * 0.85, 0.7);
       };
       tryCompress(1.0, 0.85);
     };
-    img.onerror = () => res(dataUrl);
+    img.onerror = () => res(null);
     img.src = dataUrl;
   });
 }
 
 function imgBlock(dataUrl) {
-  const mime = dataUrl.split(';')[0].replace('data:', '');
+  // Always use image/jpeg since maybeCompress always outputs JPEG
   const b64 = dataUrl.split(',')[1];
-  return { type: 'image', source: { type: 'base64', media_type: mime, data: b64 } };
+  return { type: 'image', source: { type: 'base64', media_type: 'image/jpeg', data: b64 } };
 }
 
 // JS fuzzy match: normalize and check if strings are similar enough
@@ -1746,6 +1743,11 @@ function fuzzyMatch(a, b) {
   // Prefix match (handles truncation like "xSlick" → "xSlick69")
   const [shorter, longer] = na.length <= nb.length ? [na, nb] : [nb, na];
   if (longer.startsWith(shorter) && shorter.length >= 3) return true;
+  // Skip short prefixes (1-3 chars) — handles "lmEduard09" vs "Eduard09"
+  for (let skip = 1; skip <= 3; skip++) {
+    if (na.length > skip && nb.includes(na.slice(skip))) return true;
+    if (nb.length > skip && na.includes(nb.slice(skip))) return true;
+  }
   // Word-by-word match
   const wordsA = a.toLowerCase().replace(/[^a-z0-9\s]/g,' ').trim().split(/\s+/);
   const wordsB = b.toLowerCase().replace(/[^a-z0-9\s]/g,' ').trim().split(/\s+/);
@@ -1794,7 +1796,7 @@ async function callAI(images) {
   const scoreData = imgScore ? await aiRequest(scoreContent) : { home: '', away: '', homeGoals: 0, awayGoals: 0 };
 
   // ── STEP 1B: Read IDs screen ─────────────────────────────────────────
-  const idsPrompt = 'You are a JSON-only API. No markdown. Read the JUGADORES/AS screen showing two teams. Return the exact gamertags/IDs as shown. Return: {"home":["id1","id2",...],"away":["id1","id2",...]}. Left column = home team, right column = away team. Copy names EXACTLY as shown including numbers and special chars.';
+  const idsPrompt = 'You are a JSON-only API. No markdown. Read the JUGADORES/AS screen. It shows two columns of player gamertags/IDs. Return ALL players from BOTH columns — do not skip any. Return: {"home":[...],"away":[...]}. Left column = home team, right column = away team. Copy each name EXACTLY character by character — preserve uppercase/lowercase, numbers, underscores, dots. Do NOT interpret or modify names. If unsure about a character, copy what you see literally. Return every single player visible, even if the list is long.';
   const idsContent = [{ type: 'text', text: idsPrompt }];
   if (imgPlayers) idsContent.push(imgBlock(imgPlayers));
   const idsData = imgPlayers ? await aiRequest(idsContent) : { home: [], away: [] };
@@ -2282,8 +2284,31 @@ async function approveSub(subId) {
       });
 
       _saveResult(fixtureHomeId, fixtureAwayId, homeGoals, awayGoals, ps, null);
+      // Check if match already exists — merge stats instead of creating duplicate
+      const existingMatch = S().matches.find(m =>
+        (m.homeId == fixtureHomeId && m.awayId == fixtureAwayId) ||
+        (m.homeId == fixtureAwayId && m.awayId == fixtureHomeId)
+      );
+      if (existingMatch && Object.keys(ps).length > 0) {
+        // Merge: add stats for players not already recorded
+        S().matches[S().matches.length - 1]; // last added by _saveResult
+        Object.entries(ps).forEach(([pid, st]) => {
+          if (!existingMatch.playerStats?.[pid]) {
+            if (!existingMatch.playerStats) existingMatch.playerStats = {};
+            existingMatch.playerStats[pid] = st;
+            const p = S().players.find(pl => pl.id == pid); if (!p) return;
+            p.goals += st.goals || 0; p.assists += st.assists || 0;
+            if (st.rating > 0) p.rating.push(st.rating);
+            p.matchesPlayed++;
+          }
+        });
+        // Remove the duplicate match just added by _saveResult
+        const s = S();
+        s.matches = s.matches.filter((m, i) => i !== s.matches.length - 1);
+        saveDB(); render(); toast('✅ Stats fusionadas con partido existente!');
+      }
       await supa.from('submissions').update({ status: 'approved' }).eq('id', subId);
-      toast('✅ Resultado guardado!'); pollSubmissions();
+      pollSubmissions();
     } catch (e) { toast('⚠️ Error: ' + e.message, true); }
   };
 
