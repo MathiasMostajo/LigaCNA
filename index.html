@@ -475,11 +475,12 @@ select option{background:var(--s2);}
         <input id="twPlayerName" placeholder="Ej: xSlick69" style="background:var(--s2);border:1px solid var(--b);border-radius:8px;color:var(--t);font-family:'Barlow',sans-serif;font-size:.88rem;padding:7px 10px;outline:none;width:100%;">
       </div>
       <div class="fg">
-        <label>Posición</label>
+        <label>Posición (opcional)</label>
         <select id="twPlayerPos" style="background:var(--s2);border:1px solid var(--b);border-radius:8px;color:var(--t);font-family:'Barlow',sans-serif;font-size:.88rem;padding:7px 10px;outline:none;width:100%;">
+          <option value="">— Sin posición —</option>
           <option value="GK">GK</option>
           <option value="DEF">DEF</option>
-          <option value="MID" selected>MID</option>
+          <option value="MID">MID</option>
           <option value="FWD">FWD</option>
         </select>
       </div>
@@ -830,6 +831,7 @@ function doCapLogin() {
   Object.values(db.seasons).forEach(s => s.teams.forEach(t => { if (t.code === code) found = { team: t }; }));
   if (found) {
     capTeamCode = code; mode = 'captain'; closeLogin();
+    localStorage.setItem('ligacna_session', JSON.stringify({ mode: 'captain', code }));
     const lbl = $('capTeamLbl');
     if (lbl) lbl.textContent = '⚽ ' + found.team.name + ' — Seleccioná el partido y subí las 3 capturas.';
     applyMode(); updateCapScanBtn();
@@ -862,6 +864,7 @@ function doAdminLogin() {
   const pwd = $('adminPwd').value;
   if (pwd === (localStorage.getItem(PWD_KEY) || DEFAULT_PWD)) {
     mode = 'admin'; closeLogin(); applyMode(); render(); pollSubmissions();
+    localStorage.setItem('ligacna_session', JSON.stringify({ mode: 'admin' }));
     if (!localStorage.getItem(PWD_KEY)) toast('⚠️ Cambiá la contraseña por defecto en ⚙️ Config!', true);
     else toast('✅ Modo admin');
   } else {
@@ -871,6 +874,7 @@ function doAdminLogin() {
 
 function doLogout() {
   mode = 'public'; capTeamCode = null; capScanResult = null;
+  localStorage.removeItem('ligacna_session');
   $('capCode').value = ''; $('adminPwd').value = '';
   $('capErr').style.display = 'none'; $('adminErr').style.display = 'none';
   applyMode(); goTab('standings'); toast('👁 Modo público');
@@ -1171,7 +1175,7 @@ function renderFichajesTab() {
 async function submitFichaje() {
   const s = S();
   const name = $('twPlayerName')?.value.trim();
-  const pos = $('twPlayerPos')?.value || 'MID';
+  const pos = $('twPlayerPos')?.value || '—';
   if (!name) { toast('⚠️ Ingresá el gamertag del jugador', true); return; }
   const myTeam = s.teams.find(t => t.code === capTeamCode);
   if (!myTeam) { toast('⚠️ Error: equipo no encontrado', true); return; }
@@ -1316,7 +1320,7 @@ function replaceTeam(oldId, newName, newCap) {
 // PLAYERS
 // ════════════════════════════════════════════════════════
 function addPlayer() {
-  const s = S(), name = $('pName').value.trim(), teamId = $('pTeam').value, pos = $('pPos').value.trim().toUpperCase() || '—';
+  const s = S(), name = $('pName').value.trim(), teamId = $('pTeam').value, pos = ($('pPos').value||'').trim().toUpperCase() || '—';
   if (!name) { toast('⚠️ Ingresá nombre', true); return; }
   if (!teamId) { toast('⚠️ Seleccioná equipo', true); return; }
   s.players.push({ id: Date.now().toString(), name, teamId, pos, goals: 0, assists: 0, rating: [], cs: 0, matchesPlayed: 0 });
@@ -2442,7 +2446,7 @@ function showAddPlayerToMatch(side) {
         <div class="fg"><label>Nombre / ID</label><input id="newPName" placeholder="Nombre del jugador..." style="background:var(--s2);border:1px solid var(--b);border-radius:8px;color:var(--t);font-family:'Barlow',sans-serif;font-size:.88rem;padding:7px 10px;outline:none;width:100%;"></div>
         <div class="fg"><label>Posición</label>
           <select id="newPPos" style="background:var(--s2);border:1px solid var(--b);border-radius:8px;color:var(--t);font-family:'Barlow',sans-serif;font-size:.88rem;padding:7px 10px;outline:none;width:100%;">
-            <option value="GK">GK</option><option value="DEF">DEF</option><option value="MID" selected>MID</option><option value="FWD">FWD</option>
+            <option value="">— Opcional —</option><option value="GK">GK</option><option value="DEF">DEF</option><option value="MID">MID</option><option value="FWD">FWD</option>
           </select>
         </div>
         <div style="font-size:.74rem;color:var(--or);">⚠️ Este jugador también se agregará al registro del equipo.</div>
@@ -2725,18 +2729,19 @@ function addPlayerFromProfile(teamId) {
   $('mbdy').innerHTML = `
     <div style="display:flex;flex-direction:column;gap:8px;">
       <div class="fg"><label>Nombre / ID</label><input id="profPName" placeholder="Nombre del jugador..." style="background:var(--s2);border:1px solid var(--b);border-radius:8px;color:var(--t);font-family:'Barlow',sans-serif;font-size:.88rem;padding:7px 10px;outline:none;width:100%;"></div>
-      <div class="fg"><label>Posición</label>
+      <div class="fg"><label>Posición (opcional)</label>
         <select id="profPPos" style="background:var(--s2);border:1px solid var(--b);border-radius:8px;color:var(--t);font-family:'Barlow',sans-serif;font-size:.88rem;padding:7px 10px;outline:none;width:100%;">
+          <option value="">— Sin posición —</option>
           <option value="GK">GK</option>
           <option value="DEF">DEF</option>
-          <option value="MID" selected>MID</option>
+          <option value="MID">MID</option>
           <option value="FWD">FWD</option>
         </select>
       </div>
     </div>`;
   window._modalConfirm = () => {
     const name = $('profPName')?.value.trim();
-    const pos = $('profPPos')?.value || 'MID';
+    const pos = $('profPPos')?.value || '—';
     if (!name) { toast('⚠️ Ingresá un nombre', true); return; }
     s.players.push({ id: Date.now().toString(), name, teamId, pos, goals: 0, assists: 0, rating: [], cs: 0, matchesPlayed: 0 });
     saveDB();
@@ -3057,6 +3062,36 @@ async function init() {
   const bk = localStorage.getItem('ligacna_bk');
   if (!db.currentSeasonId && bk) { try { const b = JSON.parse(bk); if (b.currentSeasonId) { db = { ...b }; setSdot('ok'); } } catch (e) { } }
   if (!db.currentSeasonId) { const s = newSzn('Temporada 1', 10, 70); db.seasons[s.id] = s; db.currentSeasonId = s.id; saveDB(); }
+  // Restore session from localStorage
+  try {
+    const sess = JSON.parse(localStorage.getItem('ligacna_session') || 'null');
+    if (sess?.mode === 'admin') {
+      mode = 'admin'; closeLogin(); pollSubmissions();
+    } else if (sess?.mode === 'captain' && sess.code) {
+      let found = null;
+      Object.values(db.seasons).forEach(s => s.teams.forEach(t => { if (t.code === sess.code) found = { team: t }; }));
+      if (found) {
+        capTeamCode = sess.code; mode = 'captain'; hide('loginWrap'); closeLogin();
+        const lbl = $('capTeamLbl');
+        if (lbl) lbl.textContent = '⚽ ' + found.team.name + ' — Seleccioná el partido y subí las 3 capturas.';
+        const sel = $('capMatchSel');
+        if (sel) {
+          const s = S();
+          const pending = [];
+          (s.schedule || []).forEach(round => {
+            round.fixtures.forEach(fix => {
+              if ((fix.home === found.team.id || fix.away === found.team.id) && !getMatchResult(fix.home, fix.away)) {
+                const isHome = fix.home === found.team.id;
+                pending.push({ round: round.round, homeId: fix.home, awayId: fix.away, isHome, oppName: tn(isHome ? fix.away : fix.home) });
+              }
+            });
+          });
+          sel.innerHTML = `<option value="">— Seleccioná el partido —</option>` +
+            pending.map(p => `<option value="${p.round}_${p.homeId}_${p.awayId}">${p.isHome ? '🏠' : '✈️'} Fecha ${p.round} vs ${p.oppName}</option>`).join('');
+        }
+      }
+    }
+  } catch(e) {}
   applyMode(); render();
 }
 init();
