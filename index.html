@@ -2283,15 +2283,13 @@ async function approveSub(subId) {
         ps[p.id] = { goals: rp.goals||0, assists: rp.assists||0, rating: rp.rating||0, played: true, cs: false };
       });
 
-      _saveResult(fixtureHomeId, fixtureAwayId, homeGoals, awayGoals, ps, null);
-      // Check if match already exists — merge stats instead of creating duplicate
+      // Check if match already exists BEFORE saving — if so, merge stats
       const existingMatch = S().matches.find(m =>
         (m.homeId == fixtureHomeId && m.awayId == fixtureAwayId) ||
         (m.homeId == fixtureAwayId && m.awayId == fixtureHomeId)
       );
-      if (existingMatch && Object.keys(ps).length > 0) {
+      if (existingMatch) {
         // Merge: add stats for players not already recorded
-        S().matches[S().matches.length - 1]; // last added by _saveResult
         Object.entries(ps).forEach(([pid, st]) => {
           if (!existingMatch.playerStats?.[pid]) {
             if (!existingMatch.playerStats) existingMatch.playerStats = {};
@@ -2302,10 +2300,9 @@ async function approveSub(subId) {
             p.matchesPlayed++;
           }
         });
-        // Remove the duplicate match just added by _saveResult
-        const s = S();
-        s.matches = s.matches.filter((m, i) => i !== s.matches.length - 1);
         saveDB(); render(); toast('✅ Stats fusionadas con partido existente!');
+      } else {
+        _saveResult(fixtureHomeId, fixtureAwayId, homeGoals, awayGoals, ps, null);
       }
       await supa.from('submissions').update({ status: 'approved' }).eq('id', subId);
       pollSubmissions();
