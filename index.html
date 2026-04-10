@@ -1674,13 +1674,13 @@ function clearCapScan() { capImgData = { score: null, players: null, stats: null
 // Step 1: Claude ONLY reads text from images (score, IDs list, stats list)
 // Step 2: JavaScript does ALL matching (IDs vs stats, stats vs league DB)
 
-async function aiRequest(content) {
+async function aiRequest(content, model = 'claude-haiku-4-5') {
   const key = getGeminiKey();
   if (!key) { toast('⚠️ Ingresá tu Claude API key en ⚙️ Config', true); throw new Error('Sin API key'); }
   const res = await fetch(CLAUDE_URL, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', 'x-api-key': key, 'anthropic-version': '2023-06-01', 'anthropic-dangerous-direct-browser-access': 'true' },
-    body: JSON.stringify({ model: 'claude-haiku-4-5', max_tokens: 3000, messages: [{ role: 'user', content }] })
+    body: JSON.stringify({ model, max_tokens: 3000, messages: [{ role: 'user', content }] })
   });
   const data = await res.json();
   if (data.error) throw new Error('Claude: ' + data.error.message);
@@ -1793,13 +1793,13 @@ async function callAI(images) {
   const scorePrompt = 'You are a JSON-only API. No markdown. Read the scoreboard and return: {"home":"TEAM NAME","away":"TEAM NAME","homeGoals":0,"awayGoals":0}';
   const scoreContent = [{ type: 'text', text: scorePrompt }];
   if (imgScore) scoreContent.push(imgBlock(imgScore));
-  const scoreData = imgScore ? await aiRequest(scoreContent) : { home: '', away: '', homeGoals: 0, awayGoals: 0 };
+  const scoreData = imgScore ? await aiRequest(scoreContent, 'claude-haiku-4-5') : { home: '', away: '', homeGoals: 0, awayGoals: 0 };
 
   // ── STEP 1B: Read IDs screen ─────────────────────────────────────────
   const idsPrompt = 'You are a JSON-only API. No markdown. Read the JUGADORES/AS screen. It shows two columns of player gamertags/IDs. Return ALL players from BOTH columns — do not skip any. Return: {"home":[...],"away":[...]}. Left column = home team, right column = away team. Copy each name EXACTLY character by character — preserve uppercase/lowercase, numbers, underscores, dots. Do NOT interpret or modify names. If unsure about a character, copy what you see literally. Return every single player visible, even if the list is long.';
   const idsContent = [{ type: 'text', text: idsPrompt }];
   if (imgPlayers) idsContent.push(imgBlock(imgPlayers));
-  const idsData = imgPlayers ? await aiRequest(idsContent) : { home: [], away: [] };
+  const idsData = imgPlayers ? await aiRequest(idsContent, 'claude-sonnet-4-5') : { home: [], away: [] };
   const homeIds = idsData.home || [];
   const awayIds = idsData.away || [];
   const allIds = [...homeIds.map(n => ({ name: n, team: 'home' })), ...awayIds.map(n => ({ name: n, team: 'away' }))];
@@ -1810,12 +1810,12 @@ async function callAI(images) {
   let statsList = [];
   if (imgStats) {
     const statsContent = [{ type: 'text', text: statsPrompt }, imgBlock(imgStats)];
-    const statsData = await aiRequest(statsContent);
+    const statsData = await aiRequest(statsContent, 'claude-sonnet-4-5');
     statsList = [...statsList, ...(statsData.players || [])];
   }
   if (imgStats2) {
     const statsContent2 = [{ type: 'text', text: statsPrompt }, imgBlock(imgStats2)];
-    const statsData2 = await aiRequest(statsContent2);
+    const statsData2 = await aiRequest(statsContent2, 'claude-sonnet-4-5');
     statsList = [...statsList, ...(statsData2.players || [])];
   }
 
