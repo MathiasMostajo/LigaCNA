@@ -1179,7 +1179,7 @@ async function submitFichaje() {
   if (!myTeam) { toast('⚠️ Error: equipo no encontrado', true); return; }
 
   // Check if player already registered
-  const exists = s.players.find(p => fuzzyMatch(p.name, name));
+  const exists = s.players.find(p => strictMatch(p.name, name));
   if (exists) { toast(`⚠️ "${exists.name}" ya está registrado en la liga`, true); return; }
 
   try {
@@ -1725,6 +1725,13 @@ function imgBlock(dataUrl) {
   return { type: 'image', source: { type: 'base64', media_type: 'image/jpeg', data: b64 } };
 }
 
+// Strict match for manual inputs (fichajes) — character by character, case insensitive only
+function strictMatch(a, b) {
+  // Only normalize case and trim — preserve everything else (numbers, spaces, special chars)
+  const norm = s => s.toLowerCase().trim();
+  return norm(a) === norm(b);
+}
+
 // JS fuzzy match: normalize and check if strings are similar enough
 function levenshtein(a, b) {
   const m = a.length, n = b.length;
@@ -1828,12 +1835,20 @@ Return this exact JSON:
   const allIds = [...homeIds, ...awayIds];
   const statsList = raw.stats || [];
 
-  // JavaScript does the matching against league DB
+  // Figure out which team IDs belong to based on score names
+  const homeTeam = s.teams.find(t => fuzzyMatch(t.name, scoreData.home));
+  const awayTeam = s.teams.find(t => fuzzyMatch(t.name, scoreData.away));
+  const homePlayers = homeTeam ? s.players.filter(p => p.teamId === homeTeam.id) : s.players;
+  const awayPlayers = awayTeam ? s.players.filter(p => p.teamId === awayTeam.id) : s.players;
+
+  // JavaScript does the matching — only search within the correct team's players
   const matchedPlayers = [];
   statsList.forEach(sp => {
     const idMatch = allIds.find(idp => fuzzyMatch(sp.name, idp.name));
     if (!idMatch) return; // FIFA bot
-    const regMatch = s.players.find(lp => fuzzyMatch(idMatch.name, lp.name));
+    // Only search registered players from that specific team
+    const teamPlayers = idMatch.team === 'home' ? homePlayers : awayPlayers;
+    const regMatch = teamPlayers.find(lp => fuzzyMatch(idMatch.name, lp.name));
     matchedPlayers.push({
       name: regMatch ? regMatch.name : idMatch.name,
       team: idMatch.team,
@@ -1845,11 +1860,12 @@ Return this exact JSON:
     });
   });
 
-  // IDs with no stats still played
+  // IDs with no stats still played — also scoped to correct team
   allIds.forEach(idp => {
     const alreadyMatched = matchedPlayers.find(mp => fuzzyMatch(mp.name, idp.name));
     if (!alreadyMatched) {
-      const regMatch = s.players.find(lp => fuzzyMatch(idp.name, lp.name));
+      const teamPlayers = idp.team === 'home' ? homePlayers : awayPlayers;
+      const regMatch = teamPlayers.find(lp => fuzzyMatch(idp.name, lp.name));
       matchedPlayers.push({
         name: regMatch ? regMatch.name : idp.name,
         team: idp.team,
