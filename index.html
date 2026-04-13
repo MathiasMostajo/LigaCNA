@@ -1744,9 +1744,10 @@ function fuzzyMatch(a, b) {
   const [shorter, longer] = na.length <= nb.length ? [na, nb] : [nb, na];
   if (longer.startsWith(shorter) && shorter.length >= 3) return true;
   // Skip short prefixes (1-3 chars) — handles "lmEduard09" vs "Eduard09"
+  // Only apply when the matched portion is at least 5 chars to avoid false positives
   for (let skip = 1; skip <= 3; skip++) {
-    if (na.length > skip && nb.includes(na.slice(skip))) return true;
-    if (nb.length > skip && na.includes(nb.slice(skip))) return true;
+    if (na.length > skip && na.slice(skip).length >= 5 && nb.includes(na.slice(skip))) return true;
+    if (nb.length > skip && nb.slice(skip).length >= 5 && na.includes(nb.slice(skip))) return true;
   }
   // Word-by-word match
   const wordsA = a.toLowerCase().replace(/[^a-z0-9\s]/g,' ').trim().split(/\s+/);
