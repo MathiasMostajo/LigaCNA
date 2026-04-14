@@ -790,7 +790,7 @@ function closeModal() { $('modal').classList.remove('open'); }
 function setSdot(s) { const d = $('sdot'); if (d) d.className = 'sdot ' + (s === 'ok' ? 'ok' : s === 'err' ? 'err' : s === 'syncing' ? 'syncing' : ''); }
 
 async function syncToCloud() {
-  if (isSyncing) return;
+  if (isSyncing) { setTimeout(syncToCloud, 500); return; }
   isSyncing = true; setSdot('syncing');
   try {
     const { error } = await supa.from('liga_data').upsert({ id: DB_KEY, data: db, updated_at: new Date().toISOString() });
@@ -1245,39 +1245,20 @@ function renderTWAdmin() {
 
 function approveFichaje(reqId) {
   const s = S(), req = (s.fichajeRequests||[]).find(r => r.id === reqId); if (!req) return;
-  showModal(`✅ Aprobar: ${req.playerName}?`, `Se agregará a ${req.teamName}.`, 'Aprobar', async () => {
+  showModal(`✅ Aprobar: ${req.playerName}?`, `Se agregará a ${req.teamName}.`, 'Aprobar', () => {
     req.status = 'approved';
     s.players.push({ id: Date.now().toString(), name: req.playerName, teamId: req.teamId, pos: req.pos, goals: 0, assists: 0, rating: [], cs: 0, matchesPlayed: 0 });
-    localStorage.setItem('ligacna_bk', JSON.stringify(db));
-    try {
-      const { error } = await supa.from('liga_data').upsert({ id: DB_KEY, data: db, updated_at: new Date().toISOString() });
-      if (error) throw error;
-      render(); renderTWAdmin(); updateTWToggleUI();
-      toast(`✅ ${req.playerName} agregado a ${req.teamName}`);
-    } catch(e) {
-      req.status = 'pending'; // revert on failure
-      s.players.pop();
-      localStorage.setItem('ligacna_bk', JSON.stringify(db));
-      toast('⚠️ Error al guardar. Intentá de nuevo.', true);
-    }
+    saveDB(); render(); renderTWAdmin(); updateTWToggleUI();
+    toast(`✅ ${req.playerName} agregado a ${req.teamName}`);
   }, true);
 }
 
 function rejectFichaje(reqId) {
   const s = S(), req = (s.fichajeRequests||[]).find(r => r.id === reqId); if (!req) return;
-  showModal(`✕ Rechazar: ${req.playerName}?`, `El DT de ${req.teamName} será notificado.`, 'Rechazar', async () => {
+  showModal(`✕ Rechazar: ${req.playerName}?`, `El DT de ${req.teamName} será notificado.`, 'Rechazar', () => {
     req.status = 'rejected';
-    localStorage.setItem('ligacna_bk', JSON.stringify(db));
-    try {
-      const { error } = await supa.from('liga_data').upsert({ id: DB_KEY, data: db, updated_at: new Date().toISOString() });
-      if (error) throw error;
-      renderTWAdmin(); updateTWToggleUI();
-      toast(`✕ Solicitud de ${req.playerName} rechazada`);
-    } catch(e) {
-      req.status = 'pending'; // revert on failure
-      localStorage.setItem('ligacna_bk', JSON.stringify(db));
-      toast('⚠️ Error al guardar. Intentá de nuevo.', true);
-    }
+    saveDB(); renderTWAdmin(); updateTWToggleUI();
+    toast(`✕ Solicitud de ${req.playerName} rechazada`);
   }, true);
 }
 
