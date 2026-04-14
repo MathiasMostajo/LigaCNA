@@ -1245,20 +1245,39 @@ function renderTWAdmin() {
 
 function approveFichaje(reqId) {
   const s = S(), req = (s.fichajeRequests||[]).find(r => r.id === reqId); if (!req) return;
-  showModal(`✅ Aprobar: ${req.playerName}?`, `Se agregará a ${req.teamName}.`, 'Aprobar', () => {
+  showModal(`✅ Aprobar: ${req.playerName}?`, `Se agregará a ${req.teamName}.`, 'Aprobar', async () => {
     req.status = 'approved';
     s.players.push({ id: Date.now().toString(), name: req.playerName, teamId: req.teamId, pos: req.pos, goals: 0, assists: 0, rating: [], cs: 0, matchesPlayed: 0 });
-    saveDB(); render(); renderTWAdmin(); updateTWToggleUI();
-    toast(`✅ ${req.playerName} agregado a ${req.teamName}`);
+    localStorage.setItem('ligacna_bk', JSON.stringify(db));
+    try {
+      const { error } = await supa.from('liga_data').upsert({ id: DB_KEY, data: db, updated_at: new Date().toISOString() });
+      if (error) throw error;
+      render(); renderTWAdmin(); updateTWToggleUI();
+      toast(`✅ ${req.playerName} agregado a ${req.teamName}`);
+    } catch(e) {
+      req.status = 'pending'; // revert on failure
+      s.players.pop();
+      localStorage.setItem('ligacna_bk', JSON.stringify(db));
+      toast('⚠️ Error al guardar. Intentá de nuevo.', true);
+    }
   }, true);
 }
 
 function rejectFichaje(reqId) {
   const s = S(), req = (s.fichajeRequests||[]).find(r => r.id === reqId); if (!req) return;
-  showModal(`✕ Rechazar: ${req.playerName}?`, `El DT de ${req.teamName} será notificado.`, 'Rechazar', () => {
+  showModal(`✕ Rechazar: ${req.playerName}?`, `El DT de ${req.teamName} será notificado.`, 'Rechazar', async () => {
     req.status = 'rejected';
-    saveDB(); renderTWAdmin(); updateTWToggleUI();
-    toast(`✕ Solicitud de ${req.playerName} rechazada`);
+    localStorage.setItem('ligacna_bk', JSON.stringify(db));
+    try {
+      const { error } = await supa.from('liga_data').upsert({ id: DB_KEY, data: db, updated_at: new Date().toISOString() });
+      if (error) throw error;
+      renderTWAdmin(); updateTWToggleUI();
+      toast(`✕ Solicitud de ${req.playerName} rechazada`);
+    } catch(e) {
+      req.status = 'pending'; // revert on failure
+      localStorage.setItem('ligacna_bk', JSON.stringify(db));
+      toast('⚠️ Error al guardar. Intentá de nuevo.', true);
+    }
   }, true);
 }
 
