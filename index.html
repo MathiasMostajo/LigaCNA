@@ -2032,7 +2032,6 @@ function renderScanResult(r) {
     h += `</div>`;
   }
   if (sc.home) {
-    const rs = JSON.stringify(r).replace(/"/g, '&quot;');
     // Show fixture selector if came from fixture
     let fixtureSel = '';
     if (window._scanFixture) {
@@ -2053,11 +2052,11 @@ function renderScanResult(r) {
           <select id="scanFixtureSel" style="background:var(--s2);border:1px solid var(--b);border-radius:8px;color:var(--t);font-family:'Barlow',sans-serif;font-size:.84rem;padding:6px 10px;outline:none;width:100%;margin-top:4px;">
             <option value="">— Seleccioná el partido —</option>${opts}
           </select>
-          <button class="btn bp" style="width:100%;margin-top:6px;" onclick="loadScanToFixture('${rs.replace(/'/g,"\\'")}')">→ Cargar en Fixture</button>
+          <button class="btn bp" style="width:100%;margin-top:6px;" onclick="loadScanToFixture()">→ Cargar en Fixture</button>
         </div>`;
       }
     }
-    h += `<div style="margin-top:10px;display:flex;gap:7px;flex-wrap:wrap;"><button class="btn bp" onclick='prefill(${rs})'>→ Pre-cargar en Resultados</button></div>${fixtureSel}`;
+    h += `<div style="margin-top:10px;display:flex;gap:7px;flex-wrap:wrap;"><button class="btn bp" onclick='prefill(window._lastScanResult)'>→ Pre-cargar en Resultados</button></div>${fixtureSel}`;
   }
   h += `</div>`; $('aiRes').innerHTML = h;
 }
@@ -2179,14 +2178,12 @@ function prefillFixture(r) {
   }, 300);
 }
 
-function loadScanToFixture(rsStr) {
+function loadScanToFixture() {
   const sel = $('scanFixtureSel');
   if (!sel || !sel.value) { toast('⚠️ Seleccioná el partido primero', true); return; }
   const [round, hId, aId] = sel.value.split('_');
   window._scanFixture = { homeId: hId, awayId: aId, round: +round };
-  let r;
-  try { r = JSON.parse(rsStr.replace(/\\'/g, "'")); } catch(e) { r = window._lastScanResult; }
-  if (r) prefillFixture(r);
+  if (window._lastScanResult) prefillFixture(window._lastScanResult);
 }
 
 function swapScanResult() {
@@ -3236,3 +3233,4 @@ init();
 </script>
 </body>
 </html>
+
