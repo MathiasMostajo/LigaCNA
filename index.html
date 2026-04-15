@@ -2152,6 +2152,32 @@ async function submitCapResult() {
   btn.disabled = false; btn.textContent = '📤 Enviar para Revisión';
 }
 
+function prefill(r) {
+  if (!r) return;
+  goTab('results');
+  setTimeout(() => {
+    const s = S(), sc = r.score || {};
+    const hT = s.teams.find(t => fuzzyMatch(t.name, sc.home || ''));
+    const aT = s.teams.find(t => fuzzyMatch(t.name, sc.away || ''));
+    if (hT) $('homeTeam').value = hT.id;
+    if (aT) $('awayTeam').value = aT.id;
+    if (sc.homeGoals !== undefined) $('homeGoals').value = sc.homeGoals;
+    if (sc.awayGoals !== undefined) $('awayGoals').value = sc.awayGoals;
+    renderPSI();
+    setTimeout(() => {
+      (r.players || []).forEach(rp => {
+        const p = s.players.find(sp => fuzzyMatch(rp.name, sp.name));
+        if (!p) return;
+        const row = document.querySelector(`.psr[data-pid="${p.id}"]`); if (!row) return;
+        if (rp.goals !== undefined) row.querySelector('.pg').value = rp.goals || 0;
+        if (rp.assists !== undefined) row.querySelector('.pa').value = rp.assists || 0;
+        if (rp.rating) row.querySelector('.pr2').value = rp.rating;
+      });
+      toast('✅ Pre-cargado! Revisá y guardá.');
+    }, 200);
+  }, 300);
+}
+
 function prefillFixture(r) {
   if (!window._scanFixture) { prefill(r); return; }
   const { homeId, awayId } = window._scanFixture;
@@ -3233,4 +3259,3 @@ init();
 </script>
 </body>
 </html>
-
