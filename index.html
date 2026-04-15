@@ -1905,17 +1905,18 @@ Return this exact JSON:
   // Figure out which team IDs belong to based on score names
   const homeTeam = s.teams.find(t => fuzzyMatch(t.name, scoreData.home));
   const awayTeam = s.teams.find(t => fuzzyMatch(t.name, scoreData.away));
-  const homePlayers = homeTeam ? s.players.filter(p => p.teamId === homeTeam.id) : s.players;
-  const awayPlayers = awayTeam ? s.players.filter(p => p.teamId === awayTeam.id) : s.players;
+  const homePlayers = homeTeam ? s.players.filter(p => p.teamId === homeTeam.id) : [];
+  const awayPlayers = awayTeam ? s.players.filter(p => p.teamId === awayTeam.id) : [];
 
-  // JavaScript does the matching — only search within the correct team's players
+  // JavaScript does the matching — search correct team first, then opposite team
   const matchedPlayers = [];
   statsList.forEach(sp => {
     const idMatch = allIds.find(idp => fuzzyMatch(sp.name, idp.name));
     if (!idMatch) return; // FIFA bot
-    // Only search registered players from that specific team
-    const teamPlayers = idMatch.team === 'home' ? homePlayers : awayPlayers;
-    const regMatch = teamPlayers.find(lp => fuzzyMatch(idMatch.name, lp.name));
+    const primaryPlayers = idMatch.team === 'home' ? homePlayers : awayPlayers;
+    const secondaryPlayers = idMatch.team === 'home' ? awayPlayers : homePlayers;
+    const regMatch = primaryPlayers.find(lp => fuzzyMatch(idMatch.name, lp.name))
+      || secondaryPlayers.find(lp => fuzzyMatch(idMatch.name, lp.name));
     matchedPlayers.push({
       name: regMatch ? regMatch.name : idMatch.name,
       team: idMatch.team,
@@ -1927,12 +1928,14 @@ Return this exact JSON:
     });
   });
 
-  // IDs with no stats still played — also scoped to correct team
+  // IDs with no stats still played
   allIds.forEach(idp => {
     const alreadyMatched = matchedPlayers.find(mp => fuzzyMatch(mp.name, idp.name));
     if (!alreadyMatched) {
-      const teamPlayers = idp.team === 'home' ? homePlayers : awayPlayers;
-      const regMatch = teamPlayers.find(lp => fuzzyMatch(idp.name, lp.name));
+      const primaryPlayers = idp.team === 'home' ? homePlayers : awayPlayers;
+      const secondaryPlayers = idp.team === 'home' ? awayPlayers : homePlayers;
+      const regMatch = primaryPlayers.find(lp => fuzzyMatch(idp.name, lp.name))
+        || secondaryPlayers.find(lp => fuzzyMatch(idp.name, lp.name));
       matchedPlayers.push({
         name: regMatch ? regMatch.name : idp.name,
         team: idp.team,
