@@ -1509,7 +1509,7 @@ function resetAllData() {
   }, true);
 }
 
-function getMatchResult(homeId, awayId) { return S().matches.find(m => (m.homeId == homeId && m.awayId == awayId) || (m.homeId == awayId && m.awayId == homeId)); }
+function getMatchResult(homeId, awayId) { const woTeamId = S().teams.find(t => t.name === 'WO')?.id; const eitherIsWO = homeId == woTeamId || awayId == woTeamId; return S().matches.find(m => (m.homeId == homeId && m.awayId == awayId) || (eitherIsWO && m.homeId == awayId && m.awayId == homeId) || (m.flag === 'wo' && ((m.homeId == homeId && m.awayId == awayId) || (m.homeId == awayId && m.awayId == homeId)))); }
 function jumpToResult(homeId, awayId) { goTab('results'); setTimeout(() => { $('homeTeam').value = homeId; $('awayTeam').value = awayId; renderPSI(); toast('📝 Cargado!'); }, 200); }
 
 function jumpToScan(homeId, awayId) {
@@ -1957,11 +1957,6 @@ async function runScan() {
   $('aiRes').innerHTML = `<div class="card"><div class="ald"><div class="spin"></div>IA leyendo capturas...</div></div>`;
   try {
     const r = await callAI(imgData); renderScanResult(r);
-    // If came from fixture and has pre-selected fixture, auto-prefill and return
-    if (window._scanFixture && window._scanOriginTab === 'fixture') {
-      prefillFixture(r);
-      window._scanOriginTab = null;
-    }
   }
   catch (e) { $('aiRes').innerHTML = `<div class="card"><div class="wb">⚠️ Error: <code style="font-size:.74rem;word-break:break-all;">${e.message}</code></div></div>`; }
   btn.disabled = false; updateScanBtn();
@@ -2021,13 +2016,12 @@ function fixNoReg(playerIdx, source) {
 }
 
 function renderScanResult(r) {
+  window._lastScanResult = r; // store for swap
   const sc = r.score || {}, pl = r.players || [], ur = r.unregisteredPlayers || [];
   let h = `<div class="card"><div class="ct">✅ Escaneo Completo</div>`;
-  if (sc.home) h += `<div class="ar" style="margin-bottom:9px;"><div class="art">Resultado</div><div class="asd">${sc.home} ${sc.homeGoals ?? '?'} — ${sc.awayGoals ?? '?'} ${sc.away}</div></div>`;
+  if (sc.home) h += `<div class="ar" style="margin-bottom:9px;"><div class="art">Resultado</div><div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;"><div class="asd" style="flex:1;">${sc.home} ${sc.homeGoals ?? '?'} — ${sc.awayGoals ?? '?'} ${sc.away}</div><button class="btn bg" style="font-size:.7rem;padding:3px 8px;" onclick="swapAdminScanResult()">⇄ Invertir</button></div></div>`;
   if (ur.length) h += `<div class="wb">⚠️ ${ur.length} NO registrado(s): ${ur.join(', ')}</div>`;
   if (pl.length) {
-    // Store scan result globally so NO REG fix can access it
-    window._lastScanResult = r;
     h += `<div class="ar"><div class="art">Jugadores (${pl.length})</div>`;
     pl.forEach((p, pi) => {
       const noRegBadge = p.registered
@@ -2039,8 +2033,31 @@ function renderScanResult(r) {
   }
   if (sc.home) {
     const rs = JSON.stringify(r).replace(/"/g, '&quot;');
-    const fixBtn = window._scanFixture ? `<button class="btn bg" onclick='prefillFixture(${rs})' style="font-size:.76rem;">→ Cargar partido fixture</button>` : '';
-    h += `<div style="margin-top:10px;display:flex;gap:7px;flex-wrap:wrap;"><button class="btn bp" onclick='prefill(${rs})'>→ Pre-cargar en Resultados</button>${fixBtn}</div>`;
+    // Show fixture selector if came from fixture
+    let fixtureSel = '';
+    if (window._scanFixture) {
+      const s = S();
+      const { homeId, awayId } = window._scanFixture;
+      const pending = [];
+      (s.schedule||[]).forEach(round => {
+        round.fixtures.forEach(fix => {
+          const isPair = (fix.home==homeId&&fix.away==awayId)||(fix.home==awayId&&fix.away==homeId);
+          if (isPair && !getMatchResult(fix.home, fix.away)) {
+            pending.push({ round: round.round, homeId: fix.home, awayId: fix.away });
+          }
+        });
+      });
+      if (pending.length > 0) {
+        const opts = pending.map(p => `<option value="${p.round}_${p.homeId}_${p.awayId}">Fecha ${p.round}: 🏠 ${tn(p.homeId)} vs ✈️ ${tn(p.awayId)}</option>`).join('');
+        fixtureSel = `<div style="margin-top:8px;"><label style="font-size:.76rem;color:var(--tm);">📅 ¿A qué partido corresponde?</label>
+          <select id="scanFixtureSel" style="background:var(--s2);border:1px solid var(--b);border-radius:8px;color:var(--t);font-family:'Barlow',sans-serif;font-size:.84rem;padding:6px 10px;outline:none;width:100%;margin-top:4px;">
+            <option value="">— Seleccioná el partido —</option>${opts}
+          </select>
+          <button class="btn bp" style="width:100%;margin-top:6px;" onclick="loadScanToFixture('${rs.replace(/'/g,"\\'")}')">→ Cargar en Fixture</button>
+        </div>`;
+      }
+    }
+    h += `<div style="margin-top:10px;display:flex;gap:7px;flex-wrap:wrap;"><button class="btn bp" onclick='prefill(${rs})'>→ Pre-cargar en Resultados</button></div>${fixtureSel}`;
   }
   h += `</div>`; $('aiRes').innerHTML = h;
 }
@@ -2083,7 +2100,7 @@ function renderCapResult(r) {
   };
 
   let h = `<div class="card"><div class="ct">✅ Revisá antes de enviar</div>`;
-  if (sc.home) h += `<div class="ar" style="margin-bottom:9px;"><div class="art">Resultado</div><div class="asd">${sc.home} ${sc.homeGoals ?? '?'} — ${sc.awayGoals ?? '?'} ${sc.away}</div></div>`;
+  if (sc.home) h += `<div class="ar" style="margin-bottom:9px;"><div class="art">Resultado</div><div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;"><div class="asd" style="flex:1;">${sc.home} ${sc.homeGoals ?? '?'} — ${sc.awayGoals ?? '?'} ${sc.away}</div><button class="btn bg" style="font-size:.7rem;padding:3px 8px;" onclick="swapScanResult()">⇄ Invertir</button></div></div>`;
   if (ur.length) h += `<div class="wb" style="margin-bottom:8px;">⚠️ No registrados: ${ur.join(', ')}</div>`;
   h += `<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
     ${renderCol(homePlayers, homeName, 'home')}
@@ -2162,35 +2179,37 @@ function prefillFixture(r) {
   }, 300);
 }
 
-function prefill(r) {
-  goTab('results');
-  setTimeout(() => {
-    const s = S();
-    const hT = s.teams.find(t => t.name.toLowerCase().includes((r.score.home || '').toLowerCase().substring(0, 5)));
-    const aT = s.teams.find(t => t.name.toLowerCase().includes((r.score.away || '').toLowerCase().substring(0, 5)));
-    if (hT) $('homeTeam').value = hT.id;
-    if (aT) $('awayTeam').value = aT.id;
-    if (r.score.homeGoals !== undefined) $('homeGoals').value = r.score.homeGoals;
-    if (r.score.awayGoals !== undefined) $('awayGoals').value = r.score.awayGoals;
-    renderPSI();
-    setTimeout(() => {
-      // Fuzzy name match: normalize and compare
-      const norm = s => s.toLowerCase().replace(/[^a-z0-9]/g,'').replace(/[il1]/g,'1').replace(/[o0]/g,'0');
-      (r.players || []).forEach(rp => {
-        const rpNorm = norm(rp.name);
-        const p = s.players.find(sp => {
-          const spNorm = norm(sp.name);
-          return spNorm === rpNorm || spNorm.includes(rpNorm) || rpNorm.includes(spNorm);
-        });
-        if (!p) return;
-        const row = document.querySelector(`.psr[data-pid="${p.id}"]`); if (!row) return;
-        if (rp.goals !== undefined) row.querySelector('.pg').value = rp.goals || 0;
-        if (rp.assists !== undefined) row.querySelector('.pa').value = rp.assists || 0;
-        if (rp.rating) row.querySelector('.pr2').value = rp.rating;
-      }); toast('✅ Pre-cargado! Revisá y guardá.');
-    }, 200);
-  }, 300);
+function loadScanToFixture(rsStr) {
+  const sel = $('scanFixtureSel');
+  if (!sel || !sel.value) { toast('⚠️ Seleccioná el partido primero', true); return; }
+  const [round, hId, aId] = sel.value.split('_');
+  window._scanFixture = { homeId: hId, awayId: aId, round: +round };
+  let r;
+  try { r = JSON.parse(rsStr.replace(/\\'/g, "'")); } catch(e) { r = window._lastScanResult; }
+  if (r) prefillFixture(r);
 }
+
+function swapScanResult() {
+  if (!capScanResult) return;
+  const sc = capScanResult.score || {};
+  // Swap teams and scores
+  [sc.home, sc.away] = [sc.away, sc.home];
+  [sc.homeGoals, sc.awayGoals] = [sc.awayGoals, sc.homeGoals];
+  // Swap player teams
+  (capScanResult.players || []).forEach(p => { p.team = p.team === 'home' ? 'away' : 'home'; });
+  renderCapResult(capScanResult);
+}
+
+function swapAdminScanResult() {
+  if (!window._lastScanResult) return;
+  const r = window._lastScanResult;
+  const sc = r.score || {};
+  [sc.home, sc.away] = [sc.away, sc.home];
+  [sc.homeGoals, sc.awayGoals] = [sc.awayGoals, sc.homeGoals];
+  (r.players || []).forEach(p => { p.team = p.team === 'home' ? 'away' : 'home'; });
+  renderScanResult(r);
+}
+
 
 // ════════════════════════════════════════════════════════
 // SUBMISSIONS
