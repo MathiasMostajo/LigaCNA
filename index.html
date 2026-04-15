@@ -287,7 +287,7 @@ select option{background:var(--s2);}
     <div class="hr">
       <span class="sdot" id="sdot"></span>
       <button class="hbtn admin-only" id="subBtn" onclick="goTab('submissions')" style="display:none;">📥<span class="pbadge" id="pCount">0</span></button>
-      <div style="background:linear-gradient(135deg,#1a2a1a,#0f1f0f);border:1px solid var(--g);border-radius:8px;padding:4px 10px;font-family:'Barlow Condensed',sans-serif;font-size:.78rem;color:var(--g);">💰 $<strong id="prizeD">0</strong></div>
+      
       <button class="hbtn" id="loginBtn" onclick="openLogin()" style="color:var(--g);border-color:rgba(0,255,135,.3);">🔑 Login</button>
       <button class="hbtn" id="logoutBtn" onclick="doLogout()" style="color:var(--red);border-color:rgba(255,71,87,.3);display:none;">↩ Salir</button>
     </div>
@@ -325,8 +325,7 @@ select option{background:var(--s2);}
   <div class="sbar">
     <div class="ss"><div class="v" id="stTeams">0</div><div class="l">Equipos</div></div>
     <div class="ss"><div class="v" id="stPaid">0</div><div class="l">Pagaron</div></div>
-    <div class="ss"><div class="v" id="stPool">$0</div><div class="l">Premio Total</div></div>
-    <div class="ss"><div class="v" id="stPrize">$0</div><div class="l">Gana el 1ro</div></div>
+    <div class="ss"><div class="v" id="stPrize">$0</div><div class="l">Premio</div></div>
   </div>
   <div class="card">
     <div class="ct">🏆 Tabla de Posiciones</div>
@@ -571,6 +570,12 @@ select option{background:var(--s2);}
         </div>
       </div>
     </div>
+    <div id="adminScanFixtureWrap" style="display:none;margin-bottom:10px;">
+      <label style="font-size:.78rem;color:var(--tm);font-family:'Barlow Condensed',sans-serif;text-transform:uppercase;letter-spacing:1px;">📅 Partido</label>
+      <select id="adminScanMatchSel" style="background:var(--s2);border:1px solid var(--b);border-radius:8px;color:var(--t);font-family:'Barlow',sans-serif;font-size:.88rem;padding:7px 10px;outline:none;width:100%;margin-top:4px;">
+        <option value="">— Seleccioná el partido —</option>
+      </select>
+    </div>
     <div style="display:flex;gap:7px;flex-wrap:wrap;align-items:center;">
       <button class="btn bai" id="scanBtn" onclick="runScan()" disabled>🤖 Escanear con IA</button>
       <button class="btn bg" onclick="clearScan()">✕ Limpiar</button>
@@ -688,6 +693,14 @@ select option{background:var(--s2);}
     <div class="fg" style="margin-bottom:9px;"><label>Nueva Contraseña</label><input type="password" id="newPwd" placeholder="Nueva..."></div>
     <div class="fg" style="margin-bottom:9px;"><label>Confirmar</label><input type="password" id="newPwd2" placeholder="Repetir..."></div>
     <button class="btn bp" onclick="changePwd()">Guardar Contraseña</button>
+  </div>
+  <div class="card">
+    <div class="ct">👥 Límite de Jugadores por Equipo</div>
+    <div class="ib" style="margin-bottom:8px;">Si un equipo llega al límite, no se pueden agregar más jugadores.</div>
+    <div style="display:flex;gap:7px;align-items:flex-end;">
+      <div class="fg" style="flex:1;"><label>Máximo de jugadores</label><input type="number" id="maxPlayersInput" min="1" max="50" placeholder="Sin límite" style="background:var(--s2);border:1px solid var(--b);border-radius:8px;color:var(--t);font-family:'Barlow',sans-serif;font-size:.88rem;padding:7px 10px;outline:none;width:100%;"></div>
+      <button class="btn bp" onclick="saveMaxPlayers()">Guardar</button>
+    </div>
   </div>
   <div class="card">
     <div class="ct">🔑 Códigos de Capitanes</div>
@@ -862,7 +875,8 @@ function doCapLogin() {
 
 function doAdminLogin() {
   const pwd = $('adminPwd').value;
-  if (pwd === (localStorage.getItem(PWD_KEY) || DEFAULT_PWD)) {
+  const storedPwd = db.adminPwd || localStorage.getItem(PWD_KEY) || DEFAULT_PWD;
+  if (pwd === storedPwd) {
     mode = 'admin'; closeLogin(); applyMode(); render(); pollSubmissions();
     localStorage.setItem('ligacna_session', JSON.stringify({ mode: 'admin' }));
     if (!localStorage.getItem(PWD_KEY)) toast('⚠️ Cambiá la contraseña por defecto en ⚙️ Config!', true);
@@ -903,7 +917,7 @@ function changePwd() {
   const p1 = $('newPwd').value, p2 = $('newPwd2').value;
   if (!p1) { toast('⚠️ Ingresá contraseña', true); return; }
   if (p1 !== p2) { toast('⚠️ No coinciden', true); return; }
-  localStorage.setItem(PWD_KEY, p1);
+  localStorage.setItem(PWD_KEY, p1); db.adminPwd = p1; saveDB();
   $('newPwd').value = ''; $('newPwd2').value = '';
   toast('✅ Contraseña actualizada');
 }
@@ -1094,6 +1108,13 @@ function removeTeam(id) {
   }, true);
 }
 
+function saveMaxPlayers() {
+  const val = +$('maxPlayersInput').value;
+  if (!val || val < 1) { toast('⚠️ Ingresá un número válido', true); return; }
+  S().maxPlayersPerTeam = val;
+  saveDB(); toast(`✅ Límite de ${val} jugadores por equipo guardado`);
+}
+
 function togglePaid(id) { const t = S().teams.find(t => t.id == id); if (t) { t.paid = t.paid === 'yes' ? 'no' : 'yes'; saveDB(); render(); } }
 
 // ════════════════════════════════════════════════════════
@@ -1181,6 +1202,9 @@ async function submitFichaje() {
   // Check if player already registered
   const exists = s.players.find(p => strictMatch(p.name, name));
   if (exists) { toast(`⚠️ "${exists.name}" ya está registrado en la liga`, true); return; }
+  // Check if already has a pending request with same name
+  const pendingReq = (s.fichajeRequests||[]).find(r => r.status === 'pending' && strictMatch(r.playerName, name));
+  if (pendingReq) { toast(`⚠️ Ya hay una solicitud pendiente para "${name}"`, true); return; }
 
   try {
     const req = { id: Date.now().toString(), teamId: myTeam.id, teamName: myTeam.name, playerName: name, pos, status: 'pending', createdAt: new Date().toISOString() };
@@ -1203,7 +1227,7 @@ function renderTWAdmin() {
 
   let h = '';
   if (pending.length) {
-    h += `<div class="card"><div class="ct">📥 Solicitudes Pendientes (${pending.length})</div>`;
+    h += `<div class="card"><div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;"><div class="ct" style="margin:0;">📥 Solicitudes Pendientes (${pending.length})</div><button class="btn bp" style="font-size:.72rem;padding:4px 10px;" onclick="approveAllFichajes()">✅ Aceptar todos</button></div>`;
     h += pending.map(r => {
       const team = s.teams.find(t => t.id === r.teamId);
       return `<div style="display:flex;align-items:center;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--b);flex-wrap:wrap;gap:6px;">
@@ -1243,9 +1267,26 @@ function renderTWAdmin() {
   el.innerHTML = h;
 }
 
+function approveAllFichajes() {
+  const s = S();
+  const pending = (s.fichajeRequests||[]).filter(r => r.status === 'pending');
+  if (!pending.length) return;
+  showModal(`✅ Aceptar todos (${pending.length})?`, `Se agregarán ${pending.length} jugadores a sus equipos.`, 'Aceptar todos', () => {
+    pending.forEach(req => {
+      req.status = 'approved';
+      s.players.push({ id: Date.now().toString() + Math.random(), name: req.playerName, teamId: req.teamId, pos: req.pos || '—', goals: 0, assists: 0, rating: [], cs: 0, matchesPlayed: 0 });
+    });
+    saveDB(); render(); renderTWAdmin(); updateTWToggleUI();
+    toast(`✅ ${pending.length} jugadores agregados`);
+  }, true);
+}
+
 function approveFichaje(reqId) {
   const s = S(), req = (s.fichajeRequests||[]).find(r => r.id === reqId); if (!req) return;
   showModal(`✅ Aprobar: ${req.playerName}?`, `Se agregará a ${req.teamName}.`, 'Aprobar', () => {
+    const teamCount = s.players.filter(p => p.teamId === req.teamId).length;
+    const maxP = s.maxPlayersPerTeam || 99;
+    if (teamCount >= maxP) { toast(`⚠️ ${req.teamName} ya tiene el máximo de ${maxP} jugadores`, true); return; }
     req.status = 'approved';
     s.players.push({ id: Date.now().toString(), name: req.playerName, teamId: req.teamId, pos: req.pos, goals: 0, assists: 0, rating: [], cs: 0, matchesPlayed: 0 });
     saveDB(); render(); renderTWAdmin(); updateTWToggleUI();
@@ -1468,15 +1509,41 @@ function resetAllData() {
   }, true);
 }
 
-function getMatchResult(homeId, awayId) { return S().matches.find(m => (m.homeId == homeId && m.awayId == awayId) || (m.homeId == awayId && m.awayId == homeId && m.flag === 'wo')); }
+function getMatchResult(homeId, awayId) { return S().matches.find(m => (m.homeId == homeId && m.awayId == awayId) || (m.homeId == awayId && m.awayId == homeId)); }
 function jumpToResult(homeId, awayId) { goTab('results'); setTimeout(() => { $('homeTeam').value = homeId; $('awayTeam').value = awayId; renderPSI(); toast('📝 Cargado!'); }, 200); }
 
 function jumpToScan(homeId, awayId) {
-  // Store the pre-selected fixture so after scan it auto-fills results
   window._scanFixture = { homeId, awayId };
+  window._scanOriginTab = 'fixture';
   clearScan();
   goTab('scan');
-  toast(`🤖 Escaneá las fotos del partido: ${tn(homeId)} vs ${tn(awayId)}`);
+  // Show fixture selector with all pending matches between these teams
+  const wrap = $('adminScanFixtureWrap');
+  const sel = $('adminScanMatchSel');
+  if (wrap && sel) {
+    const s = S();
+    const pending = [];
+    (s.schedule||[]).forEach(round => {
+      round.fixtures.forEach(fix => {
+        const isPair = (fix.home==homeId&&fix.away==awayId)||(fix.home==awayId&&fix.away==homeId);
+        if (isPair && !getMatchResult(fix.home, fix.away)) {
+          pending.push({ round: round.round, homeId: fix.home, awayId: fix.away });
+        }
+      });
+    });
+    sel.innerHTML = `<option value="">— Seleccioná el partido —</option>` +
+      pending.map(p => `<option value="${p.round}_${p.homeId}_${p.awayId}">Fecha ${p.round}: 🏠 ${tn(p.homeId)} vs ✈️ ${tn(p.awayId)}</option>`).join('');
+    wrap.style.display = 'block';
+    // Update _scanFixture when selection changes
+    sel.onchange = () => {
+      if (sel.value) {
+        const [round, hId, aId] = sel.value.split('_');
+        window._scanFixture = { homeId: hId, awayId: aId, round: +round };
+      }
+    };
+    if (pending.length === 1) { sel.value = `${pending[0].round}_${pending[0].homeId}_${pending[0].awayId}`; window._scanFixture = pending[0]; }
+  }
+  toast(`🤖 Escaneá las fotos: ${tn(homeId)} vs ${tn(awayId)}`);
 }
 
 // ════════════════════════════════════════════════════════
@@ -1888,7 +1955,14 @@ Return this exact JSON:
 async function runScan() {
   const btn = $('scanBtn'); btn.disabled = true;
   $('aiRes').innerHTML = `<div class="card"><div class="ald"><div class="spin"></div>IA leyendo capturas...</div></div>`;
-  try { const r = await callAI(imgData); renderScanResult(r); }
+  try {
+    const r = await callAI(imgData); renderScanResult(r);
+    // If came from fixture and has pre-selected fixture, auto-prefill and return
+    if (window._scanFixture && window._scanOriginTab === 'fixture') {
+      prefillFixture(r);
+      window._scanOriginTab = null;
+    }
+  }
   catch (e) { $('aiRes').innerHTML = `<div class="card"><div class="wb">⚠️ Error: <code style="font-size:.74rem;word-break:break-all;">${e.message}</code></div></div>`; }
   btn.disabled = false; updateScanBtn();
 }
@@ -2218,11 +2292,12 @@ function renderSubs(subs) {
 function showSubImg(subId, type) {
   const sub = subsCache[subId]; if (!sub) return;
   const src = sub.scan_result?._screenshots?.[type]; if (!src) return;
-  $('mttl').textContent = '📸 Captura';
-  $('mbdy').innerHTML = `<img src="${src}" style="width:100%;border-radius:8px;margin-top:8px;">`;
-  window._modalConfirm = () => {};
-  $('mbtns').innerHTML = `<button class="btn bp" onclick="closeModal()" style="font-size:.8rem;padding:6px 12px;">Cerrar</button>`;
-  $('modal').classList.add('open');
+  // Open fullscreen overlay instead of small modal
+  const ov = document.createElement('div');
+  ov.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.95);z-index:9999;display:flex;align-items:center;justify-content:center;cursor:zoom-out;';
+  ov.innerHTML = `<img src="${src}" style="max-width:100%;max-height:100%;object-fit:contain;border-radius:4px;">`;
+  ov.onclick = () => document.body.removeChild(ov);
+  document.body.appendChild(ov);
 }
 
 async function approveSub(subId) {
@@ -2352,8 +2427,7 @@ function render() {
 function renderSummary() {
   const s = S(), paid = s.teams.filter(t => t.paid === 'yes'), pool = paid.reduce((x, t) => x + t.fee, 0), prize = Math.round(pool * (s.prizePct || 70) / 100);
   $('stTeams').textContent = s.teams.length; $('stPaid').textContent = paid.length;
-  $('stPool').textContent = '$' + pool; $('stPrize').textContent = '$' + prize;
-  $('prizeD').textContent = pool;
+  if($('stPrize')) $('stPrize').textContent = '$' + prize;
 }
 
 function renderTeams() {
@@ -2383,6 +2457,8 @@ function renderTeams() {
 }
 
 function renderTeamCodes() {
+  const maxInp = $('maxPlayersInput');
+  if (maxInp && S().maxPlayersPerTeam) maxInp.value = S().maxPlayersPerTeam;
   const el = $('teamCodes'); if (!el) return;
   const s = S();
   if (!s.teams.length) { el.innerHTML = `<div class="es"><div class="ei">🔑</div>Sin equipos.</div>`; return; }
