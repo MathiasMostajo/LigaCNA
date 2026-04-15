@@ -1902,11 +1902,19 @@ Return this exact JSON:
   const allIds = [...homeIds, ...awayIds];
   const statsList = raw.stats || [];
 
-  // Figure out which team IDs belong to based on score names
-  const homeTeam = s.teams.find(t => fuzzyMatch(t.name, scoreData.home));
-  const awayTeam = s.teams.find(t => fuzzyMatch(t.name, scoreData.away));
-  const homePlayers = homeTeam ? s.players.filter(p => p.teamId === homeTeam.id) : [];
-  const awayPlayers = awayTeam ? s.players.filter(p => p.teamId === awayTeam.id) : [];
+  // Match teams from score to registered teams
+  // Try exact fuzzy match first, then check if registered team name is CONTAINED in score name
+  const findTeam = (scoreName) => {
+    if (!scoreName) return null;
+    const sn = scoreName.toLowerCase();
+    return s.teams.find(t => fuzzyMatch(t.name, scoreName))
+      || s.teams.find(t => sn.includes(t.name.toLowerCase()) && t.name.length >= 3)
+      || s.teams.find(t => t.name.toLowerCase().includes(sn) && sn.length >= 3);
+  };
+  const homeTeam = findTeam(scoreData.home);
+  const awayTeam = findTeam(scoreData.away);
+  const homePlayers = homeTeam ? s.players.filter(p => p.teamId === homeTeam.id) : s.players;
+  const awayPlayers = awayTeam ? s.players.filter(p => p.teamId === awayTeam.id) : s.players;
 
   // JavaScript does the matching — search correct team first, then opposite team
   const matchedPlayers = [];
