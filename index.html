@@ -268,7 +268,10 @@ select option{background:var(--s2);}
     <div class="lform" id="lf-admin">
       <div class="fg" style="margin-bottom:10px;">
         <label>Contraseña Admin</label>
-        <input type="password" id="adminPwd" placeholder="Contraseña..." onkeydown="if(event.key==='Enter')doAdminLogin()">
+        <div style="position:relative;">
+          <input type="password" id="adminPwd" placeholder="Contraseña..." onkeydown="if(event.key==='Enter')doAdminLogin()" style="width:100%;padding-right:38px;">
+          <button type="button" onclick="const i=$('adminPwd');i.type=i.type==='password'?'text':'password';this.textContent=i.type==='password'?'👁':'🙈'" style="position:absolute;right:8px;top:50%;transform:translateY(-50%);background:none;border:none;cursor:pointer;font-size:1rem;padding:0;">👁</button>
+        </div>
       </div>
       <button class="btn bp" style="width:100%;" onclick="doAdminLogin()">🔐 Entrar</button>
       <div class="err" id="adminErr">Contraseña incorrecta.</div>
@@ -570,12 +573,7 @@ select option{background:var(--s2);}
         </div>
       </div>
     </div>
-    <div id="adminScanFixtureWrap" style="display:none;margin-bottom:10px;">
-      <label style="font-size:.78rem;color:var(--tm);font-family:'Barlow Condensed',sans-serif;text-transform:uppercase;letter-spacing:1px;">📅 Partido</label>
-      <select id="adminScanMatchSel" style="background:var(--s2);border:1px solid var(--b);border-radius:8px;color:var(--t);font-family:'Barlow',sans-serif;font-size:.88rem;padding:7px 10px;outline:none;width:100%;margin-top:4px;">
-        <option value="">— Seleccioná el partido —</option>
-      </select>
-    </div>
+
     <div style="display:flex;gap:7px;flex-wrap:wrap;align-items:center;">
       <button class="btn bai" id="scanBtn" onclick="runScan()" disabled>🤖 Escanear con IA</button>
       <button class="btn bg" onclick="clearScan()">✕ Limpiar</button>
@@ -607,7 +605,7 @@ select option{background:var(--s2);}
     <button class="btn bg" onclick="showAddPlayerToMatch('away')" style="font-size:.74rem;margin-top:6px;padding:4px 10px;">➕ Agregar jugador</button>
     <div style="margin-top:10px;display:flex;gap:7px;flex-wrap:wrap;align-items:center;">
       <button class="btn bp" onclick="submitResult(false)">✅ Guardar</button>
-      <button class="btn" onclick="submitResult(true)" style="background:rgba(255,71,87,.15);border:1px solid var(--red);color:var(--red);font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:.86rem;padding:7px 15px;">🚫 WO</button>
+
       <span style="font-size:.7rem;color:var(--tm);">WO = 1-0 (elegís quién gana)</span>
     </div>
   </div>
@@ -875,14 +873,25 @@ function doCapLogin() {
 
 function doAdminLogin() {
   const pwd = $('adminPwd').value;
+  // Always fetch fresh db from Supabase before checking — ensures pwd syncs across devices
   const storedPwd = db.adminPwd || localStorage.getItem(PWD_KEY) || DEFAULT_PWD;
   if (pwd === storedPwd) {
     mode = 'admin'; closeLogin(); applyMode(); render(); pollSubmissions();
     localStorage.setItem('ligacna_session', JSON.stringify({ mode: 'admin' }));
-    if (!localStorage.getItem(PWD_KEY)) toast('⚠️ Cambiá la contraseña por defecto en ⚙️ Config!', true);
+    if (!db.adminPwd && !localStorage.getItem(PWD_KEY)) toast('⚠️ Cambiá la contraseña por defecto en ⚙️ Config!', true);
     else toast('✅ Modo admin');
   } else {
-    $('adminErr').style.display = 'block';
+    // Try refreshing from cloud in case pwd was changed on another device
+    loadFromCloud().then(() => {
+      const freshPwd = db.adminPwd || localStorage.getItem(PWD_KEY) || DEFAULT_PWD;
+      if (pwd === freshPwd) {
+        mode = 'admin'; closeLogin(); applyMode(); render(); pollSubmissions();
+        localStorage.setItem('ligacna_session', JSON.stringify({ mode: 'admin' }));
+        toast('✅ Modo admin');
+      } else {
+        $('adminErr').style.display = 'block';
+      }
+    });
   }
 }
 
@@ -1518,31 +1527,6 @@ function jumpToScan(homeId, awayId) {
   clearScan();
   goTab('scan');
   // Show fixture selector with all pending matches between these teams
-  const wrap = $('adminScanFixtureWrap');
-  const sel = $('adminScanMatchSel');
-  if (wrap && sel) {
-    const s = S();
-    const pending = [];
-    (s.schedule||[]).forEach(round => {
-      round.fixtures.forEach(fix => {
-        const isPair = (fix.home==homeId&&fix.away==awayId)||(fix.home==awayId&&fix.away==homeId);
-        if (isPair && !getMatchResult(fix.home, fix.away)) {
-          pending.push({ round: round.round, homeId: fix.home, awayId: fix.away });
-        }
-      });
-    });
-    sel.innerHTML = `<option value="">— Seleccioná el partido —</option>` +
-      pending.map(p => `<option value="${p.round}_${p.homeId}_${p.awayId}">Fecha ${p.round}: 🏠 ${tn(p.homeId)} vs ✈️ ${tn(p.awayId)}</option>`).join('');
-    wrap.style.display = 'block';
-    // Update _scanFixture when selection changes
-    sel.onchange = () => {
-      if (sel.value) {
-        const [round, hId, aId] = sel.value.split('_');
-        window._scanFixture = { homeId: hId, awayId: aId, round: +round };
-      }
-    };
-    if (pending.length === 1) { sel.value = `${pending[0].round}_${pending[0].homeId}_${pending[0].awayId}`; window._scanFixture = pending[0]; }
-  }
   toast(`🤖 Escaneá las fotos: ${tn(homeId)} vs ${tn(awayId)}`);
 }
 
@@ -2010,7 +1994,7 @@ function renderScanResult(r) {
   window._lastScanResult = r; // store for swap
   const sc = r.score || {}, pl = r.players || [], ur = r.unregisteredPlayers || [];
   let h = `<div class="card"><div class="ct">✅ Escaneo Completo</div>`;
-  if (sc.home) h += `<div class="ar" style="margin-bottom:9px;"><div class="art">Resultado</div><div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;"><div class="asd" style="flex:1;">${sc.home} ${sc.homeGoals ?? '?'} — ${sc.awayGoals ?? '?'} ${sc.away}</div><button class="btn bg" style="font-size:.7rem;padding:3px 8px;" onclick="swapAdminScanResult()">⇄ Invertir</button></div></div>`;
+  if (sc.home) h += `<div class="ar" style="margin-bottom:9px;"><div class="art">Resultado</div><div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;"><div class="asd" style="flex:1;">${sc.home} ${sc.homeGoals ?? '?'} — ${sc.awayGoals ?? '?'} ${sc.away}</div></div></div>`;
   if (ur.length) h += `<div class="wb">⚠️ ${ur.length} NO registrado(s): ${ur.join(', ')}</div>`;
   if (pl.length) {
     h += `<div class="ar"><div class="art">Jugadores (${pl.length})</div>`;
@@ -2023,29 +2007,33 @@ function renderScanResult(r) {
     h += `</div>`;
   }
   if (sc.home) {
-    // Show fixture selector if came from fixture
-    let fixtureSel = '';
-    if (window._scanFixture) {
-      const s = S();
-      const { homeId, awayId } = window._scanFixture;
-      const pending = [];
-      (s.schedule||[]).forEach(round => {
+    // Always show fixture selector — find all pending matches between the two scanned teams
+    const s2 = S();
+    const scHome = sc.home || '';
+    const scAway = sc.away || '';
+    const hTeam = s2.teams.find(t => { const sn=scHome.toLowerCase(); return fuzzyMatch(t.name,scHome)||sn.includes(t.name.toLowerCase())||t.name.toLowerCase().includes(sn); });
+    const aTeam = s2.teams.find(t => { const sn=scAway.toLowerCase(); return fuzzyMatch(t.name,scAway)||sn.includes(t.name.toLowerCase())||t.name.toLowerCase().includes(sn); });
+    const pending = [];
+    if (hTeam && aTeam) {
+      (s2.schedule||[]).forEach(round => {
         round.fixtures.forEach(fix => {
-          const isPair = (fix.home==homeId&&fix.away==awayId)||(fix.home==awayId&&fix.away==homeId);
-          if (isPair && !getMatchResult(fix.home, fix.away)) {
-            pending.push({ round: round.round, homeId: fix.home, awayId: fix.away });
-          }
+          const isPair = (fix.home==hTeam.id&&fix.away==aTeam.id)||(fix.home==aTeam.id&&fix.away==hTeam.id);
+          if (isPair && !getMatchResult(fix.home, fix.away)) pending.push({ round: round.round, homeId: fix.home, awayId: fix.away });
         });
       });
-      if (pending.length > 0) {
-        const opts = pending.map(p => `<option value="${p.round}_${p.homeId}_${p.awayId}">Fecha ${p.round}: 🏠 ${tn(p.homeId)} vs ✈️ ${tn(p.awayId)}</option>`).join('');
-        fixtureSel = `<div style="margin-top:8px;"><label style="font-size:.76rem;color:var(--tm);">📅 ¿A qué partido corresponde?</label>
-          <select id="scanFixtureSel" style="background:var(--s2);border:1px solid var(--b);border-radius:8px;color:var(--t);font-family:'Barlow',sans-serif;font-size:.84rem;padding:6px 10px;outline:none;width:100%;margin-top:4px;">
-            <option value="">— Seleccioná el partido —</option>${opts}
-          </select>
-          <button class="btn bp" style="width:100%;margin-top:6px;" onclick="loadScanToFixture()">→ Cargar en Fixture</button>
-        </div>`;
-      }
+    }
+    let fixtureSel = '';
+    if (pending.length > 0) {
+      const opts = pending.map(p => `<option value="${p.round}_${p.homeId}_${p.awayId}">Fecha ${p.round}: 🏠 ${tn(p.homeId)} vs ✈️ ${tn(p.awayId)}</option>`).join('');
+      // Pre-select if only one option or if _scanFixture matches
+      const preVal = pending.length === 1 ? `${pending[0].round}_${pending[0].homeId}_${pending[0].awayId}` : '';
+      if (preVal) window._scanFixture = pending[0];
+      fixtureSel = `<div style="margin-top:8px;"><label style="font-size:.76rem;color:var(--tm);">📅 ¿A qué partido corresponde?</label>
+        <select id="scanFixtureSel" style="background:var(--s2);border:1px solid var(--b);border-radius:8px;color:var(--t);font-family:'Barlow',sans-serif;font-size:.84rem;padding:6px 10px;outline:none;width:100%;margin-top:4px;">
+          <option value="">— Seleccioná el partido —</option>${opts}
+        </select>
+        <button class="btn bp" style="width:100%;margin-top:6px;" onclick="loadScanToFixture()">→ Cargar en Fixture</button>
+      </div>`;
     }
     h += `<div style="margin-top:10px;display:flex;gap:7px;flex-wrap:wrap;"><button class="btn bp" onclick='prefill(window._lastScanResult)'>→ Pre-cargar en Resultados</button></div>${fixtureSel}`;
   }
@@ -2090,7 +2078,7 @@ function renderCapResult(r) {
   };
 
   let h = `<div class="card"><div class="ct">✅ Revisá antes de enviar</div>`;
-  if (sc.home) h += `<div class="ar" style="margin-bottom:9px;"><div class="art">Resultado</div><div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;"><div class="asd" style="flex:1;">${sc.home} ${sc.homeGoals ?? '?'} — ${sc.awayGoals ?? '?'} ${sc.away}</div><button class="btn bg" style="font-size:.7rem;padding:3px 8px;" onclick="swapScanResult()">⇄ Invertir</button></div></div>`;
+  if (sc.home) h += `<div class="ar" style="margin-bottom:9px;"><div class="art">Resultado</div><div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;"><div class="asd" style="flex:1;">${sc.home} ${sc.homeGoals ?? '?'} — ${sc.awayGoals ?? '?'} ${sc.away}</div></div></div>`;
   if (ur.length) h += `<div class="wb" style="margin-bottom:8px;">⚠️ No registrados: ${ur.join(', ')}</div>`;
   h += `<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
     ${renderCol(homePlayers, homeName, 'home')}
