@@ -374,13 +374,12 @@ select option{background:var(--s2);}
 <div class="sec" id="tab-leaders">
   <div class="card">
     <div class="ct">⭐ Tabla de Líderes</div>
-    <div class="lbt">
-      <button class="lbtab active" onclick="showLB('goals',this)">⚽ Goleadores</button>
-      <button class="lbtab" onclick="showLB('assists',this)">🎯 Asistidores</button>
-      <button class="lbtab" onclick="showLB('rating',this)">⭐ Nota</button>
-      <button class="lbtab" onclick="showLB('cs',this)">🧤 Vallas a 0</button>
+    <div style="display:flex;gap:6px;margin-bottom:10px;flex-wrap:wrap;">
+      <button id="lbModeJug" class="btn bp" style="flex:1;min-width:100px;" onclick="setLBMode('jugadores')">👤 Jugadores</button>
+      <button id="lbModePor" class="btn bg" style="flex:1;min-width:100px;" onclick="setLBMode('porteros')">🧤 Porteros</button>
+      <button id="lbModeTOTW" class="btn bg" style="flex:1;min-width:100px;" onclick="setLBMode('totw')">⭐ XI Semana</button>
     </div>
-    <div id="lbContent"><div class="es"><div class="ei">⭐</div>Sin stats aún.</div></div>
+    <div id="lbTable"></div>
   </div>
 </div>
 
@@ -759,7 +758,6 @@ let capScanResult = null;
 let subsCache = {}; // store full submission objects by id to avoid passing base64 through onclick
 let imgData = { score: null, players: null, stats: null, stats2: null };
 let capImgData = { score: null, players: null, stats: null };
-let currentLB = 'goals';
 let isSyncing = false;
 
 // ════════════════════════════════════════════════════════
@@ -1403,7 +1401,11 @@ function submitResult(isWO = false) {
   document.querySelectorAll('.psr').forEach(row => {
     const pid = row.dataset.pid, goals = +row.querySelector('.pg').value || 0, assists = +row.querySelector('.pa').value || 0,
       rating = +row.querySelector('.pr2').value || 0, csEl = row.querySelector('.pcs');
-    ps[pid] = { goals, assists, rating, played: true, cs: csEl ? csEl.checked : false };
+    const playedEl = row.querySelector('.pplayed');
+    const played = playedEl ? playedEl.checked : (goals > 0 || assists > 0 || rating > 0);
+    if (played || goals || assists || rating) {
+      ps[pid] = { goals, assists, rating, played, cs: csEl ? csEl.checked : false };
+    }
   });
   _saveResult(homeId, awayId, hg, ag, ps, null);
 }
@@ -1416,7 +1418,10 @@ function _saveResult(homeId, awayId, hg, ag, ps, flag) {
     p.goals += st.goals; p.assists += st.assists;
     if (st.rating > 0) p.rating.push(st.rating);
     if (st.played) p.matchesPlayed++;
-    if (st.cs) p.cs++;
+    // Auto clean sheet: GK gets cs if opponent scored 0
+    const isHome = s.players.find(pl => pl.id == pid && pl.teamId == homeId);
+    const autoCS = st.isGK && (isHome ? ag === 0 : hg === 0);
+    if (st.cs || autoCS) p.cs++;
   });
   saveDB(); render(); toast(flag === 'wo' ? `🚫 WO — ${tn(homeId)} 1-0 ${tn(awayId)}` : '⚽ Resultado guardado!');
 }
@@ -1892,6 +1897,7 @@ Return this exact JSON:
     const idMatch = allIds.find(idp => fuzzyMatch(sp.name, idp.name));
     if (!idMatch) return; // FIFA bot
     const regMatch = s.players.find(lp => fuzzyMatch(idMatch.name, lp.name));
+    const isGK = ['GK','POR','PO'].includes((sp.pos||'').toUpperCase());
     matchedPlayers.push({
       name: regMatch ? regMatch.name : idMatch.name,
       team: idMatch.team,
@@ -1899,7 +1905,8 @@ Return this exact JSON:
       assists: sp.assists || 0,
       rating: sp.rating || 0,
       pos: sp.pos || 'MID',
-      registered: !!regMatch
+      registered: !!regMatch,
+      isGK
     });
   });
 
@@ -2191,27 +2198,6 @@ function loadScanToFixture() {
   if (window._lastScanResult) prefillFixture(window._lastScanResult);
 }
 
-function swapScanResult() {
-  if (!capScanResult) return;
-  const sc = capScanResult.score || {};
-  // Swap teams and scores
-  [sc.home, sc.away] = [sc.away, sc.home];
-  [sc.homeGoals, sc.awayGoals] = [sc.awayGoals, sc.homeGoals];
-  // Swap player teams
-  (capScanResult.players || []).forEach(p => { p.team = p.team === 'home' ? 'away' : 'home'; });
-  renderCapResult(capScanResult);
-}
-
-function swapAdminScanResult() {
-  if (!window._lastScanResult) return;
-  const r = window._lastScanResult;
-  const sc = r.score || {};
-  [sc.home, sc.away] = [sc.away, sc.home];
-  [sc.homeGoals, sc.awayGoals] = [sc.awayGoals, sc.homeGoals];
-  (r.players || []).forEach(p => { p.team = p.team === 'home' ? 'away' : 'home'; });
-  renderScanResult(r);
-}
-
 
 // ════════════════════════════════════════════════════════
 // SUBMISSIONS
@@ -2441,7 +2427,7 @@ async function rejectSub(subId) {
 function render() {
   renderSzSel(); renderSummary(); renderTeams(); renderPlayers();
   renderDropdowns(); renderPSI(); renderHistory(); renderStandings();
-  renderLB(currentLB); renderPlayoffs(); renderSchedule(); renderHOF();
+  renderLBTable(); renderPlayoffs(); renderSchedule(); renderHOF();
   renderSeasons(); renderTeamCodes(); updateGeminiKeyStatus(); applyMode();
 }
 
@@ -2986,22 +2972,186 @@ function renderStandings() {
   el.innerHTML = `<table class="st"><thead><tr><th>#</th><th>Equipo</th><th>PJ</th><th>G</th><th>E</th><th>P</th><th>GF</th><th>GC</th><th>DG</th><th>Pts</th><th>Forma</th></tr></thead><tbody>${stand.map((s, i) => `<tr><td><span class="rnk ${['r1', 'r2', 'r3'][i] || ''}">${i + 1}</span></td><td><div style="display:flex;align-items:center;gap:7px;cursor:pointer;" onclick="viewTeamProfile('${s.id}')">${getShield(s.id, 'md')}<div><b style="color:var(--g);text-decoration:underline dotted;">${s.name}</b><div style="font-size:.64rem;color:var(--tm);">👤 ${S().players.filter(p=>p.teamId==s.id).length}</div></div></div></td><td>${s.P}</td><td>${s.W}</td><td>${s.D}</td><td>${s.L}</td><td>${s.GF}</td><td>${s.GA}</td><td style="color:${s.GD > 0 ? 'var(--g)' : s.GD < 0 ? 'var(--red)' : ''}">${s.GD > 0 ? '+' : ''}${s.GD}</td><td><span class="pts">${s.Pts}</span></td><td><div class="fp">${s.form.slice(-5).map(f => `<div class="fpill ${f}">${f}</div>`).join('')}</div></td></tr>`).join('')}</tbody></table>`;
 }
 
-function showLB(type, el) { currentLB = type; document.querySelectorAll('.lbtab').forEach(t => t.classList.remove('active')); if (el) el.classList.add('active'); renderLB(type); }
-function renderLB(type) {
-  const el = $('lbContent'), s = S(); if (!el) return;
-  if (!s.players.length) { el.innerHTML = `<div class="es"><div class="ei">⭐</div>Sin stats.</div>`; return; }
-  let sorted;
-  if (type === 'goals') sorted = [...s.players].sort((a, b) => b.goals - a.goals);
-  else if (type === 'assists') sorted = [...s.players].sort((a, b) => b.assists - a.assists);
-  else if (type === 'rating') sorted = [...s.players].filter(p => p.rating.length).sort((a, b) => avg(b.rating) - avg(a.rating));
-  else sorted = [...s.players].filter(p => p.cs > 0).sort((a, b) => b.cs - a.cs);
-  const top = sorted.slice(0, 10);
-  if (!top.length) { el.innerHTML = `<div class="es"><div class="ei">📊</div>Sin datos.</div>`; return; }
-  el.innerHTML = top.map((p, i) => {
-    const val = type === 'goals' ? p.goals : type === 'assists' ? p.assists : type === 'rating' ? avg(p.rating).toFixed(1) : p.cs;
-    return `<div class="lbr"><div class="lbrk" style="color:${['var(--gold)', 'var(--silver)', 'var(--bronze)'][i] || 'var(--tm)'}">${['🥇', '🥈', '🥉'][i] || i + 1}</div>${getShield(p.teamId, 'sm')}<div style="cursor:pointer;" onclick="viewPlayerProfile('${p.id}')"><div style="font-weight:600;color:var(--g);text-decoration:underline dotted;">${p.name}</div><div class="lbt2" style="cursor:pointer;" onclick="event.stopPropagation();viewTeamProfile('${p.teamId}')">${tn(p.teamId)} · <span class="pb" style="display:inline;">${p.pos || '—'}</span></div></div><div class="lbv">${val}</div></div>`;
-  }).join('');
+let _lbMode = 'jugadores';
+let _lbSort = { col: 'goals', dir: -1 };
+
+function setLBMode(mode) {
+  _lbMode = mode;
+  _lbSort = { col: mode === 'porteros' ? 'cs' : 'goals', dir: -1 };
+  const bJ = $('lbModeJug'), bP = $('lbModePor'), bT = $('lbModeTOTW');
+  if (bJ) bJ.className = mode === 'jugadores' ? 'btn bp' : 'btn bg';
+  if (bP) bP.className = mode === 'porteros' ? 'btn bp' : 'btn bg';
+  if (bT) bT.className = mode === 'totw' ? 'btn bp' : 'btn bg';
+  if (mode === 'totw') renderTOTW();
+  else renderLBTable();
 }
+
+function sortLB(col) {
+  if (_lbSort.col === col) _lbSort.dir *= -1;
+  else { _lbSort.col = col; _lbSort.dir = -1; }
+  renderLBTable();
+}
+
+function renderTOTW() {
+  const el = $('lbTable'), s = S();
+  if (!el) return;
+
+  // Find the latest COMPLETE round
+  let completeRound = null;
+  if (s.schedule?.length) {
+    for (let i = s.schedule.length - 1; i >= 0; i--) {
+      const round = s.schedule[i];
+      const allDone = round.fixtures.every(f => getMatchResult(f.home, f.away));
+      if (allDone && round.fixtures.length > 0) { completeRound = round; break; }
+    }
+  }
+
+  if (!completeRound) {
+    el.innerHTML = `<div class="es"><div class="ei">⭐</div>Sin fechas completas todavía.<br><span style="font-size:.74rem;color:var(--tm);">El XI de la semana aparece cuando todos los partidos de una fecha están jugados.</span></div>`;
+    return;
+  }
+
+  // Gather all player ratings from matches in this round
+  const playersInRound = {};
+  completeRound.fixtures.forEach(fix => {
+    const match = getMatchResult(fix.home, fix.away);
+    if (!match?.playerStats) return;
+    Object.entries(match.playerStats).forEach(([pid, st]) => {
+      if (!st.rating || st.rating <= 0) return;
+      const p = s.players.find(pl => pl.id == pid);
+      if (!p) return;
+      // Keep highest rating if player appears multiple times
+      if (!playersInRound[pid] || playersInRound[pid].rating < st.rating) {
+        playersInRound[pid] = { id: pid, name: p.name, teamId: p.teamId, pos: (p.pos||'').toUpperCase(), rating: st.rating, goals: st.goals||0, assists: st.assists||0 };
+      }
+    });
+  });
+
+  const allPlayers = Object.values(playersInRound);
+  const norm = p => {
+    if (['GK','POR','PO'].includes(p)) return 'GK';
+    if (['DEF','DF','DFC','DI','DD','CB','LB','RB','LWB','RWB'].includes(p)) return 'DEF';
+    if (['MID','MCD','MC','MCO','MI','MD','CM','CDM','CAM','LM','RM'].includes(p)) return 'MID';
+    if (['FWD','DC','ED','EI','ST','CF','LW','RW'].includes(p)) return 'FWD';
+    return 'MID'; // unknown/? → mid as fallback
+  };
+
+  const byPos = { GK: [], DEF: [], MID: [], FWD: [] };
+  allPlayers.forEach(p => { byPos[norm(p.pos)].push(p); });
+  Object.keys(byPos).forEach(k => byPos[k].sort((a,b) => b.rating - a.rating));
+
+  // Pick 4-3-3: 1 GK, 4 DEF, 3 MID, 3 FWD
+  const xi = {
+    GK: byPos.GK.slice(0, 1),
+    DEF: byPos.DEF.slice(0, 4),
+    MID: byPos.MID.slice(0, 3),
+    FWD: byPos.FWD.slice(0, 3)
+  };
+
+  const totalPicked = xi.GK.length + xi.DEF.length + xi.MID.length + xi.FWD.length;
+  if (totalPicked === 0) {
+    el.innerHTML = `<div class="es"><div class="ei">📊</div>Sin notas en la Fecha ${completeRound.round}.</div>`;
+    return;
+  }
+
+  const renderRow = (players, label) => {
+    if (!players.length) return '';
+    return `<div style="display:flex;justify-content:center;gap:10px;margin-bottom:14px;flex-wrap:wrap;">
+      ${players.map(p => `
+        <div style="text-align:center;min-width:85px;cursor:pointer;" onclick="viewPlayerProfile('${p.id}')">
+          <div style="width:44px;height:44px;margin:0 auto 4px;background:linear-gradient(135deg,var(--g),var(--pu));border-radius:50%;display:flex;align-items:center;justify-content:center;font-family:'Bebas Neue',sans-serif;font-size:1.1rem;color:#000;font-weight:700;">${p.rating.toFixed(1)}</div>
+          <div style="font-size:.74rem;font-weight:600;color:var(--g);text-decoration:underline dotted;max-width:85px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${p.name}</div>
+          <div style="font-size:.62rem;color:var(--tm);">${tn(p.teamId)}</div>
+          <div style="font-size:.6rem;color:var(--tm);">${p.goals?'⚽'+p.goals:''} ${p.assists?'🎯'+p.assists:''}</div>
+        </div>
+      `).join('')}
+    </div>`;
+  };
+
+  el.innerHTML = `
+    <div style="text-align:center;margin-bottom:14px;">
+      <div style="font-family:'Bebas Neue',sans-serif;font-size:1.1rem;color:var(--g);">Fecha ${completeRound.round}</div>
+      <div style="font-size:.72rem;color:var(--tm);text-transform:uppercase;letter-spacing:1px;">XI de la Semana · 4-3-3</div>
+    </div>
+    <div style="background:linear-gradient(180deg,rgba(0,255,135,.03),rgba(168,85,247,.03));border:1px solid var(--b);border-radius:10px;padding:16px 10px;">
+      ${renderRow(xi.FWD, 'FWD')}
+      ${renderRow(xi.MID, 'MID')}
+      ${renderRow(xi.DEF, 'DEF')}
+      ${renderRow(xi.GK, 'GK')}
+    </div>
+  `;
+}
+
+function renderLBTable() {
+  const el = $('lbTable'), s = S(); if (!el) return;
+  if (!s.players.length) { el.innerHTML = `<div class="es"><div class="ei">⭐</div>Sin stats.</div>`; return; }
+
+  let players = [...s.players];
+  if (_lbMode === 'porteros') {
+    players = players.filter(p => {
+      const pos = (p.pos || '').toUpperCase();
+      return pos === 'GK' || pos === 'POR' || pos === 'PO';
+    });
+  }
+
+  // Sort
+  players.sort((a, b) => {
+    let va, vb;
+    if (_lbSort.col === 'goals') { va = a.goals; vb = b.goals; }
+    else if (_lbSort.col === 'assists') { va = a.assists; vb = b.assists; }
+    else if (_lbSort.col === 'rating') { va = a.rating.length ? avg(a.rating) : 0; vb = b.rating.length ? avg(b.rating) : 0; }
+    else if (_lbSort.col === 'cs') { va = a.cs || 0; vb = b.cs || 0; }
+    else if (_lbSort.col === 'pj') { va = a.matchesPlayed || 0; vb = b.matchesPlayed || 0; }
+    else { va = a.name; vb = b.name; return _lbSort.dir * va.localeCompare(vb); }
+    return _lbSort.dir * (vb - va);
+  });
+
+  if (!players.length) { el.innerHTML = `<div class="es"><div class="ei">📊</div>Sin ${_lbMode === 'porteros' ? 'porteros' : 'jugadores'}.</div>`; return; }
+
+  const arrow = (col) => _lbSort.col === col ? (_lbSort.dir === -1 ? ' ▼' : ' ▲') : '';
+  const thStyle = "cursor:pointer;padding:6px 8px;text-align:center;font-family:'Barlow Condensed',sans-serif;font-size:.72rem;letter-spacing:1px;text-transform:uppercase;color:var(--tm);white-space:nowrap;border-bottom:1px solid var(--b);user-select:none;";
+  const thHover = 'onmouseover="this.style.color=\'var(--g)\'" onmouseout="this.style.color=\'var(--tm)\'"';
+
+  let html = `<div style="overflow-x:auto;">
+    <table style="width:100%;border-collapse:collapse;font-size:.82rem;">
+      <thead>
+        <tr>
+          <th style="${thStyle}text-align:left;" onclick="sortLB('name')" ${thHover}>#&nbsp;&nbsp;Nombre${arrow('name')}</th>
+          <th style="${thStyle}" onclick="sortLB('goals')" ${thHover}>⚽${arrow('goals')}</th>
+          <th style="${thStyle}" onclick="sortLB('assists')" ${thHover}>🎯${arrow('assists')}</th>
+          <th style="${thStyle}" onclick="sortLB('rating')" ${thHover}>⭐${arrow('rating')}</th>
+          <th style="${thStyle}" onclick="sortLB('cs')" ${thHover}>🧤${arrow('cs')}</th>
+          <th style="${thStyle}" onclick="sortLB('pj')" ${thHover}>PJ${arrow('pj')}</th>
+        </tr>
+      </thead>
+      <tbody>`;
+
+  players.forEach((p, i) => {
+    const rank = ['🥇','🥈','🥉'][i] || (i+1);
+    const ratingVal = p.rating.length ? avg(p.rating).toFixed(1) : '—';
+    const rowStyle = i % 2 === 0 ? 'background:rgba(255,255,255,.02);' : '';
+    html += `<tr style="${rowStyle}" onmouseover="this.style.background='rgba(0,255,135,.05)'" onmouseout="this.style.background='${rowStyle.replace('background:','').replace(';','') || 'transparent'}'">
+      <td style="padding:7px 8px;display:flex;align-items:center;gap:7px;">
+        <span style="color:${['var(--gold)','var(--silver)','var(--bronze)'][i]||'var(--tm)'};min-width:18px;text-align:center;">${rank}</span>
+        ${getShield(p.teamId,'sm')}
+        <div>
+          <div style="font-weight:600;cursor:pointer;color:var(--g);text-decoration:underline dotted;" onclick="viewPlayerProfile('${p.id}')">${p.name}</div>
+          <div style="font-size:.68rem;color:var(--tm);">${tn(p.teamId)}</div>
+        </div>
+      </td>
+      <td style="padding:7px 8px;text-align:center;">${p.goals}</td>
+      <td style="padding:7px 8px;text-align:center;">${p.assists}</td>
+      <td style="padding:7px 8px;text-align:center;">${ratingVal}</td>
+      <td style="padding:7px 8px;text-align:center;">${p.cs||0}</td>
+      <td style="padding:7px 8px;text-align:center;">${p.matchesPlayed||0}</td>
+    </tr>`;
+  });
+
+  html += `</tbody></table></div>`;
+  el.innerHTML = html;
+}
+
+
 
 function renderPlayoffs() {
   const el = $('playoffBracket'), s = S();
@@ -3076,9 +3226,95 @@ function renderSchedule() {
     const rp = round.fixtures.filter(f => getMatchResult(f.home, f.away)).length, rt = round.fixtures.length;
     const st = rp === rt ? 'done' : rp > 0 ? 'partial' : 'pending';
     const leg = '';
-    return `${leg}<div class="rc"><div class="rh" onclick="toggleRound(${ri})"><div class="rhl"><span class="rnum">Fecha ${round.round}</span><span class="rlbl">${rp}/${rt}</span></div><div style="display:flex;align-items:center;gap:5px;"><span class="rst ${st}">${st === 'done' ? 'Listo' : st === 'partial' ? 'En curso' : 'Pendiente'}</span><span id="chev-${ri}" style="color:var(--tm);transition:transform .2s;">▼</span></div></div><div class="rb2" id="rb-${ri}">${round.fixtures.map(fix => { const res = getMatchResult(fix.home, fix.away); const wh = res && res.homeGoals > res.awayGoals, wa = res && res.awayGoals > res.homeGoals; return `<div class="fix"><div class="fh" style="color:${wh ? 'var(--g)' : ''};cursor:pointer;" onclick="viewTeamProfile('${fix.home}')">🏠 ${tn(fix.home)}</div>${res ? `<div class="fsc">${res.homeGoals}–${res.awayGoals}</div>` : `<div class="fsc pend">vs</div>`}<div class="fa" style="color:${wa ? 'var(--g)' : ''};cursor:pointer;" onclick="viewTeamProfile('${fix.away}')">${tn(fix.away)} ✈️</div><div>${!res && mode === 'admin' ? `<div style="display:flex;gap:3px;"><button class="ben" onclick="jumpToResult('${fix.home}','${fix.away}')">✏️</button><button class="ben" onclick="jumpToScan('${fix.home}','${fix.away}')" style="background:rgba(168,85,247,.2);border-color:rgba(168,85,247,.4);color:var(--pu);">🤖</button></div>` : `${res && mode === 'admin' ? `<button class="ben" onclick="editMatch('${res.id}')" style="font-size:.64rem;padding:2px 5px;">✏️</button>` : `<span style="color:${res ? 'var(--g)' : 'var(--tm)'}; font-size:.74rem;">${res ? '✓' : ''}</span>`}`}</div></div>`; }).join('')}</div></div>`;
+    return `${leg}<div class="rc"><div class="rh" onclick="toggleRound(${ri})"><div class="rhl"><span class="rnum">Fecha ${round.round}</span><span class="rlbl">${rp}/${rt}</span></div><div style="display:flex;align-items:center;gap:5px;"><span class="rst ${st}">${st === 'done' ? 'Listo' : st === 'partial' ? 'En curso' : 'Pendiente'}</span><span id="chev-${ri}" style="color:var(--tm);transition:transform .2s;">▼</span></div></div><div class="rb2" id="rb-${ri}">${round.fixtures.map(fix => { const res = getMatchResult(fix.home, fix.away); const wh = res && res.homeGoals > res.awayGoals, wa = res && res.awayGoals > res.homeGoals; return `<div class="fix"><div class="fh" style="color:${wh ? 'var(--g)' : ''};cursor:pointer;" onclick="viewTeamProfile('${fix.home}')">🏠 ${tn(fix.home)}</div>${res ? `<div class="fsc">${res.homeGoals}–${res.awayGoals}</div>` : `<div class="fsc pend">vs</div>`}<div class="fa" style="color:${wa ? 'var(--g)' : ''};cursor:pointer;" onclick="viewTeamProfile('${fix.away}')">${tn(fix.away)} ✈️</div><div>${!res && mode === 'admin' ? `<div style="display:flex;gap:3px;"><button class="ben" onclick="showH2H('${fix.home}','${fix.away}')" style="background:rgba(59,130,246,.2);border-color:rgba(59,130,246,.4);color:#60a5fa;" title="Historial H2H">📊</button><button class="ben" onclick="jumpToResult('${fix.home}','${fix.away}')">✏️</button><button class="ben" onclick="jumpToScan('${fix.home}','${fix.away}')" style="background:rgba(168,85,247,.2);border-color:rgba(168,85,247,.4);color:var(--pu);">🤖</button></div>` : `${res && mode === 'admin' ? `<button class="ben" onclick="editMatch('${res.id}')" style="font-size:.64rem;padding:2px 5px;">✏️</button>` : `<span style="color:${res ? 'var(--g)' : 'var(--tm)'}; font-size:.74rem;">${res ? '✓' : ''}</span>`}`}</div></div>`; }).join('')}</div></div>`;
   }).join('')}`;
 }
+function showH2H(teamAId, teamBId) {
+  const s = S();
+  // Get all matches between these teams across current season + archived seasons
+  const allMatches = [];
+  // Current season
+  s.matches.forEach(m => {
+    if ((m.homeId == teamAId && m.awayId == teamBId) || (m.homeId == teamBId && m.awayId == teamAId)) {
+      allMatches.push({ ...m, season: s.name });
+    }
+  });
+  // Archived seasons
+  (db.history?.archivedSeasons || []).forEach(arch => {
+    // Archived seasons may have different team IDs but same names
+    const teamAName = tn(teamAId), teamBName = tn(teamBId);
+    (arch.matches || []).forEach(m => {
+      const archTeams = arch.teams || [];
+      const hN = archTeams.find(t => t.id == m.homeId)?.name;
+      const aN = archTeams.find(t => t.id == m.awayId)?.name;
+      if ((hN === teamAName && aN === teamBName) || (hN === teamBName && aN === teamAName)) {
+        allMatches.push({ ...m, season: arch.seasonName, _archHome: hN, _archAway: aN });
+      }
+    });
+  });
+
+  $('mttl').textContent = `📊 ${tn(teamAId)} vs ${tn(teamBId)}`;
+
+  if (!allMatches.length) {
+    $('mbdy').innerHTML = `<div style="text-align:center;padding:20px;color:var(--tm);"><div style="font-size:2rem;margin-bottom:8px;">🤷</div>Sin enfrentamientos previos.</div>`;
+  } else {
+    // Calculate stats
+    let aWins = 0, bWins = 0, draws = 0, aGoals = 0, bGoals = 0;
+    allMatches.forEach(m => {
+      const aIsHome = (m._archHome ? m._archHome === tn(teamAId) : m.homeId == teamAId);
+      const aGF = aIsHome ? m.homeGoals : m.awayGoals;
+      const bGF = aIsHome ? m.awayGoals : m.homeGoals;
+      aGoals += aGF; bGoals += bGF;
+      if (aGF > bGF) aWins++;
+      else if (bGF > aGF) bWins++;
+      else draws++;
+    });
+    const pct = (x) => allMatches.length ? Math.round(x/allMatches.length*100) : 0;
+
+    let html = `<div style="margin-bottom:14px;">
+      <div style="text-align:center;font-family:'Barlow Condensed',sans-serif;font-size:.75rem;color:var(--tm);letter-spacing:1px;text-transform:uppercase;margin-bottom:6px;">${allMatches.length} partido${allMatches.length>1?'s':''}</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px;text-align:center;">
+        <div style="padding:8px;background:rgba(0,255,135,.08);border-radius:8px;border:1px solid rgba(0,255,135,.2);">
+          <div style="font-family:'Bebas Neue',sans-serif;font-size:1.4rem;color:var(--g);">${aWins}</div>
+          <div style="font-size:.64rem;color:var(--tm);text-transform:uppercase;letter-spacing:1px;">${tn(teamAId)}</div>
+        </div>
+        <div style="padding:8px;background:rgba(255,255,255,.03);border-radius:8px;border:1px solid var(--b);">
+          <div style="font-family:'Bebas Neue',sans-serif;font-size:1.4rem;color:var(--tm);">${draws}</div>
+          <div style="font-size:.64rem;color:var(--tm);text-transform:uppercase;letter-spacing:1px;">Empates</div>
+        </div>
+        <div style="padding:8px;background:rgba(168,85,247,.08);border-radius:8px;border:1px solid rgba(168,85,247,.2);">
+          <div style="font-family:'Bebas Neue',sans-serif;font-size:1.4rem;color:var(--pu);">${bWins}</div>
+          <div style="font-size:.64rem;color:var(--tm);text-transform:uppercase;letter-spacing:1px;">${tn(teamBId)}</div>
+        </div>
+      </div>
+      <div style="display:flex;justify-content:space-around;margin-top:8px;padding-top:8px;border-top:1px solid var(--b);font-size:.78rem;">
+        <div>⚽ <strong style="color:var(--g);">${aGoals}</strong> ${tn(teamAId)}</div>
+        <div>⚽ <strong style="color:var(--pu);">${bGoals}</strong> ${tn(teamBId)}</div>
+      </div>
+    </div>
+    <div style="max-height:280px;overflow-y:auto;">
+      <div style="font-family:'Barlow Condensed',sans-serif;font-size:.72rem;color:var(--tm);letter-spacing:1px;text-transform:uppercase;margin-bottom:6px;">Historial</div>`;
+
+    allMatches.slice().reverse().forEach(m => {
+      const hName = m._archHome || tn(m.homeId);
+      const aName = m._archAway || tn(m.awayId);
+      const isWO = m.flag === 'wo';
+      html += `<div style="display:flex;align-items:center;justify-content:space-between;padding:7px 10px;background:rgba(255,255,255,.02);border-radius:6px;margin-bottom:4px;font-size:.8rem;">
+        <span style="flex:1;text-align:right;${m.homeGoals>m.awayGoals?'color:var(--g);font-weight:600;':''}">${hName}</span>
+        <span style="padding:3px 10px;background:rgba(0,0,0,.3);border-radius:6px;margin:0 8px;font-weight:700;font-family:'Bebas Neue',sans-serif;">${m.homeGoals}–${m.awayGoals}</span>
+        <span style="flex:1;${m.awayGoals>m.homeGoals?'color:var(--g);font-weight:600;':''}">${aName}</span>
+        ${isWO?'<span style="color:var(--red);font-size:.64rem;margin-left:6px;">WO</span>':''}
+      </div>`;
+    });
+    html += `</div>`;
+    $('mbdy').innerHTML = html;
+  }
+
+  $('mbtns').innerHTML = `<button class="btn bp" onclick="closeModal()" style="font-size:.8rem;padding:6px 12px;">Cerrar</button>`;
+  window._modalConfirm = () => {};
+  $('modal').classList.add('open');
+}
+
 function toggleRound(ri) { const b = $('rb-' + ri), c = $('chev-' + ri); if (!b) return; const h = b.style.display === 'none'; b.style.display = h ? 'block' : 'none'; if (c) c.style.transform = h ? '' : 'rotate(-90deg)'; }
 
 function renderHOF() {
