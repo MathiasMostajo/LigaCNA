@@ -376,7 +376,6 @@ select option{background:var(--s2);}
     <div class="ct">⭐ Tabla de Líderes</div>
     <div style="display:flex;gap:6px;margin-bottom:10px;flex-wrap:wrap;">
       <button id="lbModeJug" class="btn bp" style="flex:1;min-width:100px;" onclick="setLBMode('jugadores')">👤 Jugadores</button>
-      <button id="lbModePor" class="btn bg" style="flex:1;min-width:100px;" onclick="setLBMode('porteros')">🧤 Porteros</button>
       <button id="lbModeTOTW" class="btn bg" style="flex:1;min-width:100px;" onclick="setLBMode('totw')">⭐ XI Semana</button>
     </div>
     <div id="lbTable"></div>
@@ -692,6 +691,18 @@ select option{background:var(--s2);}
     <button class="btn bp" onclick="changePwd()">Guardar Contraseña</button>
   </div>
   <div class="card">
+    <div class="ct">💾 Backup de la Base de Datos</div>
+    <div class="ib" style="margin-bottom:10px;">Descargá un backup antes de cambios grandes. Restaurá si algo se rompe.</div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;">
+      <button class="btn bp" onclick="downloadBackup()" style="flex:1;min-width:140px;">📥 Descargar Backup</button>
+      <label class="btn bg" style="flex:1;min-width:140px;cursor:pointer;text-align:center;">
+        📤 Restaurar Backup
+        <input type="file" accept=".json,application/json" onchange="restoreBackup(event)" style="display:none;">
+      </label>
+    </div>
+    <div style="font-size:.7rem;color:var(--or);margin-top:8px;">⚠️ Restaurar va a reemplazar TODA la base de datos. Hacé un backup antes por las dudas.</div>
+  </div>
+  <div class="card">
     <div class="ct">👥 Límite de Jugadores por Equipo</div>
     <div class="ib" style="margin-bottom:8px;">Si un equipo llega al límite, no se pueden agregar más jugadores.</div>
     <div style="display:flex;gap:7px;align-items:flex-end;">
@@ -764,7 +775,7 @@ let isSyncing = false;
 // HELPERS
 // ════════════════════════════════════════════════════════
 const S = () => db.seasons[db.currentSeasonId] || { teams: [], players: [], matches: [], schedule: [], playoffs: { rounds: [] }, fee: 10, prizePct: 70 };
-const tn = id => { const t = (S().teams || []).find(t => t.id == id); return t ? t.name : '?'; };
+const tn = id => { if (id === '__WO__') return 'Libre'; const t = (S().teams || []).find(t => t.id == id); return t ? t.name : '?'; };
 const avg = arr => arr.length ? arr.reduce((a, b) => a + b, 0) / arr.length : 0;
 const genCode = n => n.substring(0, 3).toUpperCase().replace(/[^A-Z]/g, '') + '-' + (1000 + Math.floor(Math.random() * 9000));
 const $ = id => document.getElementById(id);
@@ -918,6 +929,59 @@ function applyMode() {
   $('logoutBtn').style.display = mode !== 'public' ? 'inline-flex' : 'none';
   const sb = $('subBtn'); if (sb) sb.style.display = mode === 'admin' ? 'inline-flex' : 'none';
   updateGeminiKeyStatus();
+}
+
+function downloadBackup() {
+  try {
+    const dataStr = JSON.stringify(db, null, 2);
+    const blob = new Blob([dataStr], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    const date = new Date().toISOString().split('T')[0]; // YYYY-MM-DD
+    a.href = url;
+    a.download = `ligacna_backup_${date}.json`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    toast('✅ Backup descargado');
+  } catch(e) {
+    toast('⚠️ Error al descargar: ' + e.message, true);
+  }
+}
+
+function restoreBackup(event) {
+  const file = event.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = (e) => {
+    try {
+      const restored = JSON.parse(e.target.result);
+      if (!restored || typeof restored !== 'object' || !restored.seasons) {
+        toast('⚠️ Archivo inválido — no parece ser un backup de LigaCNA', true);
+        event.target.value = '';
+        return;
+      }
+      const seasonCount = Object.keys(restored.seasons || {}).length;
+      showModal(
+        '📤 Restaurar Backup?',
+        `Vas a reemplazar TODA la base de datos actual con este backup (${seasonCount} temporada${seasonCount!==1?'s':''}). Esto no se puede deshacer. ¿Continuar?`,
+        'Restaurar',
+        () => {
+          db = restored;
+          if (!db.history) db.history = { archivedSeasons: [] };
+          saveDB(); render();
+          toast('✅ Backup restaurado — recargando...');
+          setTimeout(() => location.reload(), 1500);
+        },
+        true
+      );
+    } catch(err) {
+      toast('⚠️ Error leyendo archivo: ' + err.message, true);
+    }
+    event.target.value = ''; // reset input
+  };
+  reader.readAsText(file);
 }
 
 function changePwd() {
@@ -1122,6 +1186,13 @@ function saveMaxPlayers() {
   saveDB(); toast(`✅ Límite de ${val} jugadores por equipo guardado`);
 }
 
+function toggleBye(id) {
+  const t = S().teams.find(t => t.id == id); if (!t) return;
+  t.isBye = !t.isBye;
+  saveDB(); render();
+  toast(t.isBye ? `💤 ${t.name} marcado como Libre` : `✅ ${t.name} vuelve a jugar`);
+}
+
 function togglePaid(id) { const t = S().teams.find(t => t.id == id); if (t) { t.paid = t.paid === 'yes' ? 'no' : 'yes'; saveDB(); render(); } }
 
 // ════════════════════════════════════════════════════════
@@ -1278,13 +1349,25 @@ function approveAllFichajes() {
   const s = S();
   const pending = (s.fichajeRequests||[]).filter(r => r.status === 'pending');
   if (!pending.length) return;
-  showModal(`✅ Aceptar todos (${pending.length})?`, `Se agregarán ${pending.length} jugadores a sus equipos.`, 'Aceptar todos', () => {
+  showModal(`✅ Aceptar todos (${pending.length})?`, `Se agregarán los jugadores respetando el límite por equipo.`, 'Aceptar todos', () => {
+    const maxP = s.maxPlayersPerTeam || 99;
+    let added = 0, rejected = 0;
+    // Count current + pending approved per team in this batch
+    const teamCounts = {};
+    s.teams.forEach(t => { teamCounts[t.id] = s.players.filter(p => p.teamId === t.id).length; });
     pending.forEach(req => {
-      req.status = 'approved';
-      s.players.push({ id: Date.now().toString() + Math.random(), name: req.playerName, teamId: req.teamId, pos: req.pos || '—', goals: 0, assists: 0, rating: [], cs: 0, matchesPlayed: 0 });
+      if ((teamCounts[req.teamId] || 0) < maxP) {
+        req.status = 'approved';
+        s.players.push({ id: Date.now().toString() + Math.random(), name: req.playerName, teamId: req.teamId, pos: req.pos || '—', goals: 0, assists: 0, rating: [], cs: 0, matchesPlayed: 0 });
+        teamCounts[req.teamId] = (teamCounts[req.teamId] || 0) + 1;
+        added++;
+      } else {
+        rejected++;
+      }
     });
     saveDB(); render(); renderTWAdmin(); updateTWToggleUI();
-    toast(`✅ ${pending.length} jugadores agregados`);
+    if (rejected > 0) toast(`✅ ${added} agregados · ⚠️ ${rejected} rechazados por límite`);
+    else toast(`✅ ${added} jugadores agregados`);
   }, true);
 }
 
@@ -1350,13 +1433,11 @@ function replaceTeam(oldId, newName, newCap) {
     if (m.homeId == oldId) { m.homeId = newId; m.homeDisplayName = oldTeam.name; }
     if (m.awayId == oldId) { m.awayId = newId; m.awayDisplayName = oldTeam.name; }
   });
-  // Transfer future fixtures
+  // Transfer ALL fixtures (past and future) so fixture matches the updated history
   s.schedule.forEach(round => {
     round.fixtures.forEach(fix => {
-      if (!getMatchResult(fix.home, fix.away)) {
-        if (fix.home == oldId) fix.home = newId;
-        if (fix.away == oldId) fix.away = newId;
-      }
+      if (fix.home == oldId) fix.home = newId;
+      if (fix.away == oldId) fix.away = newId;
     });
   });
   saveDB(); render(); toast('🔄 ' + oldTeam.name + ' → ' + newName + '! Código: ' + newCode);
@@ -1369,6 +1450,7 @@ function addPlayer() {
   const s = S(), name = $('pName').value.trim(), teamId = $('pTeam').value, pos = ($('pPos').value||'').trim().toUpperCase() || '—';
   if (!name) { toast('⚠️ Ingresá nombre', true); return; }
   if (!teamId) { toast('⚠️ Seleccioná equipo', true); return; }
+  if (s.players.some(p => strictMatch(p.name, name))) { toast('⚠️ Ya existe un jugador con ese nombre', true); return; }
   s.players.push({ id: Date.now().toString(), name, teamId, pos, goals: 0, assists: 0, rating: [], cs: 0, matchesPlayed: 0 });
   $('pName').value = ''; $('pPos').value = '';
   saveDB(); render();
@@ -1388,15 +1470,9 @@ function editPos(id) {
 // ════════════════════════════════════════════════════════
 // RESULTS
 // ════════════════════════════════════════════════════════
-function submitResult(isWO = false) {
+function submitResult() {
   const homeId = $('homeTeam').value, awayId = $('awayTeam').value;
   if (!homeId || !awayId || homeId === awayId) { toast('⚠️ Elegí 2 equipos distintos', true); return; }
-  if (isWO) {
-    showModal('¿Quién dio WO?', 'El equipo que da WO pierde 1-0.',
-      '✅ ' + tn(awayId) + ' da WO → gana ' + tn(homeId), () => _saveResult(homeId, awayId, 1, 0, {}, 'wo'), true,
-      () => _saveResult(awayId, homeId, 1, 0, {}, 'wo'), '✅ ' + tn(homeId) + ' da WO → gana ' + tn(awayId));
-    return;
-  }
   const hg = +$('homeGoals').value || 0, ag = +$('awayGoals').value || 0, ps = {};
   document.querySelectorAll('.psr').forEach(row => {
     const pid = row.dataset.pid, goals = +row.querySelector('.pg').value || 0, assists = +row.querySelector('.pa').value || 0,
@@ -1429,9 +1505,15 @@ function _saveResult(homeId, awayId, hg, ag, ps, flag) {
 // ════════════════════════════════════════════════════════
 // STANDINGS
 // ════════════════════════════════════════════════════════
+function isByeTeam(teamId) {
+  if (teamId === '__WO__') return true;
+  const t = S().teams.find(t => t.id == teamId);
+  return !!(t && t.isBye);
+}
+
 function getStandings() {
   const s = S(), stats = {};
-  s.teams.filter(t => !t.replaced).forEach(t => { stats[t.id] = { id: t.id, name: t.name, P: 0, W: 0, D: 0, L: 0, GF: 0, GA: 0, GD: 0, Pts: 0, form: [] }; });
+  s.teams.filter(t => !t.replaced && !t.isBye).forEach(t => { stats[t.id] = { id: t.id, name: t.name, P: 0, W: 0, D: 0, L: 0, GF: 0, GA: 0, GD: 0, Pts: 0, form: [] }; });
   s.matches.forEach(m => {
     const h = stats[m.homeId], a = stats[m.awayId]; if (!h || !a) return;
     h.P++; a.P++; h.GF += m.homeGoals; h.GA += m.awayGoals; a.GF += m.awayGoals; a.GA += m.homeGoals;
@@ -1448,9 +1530,10 @@ function getStandings() {
 // ════════════════════════════════════════════════════════
 function genSchedule() {
   const s = S();
-  if (s.teams.length < 2) { toast('⚠️ Necesitás al menos 2 equipos', true); return; }
+  const activeTeams = s.teams.filter(t => !t.replaced && !t.isBye);
+  if (activeTeams.length < 2) { toast('⚠️ Necesitás al menos 2 equipos activos (no reemplazados ni Libres)', true); return; }
   const doGen = () => {
-    s.schedule = generateCalendar(s.teams.map(t => t.id));
+    s.schedule = generateCalendar(activeTeams.map(t => t.id));
     saveDB(); renderSchedule();
     toast(`📅 ${s.schedule.reduce((x, r) => x + r.fixtures.length, 0)} partidos en ${s.schedule.length} fechas!`);
   };
@@ -2014,35 +2097,35 @@ function renderScanResult(r) {
     h += `</div>`;
   }
   if (sc.home) {
-    // Always show fixture selector — find all pending matches between the two scanned teams
+    // Manual team selection — user confirms which teams played to avoid fuzzy match confusion
     const s2 = S();
-    const scHome = sc.home || '';
-    const scAway = sc.away || '';
-    const hTeam = s2.teams.find(t => { const sn=scHome.toLowerCase(); return fuzzyMatch(t.name,scHome)||sn.includes(t.name.toLowerCase())||t.name.toLowerCase().includes(sn); });
-    const aTeam = s2.teams.find(t => { const sn=scAway.toLowerCase(); return fuzzyMatch(t.name,scAway)||sn.includes(t.name.toLowerCase())||t.name.toLowerCase().includes(sn); });
-    const pending = [];
-    if (hTeam && aTeam) {
-      (s2.schedule||[]).forEach(round => {
-        round.fixtures.forEach(fix => {
-          const isPair = (fix.home==hTeam.id&&fix.away==aTeam.id)||(fix.home==aTeam.id&&fix.away==hTeam.id);
-          if (isPair && !getMatchResult(fix.home, fix.away)) pending.push({ round: round.round, homeId: fix.home, awayId: fix.away });
-        });
-      });
-    }
-    let fixtureSel = '';
-    if (pending.length > 0) {
-      const opts = pending.map(p => `<option value="${p.round}_${p.homeId}_${p.awayId}">Fecha ${p.round}: 🏠 ${tn(p.homeId)} vs ✈️ ${tn(p.awayId)}</option>`).join('');
-      // Pre-select if only one option or if _scanFixture matches
-      const preVal = pending.length === 1 ? `${pending[0].round}_${pending[0].homeId}_${pending[0].awayId}` : '';
-      if (preVal) window._scanFixture = pending[0];
-      fixtureSel = `<div style="margin-top:8px;"><label style="font-size:.76rem;color:var(--tm);">📅 ¿A qué partido corresponde?</label>
-        <select id="scanFixtureSel" style="background:var(--s2);border:1px solid var(--b);border-radius:8px;color:var(--t);font-family:'Barlow',sans-serif;font-size:.84rem;padding:6px 10px;outline:none;width:100%;margin-top:4px;">
-          <option value="">— Seleccioná el partido —</option>${opts}
+    const teamOpts = s2.teams.filter(t => t.name !== 'WO').map(t => `<option value="${t.id}">${t.name}</option>`).join('');
+    // Try to pre-select via exact/contains match (conservative, avoids false matches)
+    const norm = str => (str||'').toLowerCase().trim();
+    const scHome = norm(sc.home), scAway = norm(sc.away);
+    const guessH = s2.teams.find(t => norm(t.name) === scHome) || s2.teams.find(t => scHome && norm(t.name) === scHome.split(' ')[0]);
+    const guessA = s2.teams.find(t => norm(t.name) === scAway) || s2.teams.find(t => scAway && norm(t.name) === scAway.split(' ')[0]);
+    const teamSelectorHtml = `<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:10px;padding:10px;background:rgba(168,85,247,.05);border:1px solid rgba(168,85,247,.2);border-radius:8px;">
+      <div><label style="font-size:.72rem;color:var(--tm);display:block;margin-bottom:3px;">🏠 Local (detectado: "${sc.home||'?'}")</label>
+        <select id="manualHomeTeam" onchange="updateFixtureSelector()" style="background:var(--s2);border:1px solid var(--b);border-radius:8px;color:var(--t);font-family:'Barlow',sans-serif;font-size:.82rem;padding:6px 9px;outline:none;width:100%;">
+          <option value="">— Elegí —</option>${teamOpts}
         </select>
-        <button class="btn bp" style="width:100%;margin-top:6px;" onclick="loadScanToFixture()">→ Cargar en Fixture</button>
-      </div>`;
-    }
-    h += `<div style="margin-top:10px;display:flex;gap:7px;flex-wrap:wrap;"><button class="btn bp" onclick='prefill(window._lastScanResult)'>→ Pre-cargar en Resultados</button></div>${fixtureSel}`;
+      </div>
+      <div><label style="font-size:.72rem;color:var(--tm);display:block;margin-bottom:3px;">✈️ Visitante (detectado: "${sc.away||'?'}")</label>
+        <select id="manualAwayTeam" onchange="updateFixtureSelector()" style="background:var(--s2);border:1px solid var(--b);border-radius:8px;color:var(--t);font-family:'Barlow',sans-serif;font-size:.82rem;padding:6px 9px;outline:none;width:100%;">
+          <option value="">— Elegí —</option>${teamOpts}
+        </select>
+      </div>
+    </div>
+    <div id="fixtureSelectorWrap" style="margin-top:8px;"></div>
+    <div style="margin-top:10px;display:flex;gap:7px;flex-wrap:wrap;"><button class="btn bp" onclick='prefill(window._lastScanResult)'>→ Pre-cargar en Resultados</button></div>`;
+    h += teamSelectorHtml;
+    // Pre-select guesses after render
+    setTimeout(() => {
+      if (guessH && $('manualHomeTeam')) $('manualHomeTeam').value = guessH.id;
+      if (guessA && $('manualAwayTeam')) $('manualAwayTeam').value = guessA.id;
+      if (guessH && guessA) updateFixtureSelector();
+    }, 50);
   }
   h += `</div>`; $('aiRes').innerHTML = h;
 }
@@ -2190,6 +2273,32 @@ function prefillFixture(r) {
   }, 300);
 }
 
+function updateFixtureSelector() {
+  const hId = $('manualHomeTeam')?.value;
+  const aId = $('manualAwayTeam')?.value;
+  const wrap = $('fixtureSelectorWrap');
+  if (!wrap) return;
+  if (!hId || !aId) { wrap.innerHTML = ''; return; }
+  if (hId === aId) { wrap.innerHTML = `<div class="wb">⚠️ Local y visitante no pueden ser el mismo equipo</div>`; return; }
+  const s = S();
+  const pending = [];
+  (s.schedule||[]).forEach(round => {
+    round.fixtures.forEach(fix => {
+      const isPair = (fix.home==hId&&fix.away==aId)||(fix.home==aId&&fix.away==hId);
+      if (isPair && !getMatchResult(fix.home, fix.away)) pending.push({ round: round.round, homeId: fix.home, awayId: fix.away });
+    });
+  });
+  if (!pending.length) { wrap.innerHTML = `<div class="wb">⚠️ No hay partidos pendientes entre estos equipos</div>`; return; }
+  const opts = pending.map(p => `<option value="${p.round}_${p.homeId}_${p.awayId}">Fecha ${p.round}: 🏠 ${tn(p.homeId)} vs ✈️ ${tn(p.awayId)}</option>`).join('');
+  const preVal = pending.length === 1 ? `${pending[0].round}_${pending[0].homeId}_${pending[0].awayId}` : '';
+  if (preVal && !window._scanFixture) window._scanFixture = pending[0];
+  wrap.innerHTML = `<label style="font-size:.76rem;color:var(--tm);">📅 ¿A qué partido corresponde?</label>
+    <select id="scanFixtureSel" style="background:var(--s2);border:1px solid var(--b);border-radius:8px;color:var(--t);font-family:'Barlow',sans-serif;font-size:.84rem;padding:6px 10px;outline:none;width:100%;margin-top:4px;">
+      ${pending.length > 1 ? '<option value="">— Seleccioná el partido —</option>' : ''}${opts}
+    </select>
+    <button class="btn bp" style="width:100%;margin-top:6px;" onclick="loadScanToFixture()">→ Cargar en Fixture</button>`;
+}
+
 function loadScanToFixture() {
   const sel = $('scanFixtureSel');
   if (!sel || !sel.value) { toast('⚠️ Seleccioná el partido primero', true); return; }
@@ -2202,7 +2311,9 @@ function loadScanToFixture() {
 // ════════════════════════════════════════════════════════
 // SUBMISSIONS
 // ════════════════════════════════════════════════════════
+let _pollTimer;
 async function pollSubmissions() {
+  if (_pollTimer) clearTimeout(_pollTimer);
   try {
     const { data } = await supa.from('submissions').select('*').eq('status', 'pending').order('created_at', { ascending: false });
     const cnt = data?.length || 0;
@@ -2211,7 +2322,7 @@ async function pollSubmissions() {
     else { if (sb) sb.style.display = 'none'; }
     renderSubs(data || []);
   } catch (e) { console.error(e); }
-  setTimeout(pollSubmissions, 30000);
+  _pollTimer = setTimeout(pollSubmissions, 30000);
 }
 
 function fixNoRegSub(subId, playerIdx) {
@@ -2383,7 +2494,8 @@ async function approveSub(subId) {
           return spN === rpN || spN.includes(rpN) || rpN.includes(spN);
         });
         if (!p) return;
-        ps[p.id] = { goals: rp.goals||0, assists: rp.assists||0, rating: rp.rating||0, played: true, cs: false };
+        const isGK = ['GK','POR','PO'].includes((p.pos||'').toUpperCase());
+        ps[p.id] = { goals: rp.goals||0, assists: rp.assists||0, rating: rp.rating||0, played: true, cs: false, isGK };
       });
 
       // Check if match already exists BEFORE saving — if so, merge stats
@@ -2453,8 +2565,9 @@ function renderTeams() {
           <div style="font-size:.72rem;color:var(--tm);">${t.cap ? '📱 ' + t.cap + ' · ' : ''}👤 ${pc} jug. · 🔑 ${t.code || '—'}</div>
         </div>
       </div>
-      <div style="display:flex;align-items:center;gap:5px;">
+      <div style="display:flex;align-items:center;gap:5px;flex-wrap:wrap;">
         <span class="tpaid ${t.paid}" onclick="togglePaid('${t.id}')">${t.paid === 'yes' ? '✅ $' + t.fee : '❌ No pagó'}</span>
+        <button class="btn ${t.isBye?'bp':'bg'}" onclick="toggleBye('${t.id}')" style="font-size:.68rem;padding:3px 7px;" title="${t.isBye?'Equipo marcado como Libre — click para desmarcar':'Marcar como Libre/Bye (no cuenta en tabla ni progreso)'}">💤${t.isBye?' Libre':''}</button>
         <button class="btn bg" onclick="editTeam('${t.id}')" style="font-size:.68rem;padding:3px 7px;" title="Editar equipo">✏️</button>
         ${!t.replaced ? `<button class="btn bg" onclick="promptReplaceTeam('${t.id}')" style="font-size:.68rem;padding:3px 7px;" title="Reemplazar equipo">🔄</button>` : ''}
         <button class="btn bd" onclick="removeTeam('${t.id}')">✕</button>
@@ -2569,7 +2682,7 @@ function showAddPlayerToMatch(side) {
         </select>
       </div>
       <div id="newPlayerFields" style="display:none;flex-direction:column;gap:6px;">
-        <div class="fg"><label>Nombre / ID</label><input id="newPName" placeholder="Nombre del jugador..." style="background:var(--s2);border:1px solid var(--b);border-radius:8px;color:var(--t);font-family:'Barlow',sans-serif;font-size:.88rem;padding:7px 10px;outline:none;width:100%;"></div>
+        <div class="fg"><label>Nombre / ID</label><input id="newPName" placeholder="Nombre del jugador..." onkeydown="if(event.key==='Enter'){event.preventDefault();window._modalConfirm&&window._modalConfirm();closeModal();}" style="background:var(--s2);border:1px solid var(--b);border-radius:8px;color:var(--t);font-family:'Barlow',sans-serif;font-size:.88rem;padding:7px 10px;outline:none;width:100%;"></div>
         <div class="fg"><label>Posición</label>
           <select id="newPPos" style="background:var(--s2);border:1px solid var(--b);border-radius:8px;color:var(--t);font-family:'Barlow',sans-serif;font-size:.88rem;padding:7px 10px;outline:none;width:100%;">
             <option value="">— Opcional —</option><option value="GK">GK</option><option value="DEF">DEF</option><option value="MID">MID</option><option value="FWD">FWD</option>
@@ -2596,6 +2709,7 @@ function showAddPlayerToMatch(side) {
       const name = $('newPName')?.value.trim();
       const pos = $('newPPos')?.value || 'MID';
       if (!name) { toast('⚠️ Ingresá un nombre', true); return; }
+      if (s.players.some(p => strictMatch(p.name, name))) { toast('⚠️ Ya existe un jugador con ese nombre', true); return; }
       const newP = { id: Date.now().toString(), name, pos, teamId, goals: 0, assists: 0, rating: [], matchesPlayed: 0, cs: 0 };
       s.players.push(newP);
       saveDB();
@@ -2733,11 +2847,16 @@ function saveEditMatch(matchId) {
     const rating = +(document.querySelector(`.ep-r[data-pid="${pid}"]`)?.value) || 0;
     const played = document.querySelector(`.ep-played[data-pid="${pid}"]`)?.checked || false;
     if (played || goals || assists || rating) {
-      newPs[pid] = { goals, assists, rating, played, cs: false };
       const p = s.players.find(pl => pl.id === pid); if (!p) return;
+      // Auto clean sheet for goalkeepers
+      const isGK = ['GK','POR','PO'].includes((p.pos||'').toUpperCase());
+      const isHome = p.teamId == m.homeId;
+      const autoCS = isGK && (isHome ? newAG === 0 : newHG === 0);
+      newPs[pid] = { goals, assists, rating, played, cs: autoCS };
       p.goals += goals; p.assists += assists;
       if (rating > 0) p.rating.push(rating);
       if (played) p.matchesPlayed++;
+      if (autoCS) p.cs++;
     }
   });
   m.homeGoals = newHG; m.awayGoals = newAG; m.playerStats = newPs;
@@ -2770,7 +2889,7 @@ function viewPlayerProfile(playerId) {
   const el = $('playerProfileContent');
   el.innerHTML = `
     <div style="display:flex;align-items:center;gap:10px;margin-bottom:16px;">
-      <button class="btn bg" onclick="history.go(-1);goTab(document._prevTab||'leaders')" style="font-size:.76rem;padding:5px 10px;">← Volver</button>
+      <button class="btn bg" onclick="goTab(document._prevTab||'leaders')" style="font-size:.76rem;padding:5px 10px;">← Volver</button>
       <div style="font-family:'Bebas Neue',sans-serif;font-size:1.8rem;color:var(--g);">${p.name}</div>
     </div>
 
@@ -2869,6 +2988,7 @@ function addPlayerFromProfile(teamId) {
     const name = $('profPName')?.value.trim();
     const pos = $('profPPos')?.value || '—';
     if (!name) { toast('⚠️ Ingresá un nombre', true); return; }
+    if (s.players.some(p => strictMatch(p.name, name))) { toast('⚠️ Ya existe un jugador con ese nombre', true); return; }
     s.players.push({ id: Date.now().toString(), name, teamId, pos, goals: 0, assists: 0, rating: [], cs: 0, matchesPlayed: 0 });
     saveDB();
     viewTeamProfile(teamId);
@@ -2973,14 +3093,13 @@ function renderStandings() {
 }
 
 let _lbMode = 'jugadores';
-let _lbSort = { col: 'goals', dir: -1 };
+let _lbSort = { col: 'goals', dir: 1 };
 
 function setLBMode(mode) {
   _lbMode = mode;
-  _lbSort = { col: mode === 'porteros' ? 'cs' : 'goals', dir: -1 };
-  const bJ = $('lbModeJug'), bP = $('lbModePor'), bT = $('lbModeTOTW');
+  _lbSort = { col: 'goals', dir: 1 };
+  const bJ = $('lbModeJug'), bT = $('lbModeTOTW');
   if (bJ) bJ.className = mode === 'jugadores' ? 'btn bp' : 'btn bg';
-  if (bP) bP.className = mode === 'porteros' ? 'btn bp' : 'btn bg';
   if (bT) bT.className = mode === 'totw' ? 'btn bp' : 'btn bg';
   if (mode === 'totw') renderTOTW();
   else renderLBTable();
@@ -2988,42 +3107,55 @@ function setLBMode(mode) {
 
 function sortLB(col) {
   if (_lbSort.col === col) _lbSort.dir *= -1;
-  else { _lbSort.col = col; _lbSort.dir = -1; }
+  else { _lbSort.col = col; _lbSort.dir = 1; }
   renderLBTable();
 }
+
+let _totwRange = { from: null, to: null };
 
 function renderTOTW() {
   const el = $('lbTable'), s = S();
   if (!el) return;
 
-  // Find the latest COMPLETE round
-  let completeRound = null;
-  if (s.schedule?.length) {
-    for (let i = s.schedule.length - 1; i >= 0; i--) {
-      const round = s.schedule[i];
-      const allDone = round.fixtures.every(f => getMatchResult(f.home, f.away));
-      if (allDone && round.fixtures.length > 0) { completeRound = round; break; }
-    }
-  }
-
-  if (!completeRound) {
-    el.innerHTML = `<div class="es"><div class="ei">⭐</div>Sin fechas completas todavía.<br><span style="font-size:.74rem;color:var(--tm);">El XI de la semana aparece cuando todos los partidos de una fecha están jugados.</span></div>`;
+  const rounds = (s.schedule || []).filter(r => r.fixtures.length > 0);
+  if (!rounds.length) {
+    el.innerHTML = `<div class="es"><div class="ei">⭐</div>Sin fechas aún. Generá el fixture primero.</div>`;
     return;
   }
 
-  // Gather all player ratings from matches in this round
+  // Default range: last 4 rounds or all available
+  const maxRound = Math.max(...rounds.map(r => r.round));
+  const minRound = Math.min(...rounds.map(r => r.round));
+  if (_totwRange.from === null) _totwRange.from = Math.max(minRound, maxRound - 3);
+  if (_totwRange.to === null) _totwRange.to = maxRound;
+
+  // Clamp to valid range
+  if (_totwRange.from < minRound) _totwRange.from = minRound;
+  if (_totwRange.to > maxRound) _totwRange.to = maxRound;
+  if (_totwRange.from > _totwRange.to) _totwRange.from = _totwRange.to;
+
+  // Selected rounds
+  const selectedRounds = rounds.filter(r => r.round >= _totwRange.from && r.round <= _totwRange.to);
+
+  // Build round options
+  const roundOpts = rounds.map(r => `<option value="${r.round}">Fecha ${r.round}</option>`).join('');
+
+  // Gather all player ratings from matches in selected rounds
   const playersInRound = {};
-  completeRound.fixtures.forEach(fix => {
-    const match = getMatchResult(fix.home, fix.away);
-    if (!match?.playerStats) return;
-    Object.entries(match.playerStats).forEach(([pid, st]) => {
-      if (!st.rating || st.rating <= 0) return;
-      const p = s.players.find(pl => pl.id == pid);
-      if (!p) return;
-      // Keep highest rating if player appears multiple times
-      if (!playersInRound[pid] || playersInRound[pid].rating < st.rating) {
-        playersInRound[pid] = { id: pid, name: p.name, teamId: p.teamId, pos: (p.pos||'').toUpperCase(), rating: st.rating, goals: st.goals||0, assists: st.assists||0 };
-      }
+  selectedRounds.forEach(round => {
+    round.fixtures.forEach(fix => {
+      if (isByeTeam(fix.home) || isByeTeam(fix.away)) return;
+      const match = getMatchResult(fix.home, fix.away);
+      if (!match?.playerStats) return;
+      Object.entries(match.playerStats).forEach(([pid, st]) => {
+        if (!st.rating || st.rating <= 0) return;
+        const p = s.players.find(pl => pl.id == pid);
+        if (!p) return;
+        // Keep highest rating if player appears multiple times
+        if (!playersInRound[pid] || playersInRound[pid].rating < st.rating) {
+          playersInRound[pid] = { id: pid, name: p.name, teamId: p.teamId, pos: (p.pos||'').toUpperCase(), rating: st.rating, goals: st.goals||0, assists: st.assists||0 };
+        }
+      });
     });
   });
 
@@ -3049,8 +3181,15 @@ function renderTOTW() {
   };
 
   const totalPicked = xi.GK.length + xi.DEF.length + xi.MID.length + xi.FWD.length;
+  const selectorHtml = `<div style="display:flex;gap:8px;align-items:center;margin-bottom:12px;flex-wrap:wrap;justify-content:center;padding:10px;background:rgba(168,85,247,.05);border:1px solid rgba(168,85,247,.2);border-radius:8px;">
+    <label style="font-size:.72rem;color:var(--tm);">Desde</label>
+    <select id="totwFrom" onchange="_totwRange.from=+this.value;renderTOTW()" style="background:var(--s2);border:1px solid var(--b);border-radius:6px;color:var(--t);font-size:.82rem;padding:4px 8px;outline:none;">${roundOpts.replace(/value="${_totwRange.from}"/, `value="${_totwRange.from}" selected`)}</select>
+    <label style="font-size:.72rem;color:var(--tm);">Hasta</label>
+    <select id="totwTo" onchange="_totwRange.to=+this.value;renderTOTW()" style="background:var(--s2);border:1px solid var(--b);border-radius:6px;color:var(--t);font-size:.82rem;padding:4px 8px;outline:none;">${roundOpts.replace(/value="${_totwRange.to}"/, `value="${_totwRange.to}" selected`)}</select>
+  </div>`;
+
   if (totalPicked === 0) {
-    el.innerHTML = `<div class="es"><div class="ei">📊</div>Sin notas en la Fecha ${completeRound.round}.</div>`;
+    el.innerHTML = selectorHtml + `<div class="es"><div class="ei">📊</div>Sin notas en el rango seleccionado (Fechas ${_totwRange.from}-${_totwRange.to}).<br><span style="font-size:.72rem;color:var(--tm);">Probá con otro rango de fechas.</span></div>`;
     return;
   }
 
@@ -3068,9 +3207,10 @@ function renderTOTW() {
     </div>`;
   };
 
-  el.innerHTML = `
+  const rangeLabel = _totwRange.from === _totwRange.to ? `Fecha ${_totwRange.from}` : `Fechas ${_totwRange.from}–${_totwRange.to}`;
+  el.innerHTML = selectorHtml + `
     <div style="text-align:center;margin-bottom:14px;">
-      <div style="font-family:'Bebas Neue',sans-serif;font-size:1.1rem;color:var(--g);">Fecha ${completeRound.round}</div>
+      <div style="font-family:'Bebas Neue',sans-serif;font-size:1.1rem;color:var(--g);">${rangeLabel}</div>
       <div style="font-size:.72rem;color:var(--tm);text-transform:uppercase;letter-spacing:1px;">XI de la Semana · 4-3-3</div>
     </div>
     <div style="background:linear-gradient(180deg,rgba(0,255,135,.03),rgba(168,85,247,.03));border:1px solid var(--b);border-radius:10px;padding:16px 10px;">
@@ -3087,12 +3227,6 @@ function renderLBTable() {
   if (!s.players.length) { el.innerHTML = `<div class="es"><div class="ei">⭐</div>Sin stats.</div>`; return; }
 
   let players = [...s.players];
-  if (_lbMode === 'porteros') {
-    players = players.filter(p => {
-      const pos = (p.pos || '').toUpperCase();
-      return pos === 'GK' || pos === 'POR' || pos === 'PO';
-    });
-  }
 
   // Sort
   players.sort((a, b) => {
@@ -3100,15 +3234,14 @@ function renderLBTable() {
     if (_lbSort.col === 'goals') { va = a.goals; vb = b.goals; }
     else if (_lbSort.col === 'assists') { va = a.assists; vb = b.assists; }
     else if (_lbSort.col === 'rating') { va = a.rating.length ? avg(a.rating) : 0; vb = b.rating.length ? avg(b.rating) : 0; }
-    else if (_lbSort.col === 'cs') { va = a.cs || 0; vb = b.cs || 0; }
     else if (_lbSort.col === 'pj') { va = a.matchesPlayed || 0; vb = b.matchesPlayed || 0; }
     else { va = a.name; vb = b.name; return _lbSort.dir * va.localeCompare(vb); }
     return _lbSort.dir * (vb - va);
   });
 
-  if (!players.length) { el.innerHTML = `<div class="es"><div class="ei">📊</div>Sin ${_lbMode === 'porteros' ? 'porteros' : 'jugadores'}.</div>`; return; }
+  if (!players.length) { el.innerHTML = `<div class="es"><div class="ei">📊</div>Sin jugadores.</div>`; return; }
 
-  const arrow = (col) => _lbSort.col === col ? (_lbSort.dir === -1 ? ' ▼' : ' ▲') : '';
+  const arrow = (col) => _lbSort.col === col ? (_lbSort.dir === 1 ? ' ▼' : ' ▲') : '';
   const thStyle = "cursor:pointer;padding:6px 8px;text-align:center;font-family:'Barlow Condensed',sans-serif;font-size:.72rem;letter-spacing:1px;text-transform:uppercase;color:var(--tm);white-space:nowrap;border-bottom:1px solid var(--b);user-select:none;";
   const thHover = 'onmouseover="this.style.color=\'var(--g)\'" onmouseout="this.style.color=\'var(--tm)\'"';
 
@@ -3120,7 +3253,6 @@ function renderLBTable() {
           <th style="${thStyle}" onclick="sortLB('goals')" ${thHover}>⚽${arrow('goals')}</th>
           <th style="${thStyle}" onclick="sortLB('assists')" ${thHover}>🎯${arrow('assists')}</th>
           <th style="${thStyle}" onclick="sortLB('rating')" ${thHover}>⭐${arrow('rating')}</th>
-          <th style="${thStyle}" onclick="sortLB('cs')" ${thHover}>🧤${arrow('cs')}</th>
           <th style="${thStyle}" onclick="sortLB('pj')" ${thHover}>PJ${arrow('pj')}</th>
         </tr>
       </thead>
@@ -3142,7 +3274,6 @@ function renderLBTable() {
       <td style="padding:7px 8px;text-align:center;">${p.goals}</td>
       <td style="padding:7px 8px;text-align:center;">${p.assists}</td>
       <td style="padding:7px 8px;text-align:center;">${ratingVal}</td>
-      <td style="padding:7px 8px;text-align:center;">${p.cs||0}</td>
       <td style="padding:7px 8px;text-align:center;">${p.matchesPlayed||0}</td>
     </tr>`;
   });
@@ -3216,17 +3347,24 @@ function renderSchedule() {
   const el = $('schedContent'), cb = $('clrSchedBtn'), si = $('schedInfo'), s = S();
   if (!s.schedule?.length) { el.innerHTML = `<div class="es"><div class="ei">📅</div>Sin fixture.</div>`; if (cb) cb.style.display = 'none'; if (si) si.textContent = ''; return; }
   if (cb && mode === 'admin') cb.style.display = 'inline-flex';
-  const total = s.schedule.reduce((x, r) => x + r.fixtures.length, 0); let played = 0;
-  s.schedule.forEach(r => r.fixtures.forEach(f => { if (getMatchResult(f.home, f.away)) played++; }));
-  const pct = Math.round((played / total) * 100);
-  if (si) si.innerHTML = played === total ? `<span style="color:var(--g);">✅ ¡Todos jugados!</span>` : `${played}/${total} jugados (${pct}%)`;
-  const half = s.schedule.length / 2;
+  const validFixtures = fixList => fixList.filter(f => !isByeTeam(f.home) && !isByeTeam(f.away));
+  const total = s.schedule.reduce((x, r) => x + validFixtures(r.fixtures).length, 0); let played = 0;
+  s.schedule.forEach(r => validFixtures(r.fixtures).forEach(f => { if (getMatchResult(f.home, f.away)) played++; }));
+  const pct = total ? Math.round((played / total) * 100) : 0;
+  if (si) si.innerHTML = total > 0 && played === total ? `<span style="color:var(--g);">✅ ¡Todos jugados!</span>` : `${played}/${total} jugados (${pct}%)`;
   el.innerHTML = `<div class="card" style="padding:10px 14px;margin-bottom:9px;"><div style="display:flex;justify-content:space-between;margin-bottom:3px;"><span style="font-size:.74rem;color:var(--tm);font-family:'Barlow Condensed',sans-serif;letter-spacing:1px;text-transform:uppercase;">${played}/${total} jugados</span><span style="font-size:.74rem;color:var(--g);font-family:'Barlow Condensed',sans-serif;font-weight:700;">${pct}%</span></div><div class="pbw"><div class="pbf" style="width:${pct}%"></div></div></div>
   ${s.schedule.map((round, ri) => {
-    const rp = round.fixtures.filter(f => getMatchResult(f.home, f.away)).length, rt = round.fixtures.length;
-    const st = rp === rt ? 'done' : rp > 0 ? 'partial' : 'pending';
-    const leg = '';
-    return `${leg}<div class="rc"><div class="rh" onclick="toggleRound(${ri})"><div class="rhl"><span class="rnum">Fecha ${round.round}</span><span class="rlbl">${rp}/${rt}</span></div><div style="display:flex;align-items:center;gap:5px;"><span class="rst ${st}">${st === 'done' ? 'Listo' : st === 'partial' ? 'En curso' : 'Pendiente'}</span><span id="chev-${ri}" style="color:var(--tm);transition:transform .2s;">▼</span></div></div><div class="rb2" id="rb-${ri}">${round.fixtures.map(fix => { const res = getMatchResult(fix.home, fix.away); const wh = res && res.homeGoals > res.awayGoals, wa = res && res.awayGoals > res.homeGoals; return `<div class="fix"><div class="fh" style="color:${wh ? 'var(--g)' : ''};cursor:pointer;" onclick="viewTeamProfile('${fix.home}')">🏠 ${tn(fix.home)}</div>${res ? `<div class="fsc">${res.homeGoals}–${res.awayGoals}</div>` : `<div class="fsc pend">vs</div>`}<div class="fa" style="color:${wa ? 'var(--g)' : ''};cursor:pointer;" onclick="viewTeamProfile('${fix.away}')">${tn(fix.away)} ✈️</div><div>${!res && mode === 'admin' ? `<div style="display:flex;gap:3px;"><button class="ben" onclick="showH2H('${fix.home}','${fix.away}')" style="background:rgba(59,130,246,.2);border-color:rgba(59,130,246,.4);color:#60a5fa;" title="Historial H2H">📊</button><button class="ben" onclick="jumpToResult('${fix.home}','${fix.away}')">✏️</button><button class="ben" onclick="jumpToScan('${fix.home}','${fix.away}')" style="background:rgba(168,85,247,.2);border-color:rgba(168,85,247,.4);color:var(--pu);">🤖</button></div>` : `${res && mode === 'admin' ? `<button class="ben" onclick="editMatch('${res.id}')" style="font-size:.64rem;padding:2px 5px;">✏️</button>` : `<span style="color:${res ? 'var(--g)' : 'var(--tm)'}; font-size:.74rem;">${res ? '✓' : ''}</span>`}`}</div></div>`; }).join('')}</div></div>`;
+    const validFixes = validFixtures(round.fixtures);
+    const rp = validFixes.filter(f => getMatchResult(f.home, f.away)).length, rt = validFixes.length;
+    const st = rt > 0 && rp === rt ? 'done' : rp > 0 ? 'partial' : 'pending';
+    return `<div class="rc"><div class="rh" onclick="toggleRound(${ri})"><div class="rhl"><span class="rnum">Fecha ${round.round}</span><span class="rlbl">${rp}/${rt}</span></div><div style="display:flex;align-items:center;gap:5px;"><span class="rst ${st}">${st === 'done' ? 'Listo' : st === 'partial' ? 'En curso' : 'Pendiente'}</span><span id="chev-${ri}" style="color:var(--tm);transition:transform .2s;">▼</span></div></div><div class="rb2" id="rb-${ri}">${round.fixtures.map(fix => {
+      if (isByeTeam(fix.home) || isByeTeam(fix.away)) {
+        const freeTeam = isByeTeam(fix.home) ? fix.away : fix.home;
+        return `<div class="fix" style="opacity:0.6;background:rgba(255,255,255,0.02);"><div class="fh" style="grid-column:1/-1;text-align:center;font-size:.8rem;color:var(--tm);">💤 ${tn(freeTeam)} queda Libre esta fecha</div></div>`;
+      }
+      const res = getMatchResult(fix.home, fix.away); const wh = res && res.homeGoals > res.awayGoals, wa = res && res.awayGoals > res.homeGoals;
+      return `<div class="fix"><div class="fh" style="color:${wh ? 'var(--g)' : ''};cursor:pointer;" onclick="viewTeamProfile('${fix.home}')">🏠 ${tn(fix.home)}</div>${res ? `<div class="fsc">${res.homeGoals}–${res.awayGoals}</div>` : `<div class="fsc pend">vs</div>`}<div class="fa" style="color:${wa ? 'var(--g)' : ''};cursor:pointer;" onclick="viewTeamProfile('${fix.away}')">${tn(fix.away)} ✈️</div><div>${!res && mode === 'admin' ? `<div style="display:flex;gap:3px;"><button class="ben" onclick="showH2H('${fix.home}','${fix.away}')" style="background:rgba(59,130,246,.2);border-color:rgba(59,130,246,.4);color:#60a5fa;" title="Historial H2H">📊</button><button class="ben" onclick="jumpToResult('${fix.home}','${fix.away}')">✏️</button><button class="ben" onclick="jumpToScan('${fix.home}','${fix.away}')" style="background:rgba(168,85,247,.2);border-color:rgba(168,85,247,.4);color:var(--pu);">🤖</button></div>` : `${res && mode === 'admin' ? `<button class="ben" onclick="editMatch('${res.id}')" style="font-size:.64rem;padding:2px 5px;">✏️</button>` : `<span style="color:${res ? 'var(--g)' : 'var(--tm)'}; font-size:.74rem;">${res ? '✓' : ''}</span>`}`}</div></div>`;
+    }).join('')}</div></div>`;
   }).join('')}`;
 }
 function showH2H(teamAId, teamBId) {
