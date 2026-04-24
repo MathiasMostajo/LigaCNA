@@ -365,18 +365,28 @@ select option{background:var(--s2);}
   <div id="teamProfileContent"></div>
 </div>
 
+<!-- ════ TAB: MATCH DETAIL ════ -->
+<div class="sec" id="tab-matchdetail">
+  <div id="matchDetailContent"></div>
+</div>
+
 <!-- ════ TAB: PLAYER PROFILE ════ -->
 <div class="sec" id="tab-playerprofile">
   <div id="playerProfileContent"></div>
 </div>
 
 <!-- ════ TAB: LEADERS (public) ════ -->
+<div class="sec" id="tab-compare" style="display:none;">
+  <div id="compareContent"></div>
+</div>
+
 <div class="sec" id="tab-leaders">
   <div class="card">
     <div class="ct">⭐ Tabla de Líderes</div>
     <div style="display:flex;gap:6px;margin-bottom:10px;flex-wrap:wrap;">
-      <button id="lbModeJug" class="btn bp" style="flex:1;min-width:100px;" onclick="setLBMode('jugadores')">👤 Jugadores</button>
-      <button id="lbModeTOTW" class="btn bg" style="flex:1;min-width:100px;" onclick="setLBMode('totw')">⭐ XI Semana</button>
+      <button id="lbModeJug" class="btn bp" style="flex:1;min-width:90px;" onclick="setLBMode('jugadores')">👤 Jugadores</button>
+      <button id="lbModeTOTW" class="btn bg" style="flex:1;min-width:90px;" onclick="setLBMode('totw')">⭐ XI Semana</button>
+      <button class="btn bg" style="flex:1;min-width:90px;" onclick="viewCompare()">⚖️ Comparar</button>
     </div>
     <div id="lbTable"></div>
   </div>
@@ -1003,6 +1013,9 @@ function goTab(name, el) {
   if (sec) sec.classList.add('active');
   if (el) { el.classList.add('active'); }
   else { document.querySelectorAll('.tab').forEach(t => { if (t.getAttribute('onclick') && t.getAttribute('onclick').includes("'" + name + "'")) t.classList.add('active'); }); }
+  // Track navigation — don't overwrite _currentTab if we're going to a detail view
+  // (detail views set _prevTab manually before calling goTab)
+  document._currentTab = name;
   if (name === 'fichajes') renderFichajesTab();
   if (name === 'twadmin') renderTWAdmin();
   render();
@@ -1494,9 +1507,10 @@ function _saveResult(homeId, awayId, hg, ag, ps, flag) {
     p.goals += st.goals; p.assists += st.assists;
     if (st.rating > 0) p.rating.push(st.rating);
     if (st.played) p.matchesPlayed++;
-    // Auto clean sheet: GK gets cs if opponent scored 0
-    const isHome = s.players.find(pl => pl.id == pid && pl.teamId == homeId);
-    const autoCS = st.isGK && (isHome ? ag === 0 : hg === 0);
+    // Auto clean sheet: GK gets cs if opponent scored 0 — use p.pos (works for both manual + scanner)
+    const isGK = st.isGK || ['GK','POR','PO'].includes((p.pos||'').toUpperCase());
+    const isHome = p.teamId == homeId;
+    const autoCS = isGK && (isHome ? ag === 0 : hg === 0);
     if (st.cs || autoCS) p.cs++;
   });
   saveDB(); render(); toast(flag === 'wo' ? `🚫 WO — ${tn(homeId)} 1-0 ${tn(awayId)}` : '⚽ Resultado guardado!');
@@ -2424,37 +2438,40 @@ async function approveSub(subId) {
   const r = sub.scan_result || {}, sc = r.score || {};
   const s = S();
 
-  // Find both teams
-  const hT = s.teams.find(t => t.name.toLowerCase().includes((sc.home||'').toLowerCase().substring(0,4)));
-  const aT = s.teams.find(t => t.name.toLowerCase().includes((sc.away||'').toLowerCase().substring(0,4)));
+  // Build team options for manual selection
+  const teamOpts = s.teams.filter(t => !t.isBye && !t.replaced).map(t => `<option value="${t.id}">${t.name}</option>`).join('');
+  // Try to pre-guess teams
+  const normStr = str => (str||'').toLowerCase().trim();
+  const scHome = normStr(sc.home), scAway = normStr(sc.away);
+  const guessH = s.teams.find(t => normStr(t.name) === scHome) || s.teams.find(t => scHome && scHome.includes(normStr(t.name)) && t.name.length >= 3);
+  const guessA = s.teams.find(t => normStr(t.name) === scAway) || s.teams.find(t => scAway && scAway.includes(normStr(t.name)) && t.name.length >= 3);
+  const hT = guessH; const aT = guessA;
 
-  if (!hT || !aT) {
-    toast('⚠️ No se encontraron los equipos — cargá manualmente', true);
-    prefill(r); goTab('results');
-    await supa.from('submissions').update({ status: 'approved' }).eq('id', subId);
-    pollSubmissions(); return;
-  }
-
-  // Find ALL pending fixtures between these two teams
-  // If captain already selected a specific fixture, use that directly
-  const preSelected = r._selectedFixture;
-  const pendingFixtures = [];
-  if (preSelected) {
-    pendingFixtures.push({ round: preSelected.round, homeId: preSelected.homeId, awayId: preSelected.awayId });
-  }
-  if (!preSelected) {
+  // Helper to compute pending fixtures between two team IDs (safe against null)
+  const computePending = (h, a) => {
+    const result = [];
+    if (!h || !a) return result;
     (s.schedule||[]).forEach(round => {
       round.fixtures.forEach(fix => {
-        const isPair = (fix.home==hT.id&&fix.away==aT.id)||(fix.home==aT.id&&fix.away==hT.id);
+        const isPair = (fix.home==h&&fix.away==a)||(fix.home==a&&fix.away==h);
         if (isPair && !getMatchResult(fix.home, fix.away)) {
-          pendingFixtures.push({ round: round.round, homeId: fix.home, awayId: fix.away });
+          result.push({ round: round.round, homeId: fix.home, awayId: fix.away });
         }
       });
     });
+    return result;
+  };
+  // Find ALL pending fixtures between the initially-guessed teams (used only for initial display)
+  const preSelected = r._selectedFixture;
+  let pendingFixtures = [];
+  if (preSelected) {
+    pendingFixtures.push({ round: preSelected.round, homeId: preSelected.homeId, awayId: preSelected.awayId });
+  } else if (hT && aT) {
+    pendingFixtures = computePending(hT.id, aT.id);
   }
 
   // Show modal to select which fixture was played
-  $('mttl').textContent = '📅 ¿Cuál partido fue?';
+  $('mttl').textContent = '✅ Revisar y Aprobar Partido';
   const fixtureOpts = pendingFixtures.map((f, i) =>
     `<label style="display:flex;align-items:center;gap:8px;padding:8px;border:1px solid var(--b);border-radius:8px;cursor:pointer;margin-bottom:5px;">
       <input type="radio" name="fixSel" value="${i}" ${i===0?'checked':''}>
@@ -2463,26 +2480,76 @@ async function approveSub(subId) {
   ).join('');
 
   $('mbdy').innerHTML = `
-    <div style="font-size:.82rem;color:var(--tm);margin-bottom:10px;">
-      El escáner leyó: <b style="color:var(--g);">${sc.home} ${sc.homeGoals??'?'}–${sc.awayGoals??'?'} ${sc.away}</b><br>
-      Seleccioná el partido correcto del fixture para respetar la localía:
-    </div>
-    ${fixtureOpts.length ? fixtureOpts : `<div style="color:var(--or);font-size:.82rem;">⚠️ No se encontraron partidos pendientes entre estos equipos. Se guardará con la localía del escáner.</div>`}`;
+    <div style="display:flex;flex-direction:column;gap:10px;">
+      <div style="font-size:.8rem;color:var(--tm);">IA leyó: <b style="color:var(--g);">${sc.home||'?'} ${sc.homeGoals??'?'}–${sc.awayGoals??'?'} ${sc.away||'?'}</b></div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
+        <div><label style="font-size:.72rem;color:var(--tm);display:block;margin-bottom:3px;">🏠 Local</label>
+          <select id="subHomeTeam" style="background:var(--s2);border:1px solid var(--b);border-radius:8px;color:var(--t);font-family:'Barlow',sans-serif;font-size:.82rem;padding:6px 9px;outline:none;width:100%;">
+            <option value="">— Elegí —</option>${teamOpts}
+          </select>
+        </div>
+        <div><label style="font-size:.72rem;color:var(--tm);display:block;margin-bottom:3px;">✈️ Visitante</label>
+          <select id="subAwayTeam" style="background:var(--s2);border:1px solid var(--b);border-radius:8px;color:var(--t);font-family:'Barlow',sans-serif;font-size:.82rem;padding:6px 9px;outline:none;width:100%;">
+            <option value="">— Elegí —</option>${teamOpts}
+          </select>
+        </div>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr auto 1fr;gap:8px;align-items:center;">
+        <input type="number" id="subHG" min="0" value="${sc.homeGoals??0}" style="background:var(--s2);border:1px solid var(--b);border-radius:8px;color:var(--t);font-family:'Bebas Neue',sans-serif;font-size:1.4rem;padding:6px 10px;outline:none;width:100%;text-align:center;">
+        <span style="color:var(--tm);font-size:1.1rem;">–</span>
+        <input type="number" id="subAG" min="0" value="${sc.awayGoals??0}" style="background:var(--s2);border:1px solid var(--b);border-radius:8px;color:var(--t);font-family:'Bebas Neue',sans-serif;font-size:1.4rem;padding:6px 10px;outline:none;width:100%;text-align:center;">
+      </div>
+      <div id="subFixtureWrap">${fixtureOpts.length ? `<div style="font-size:.72rem;color:var(--tm);margin-bottom:4px;">📅 Partido del fixture:</div>${fixtureOpts}` : `<div style="color:var(--or);font-size:.78rem;">⚠️ No hay partidos pendientes entre estos equipos en el fixture.</div>`}</div>
+    </div>`;
+  // Pre-select guessed teams + setup dynamic fixture list update
+  setTimeout(() => {
+    if (guessH && $('subHomeTeam')) $('subHomeTeam').value = guessH.id;
+    if (guessA && $('subAwayTeam')) $('subAwayTeam').value = guessA.id;
+    // Re-render fixture options when either dropdown changes
+    const refreshFixtures = () => {
+      const h = $('subHomeTeam')?.value, a = $('subAwayTeam')?.value;
+      const wrap = $('subFixtureWrap'); if (!wrap) return;
+      if (!h || !a || h === a) { wrap.innerHTML = ''; pendingFixtures = []; return; }
+      pendingFixtures = computePending(h, a);
+      if (pendingFixtures.length === 0) {
+        wrap.innerHTML = `<div style="color:var(--or);font-size:.78rem;">⚠️ No hay partidos pendientes entre estos equipos en el fixture.</div>`;
+      } else {
+        const opts = pendingFixtures.map((f, i) =>
+          `<label style="display:flex;align-items:center;gap:8px;padding:8px;border:1px solid var(--b);border-radius:8px;cursor:pointer;margin-bottom:5px;">
+            <input type="radio" name="fixSel" value="${i}" ${i===0?'checked':''}>
+            <span>Fecha ${f.round}: <b>${tn(f.homeId)}</b> 🏠 vs ✈️ <b>${tn(f.awayId)}</b></span>
+          </label>`
+        ).join('');
+        wrap.innerHTML = `<div style="font-size:.72rem;color:var(--tm);margin-bottom:4px;">📅 Partido del fixture:</div>${opts}`;
+      }
+    };
+    if ($('subHomeTeam')) $('subHomeTeam').addEventListener('change', refreshFixtures);
+    if ($('subAwayTeam')) $('subAwayTeam').addEventListener('change', refreshFixtures);
+  }, 50);
 
   window._modalConfirm = async () => {
     try {
-      let fixtureHomeId = hT.id, fixtureAwayId = aT.id;
+      // Get team selections from dropdowns
+      const selHomeId = $('subHomeTeam')?.value;
+      const selAwayId = $('subAwayTeam')?.value;
+      if (!selHomeId || !selAwayId) { toast('⚠️ Seleccioná ambos equipos', true); return; }
+      if (selHomeId === selAwayId) { toast('⚠️ Los equipos no pueden ser iguales', true); return; }
+      const editedHG = +($('subHG')?.value ?? sc.homeGoals ?? 0);
+      const editedAG = +($('subAG')?.value ?? sc.awayGoals ?? 0);
+      let fixtureHomeId = selHomeId, fixtureAwayId = selAwayId;
       if (pendingFixtures.length) {
         const sel = document.querySelector('input[name="fixSel"]:checked');
-        const idx = sel ? +sel.value : 0;
-        const chosen = pendingFixtures[idx];
-        fixtureHomeId = chosen.homeId;
-        fixtureAwayId = chosen.awayId;
+        if (sel) {
+          const idx = +sel.value;
+          const chosen = pendingFixtures[idx];
+          fixtureHomeId = chosen.homeId;
+          fixtureAwayId = chosen.awayId;
+        }
       }
-      // Determine if we need to swap goals based on fixture vs scan
-      const scanHomeIsFixtureHome = (hT.id === fixtureHomeId);
-      let homeGoals = sc.homeGoals??0, awayGoals = sc.awayGoals??0;
-      if (!scanHomeIsFixtureHome) { [homeGoals, awayGoals] = [awayGoals, homeGoals]; }
+      // Use edited goals — align to fixture home/away
+      const selHomeIsFixtureHome = (selHomeId === fixtureHomeId);
+      let homeGoals = editedHG, awayGoals = editedAG;
+      if (!selHomeIsFixtureHome) { [homeGoals, awayGoals] = [awayGoals, homeGoals]; }
 
       // Build player stats with fuzzy matching
       const norm = str => str.toLowerCase().replace(/[^a-z0-9]/g,'').replace(/[il1]/g,'1').replace(/[o0]/g,'0');
@@ -2878,6 +2945,211 @@ function deleteMatch(matchId) {
 }
 
 // ════ TEAM PROFILE ════
+// ─── Match detail page ───────────────────────────────────────
+function viewMatch(matchId) {
+  const s = S(), m = s.matches.find(x => x.id === matchId); if (!m) return;
+  // Save where the user came from (don't preserve old _prevTab)
+  if (document._currentTab && document._currentTab !== 'matchdetail') {
+    document._prevTab = document._currentTab;
+  } else if (!document._prevTab) {
+    document._prevTab = 'standings';
+  }
+  const el = $('matchDetailContent'); if (!el) return;
+  const hGoals = m.homeGoals, aGoals = m.awayGoals;
+  const hWin = hGoals > aGoals, aWin = aGoals > hGoals;
+  const homePlayers = Object.entries(m.playerStats||{})
+    .map(([pid,st]) => ({ pid, ...st, p: s.players.find(pl=>pl.id===pid) }))
+    .filter(x => x.p && x.p.teamId === m.homeId);
+  const awayPlayers = Object.entries(m.playerStats||{})
+    .map(([pid,st]) => ({ pid, ...st, p: s.players.find(pl=>pl.id===pid) }))
+    .filter(x => x.p && x.p.teamId === m.awayId);
+  const renderPList = (plist) => plist.sort((a,b)=>(b.rating||0)-(a.rating||0)).map(x =>
+    `<div style="display:flex;align-items:center;gap:6px;padding:5px 0;border-bottom:1px solid var(--b);font-size:.8rem;">
+      <span style="font-weight:600;cursor:pointer;color:var(--g);" onclick="viewPlayerProfile('${x.pid}')">${x.p.name}</span>
+      <span style="flex:1;"></span>
+      ${x.goals?`<span>⚽${x.goals}</span>`:''}
+      ${x.assists?`<span>🎯${x.assists}</span>`:''}
+      ${x.rating?`<span style="color:var(--gold);">⭐${x.rating}</span>`:''}
+      ${x.cs?`<span>🧤</span>`:''}
+    </div>`).join('') || '<div style="color:var(--tm);font-size:.78rem;padding:6px 0;">Sin stats</div>';
+  el.innerHTML = `
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:16px;">
+      <button class="btn bg" onclick="goTab(document._prevTab||'standings')" style="font-size:.76rem;padding:5px 10px;">← Volver</button>
+      <div style="font-size:.76rem;color:var(--tm);flex:1;">${m.date||''}</div>
+      ${mode==='admin' ? `<button class="btn bg" onclick="editMatch('${m.id}')" style="font-size:.72rem;padding:5px 10px;">✏️ Editar</button>` : ''}
+    </div>
+    <div class="card">
+      <div style="display:grid;grid-template-columns:1fr auto 1fr;gap:12px;align-items:center;text-align:center;padding:8px 0;">
+        <div style="cursor:pointer;" onclick="viewTeamProfile('${m.homeId}')">
+          ${getShield(m.homeId,'lg')}
+          <div style="font-family:'Bebas Neue',sans-serif;font-size:1.1rem;color:${hWin?'var(--g)':'var(--t)'};">${tn(m.homeId)}</div>
+        </div>
+        <div style="font-family:'Bebas Neue',sans-serif;font-size:2.5rem;color:var(--t);">${hGoals}–${aGoals}</div>
+        <div style="cursor:pointer;" onclick="viewTeamProfile('${m.awayId}')">
+          ${getShield(m.awayId,'lg')}
+          <div style="font-family:'Bebas Neue',sans-serif;font-size:1.1rem;color:${aWin?'var(--g)':'var(--t)'};">${tn(m.awayId)}</div>
+        </div>
+      </div>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+      <div class="card"><div class="ct" style="font-size:.82rem;">🏠 ${tn(m.homeId)}</div>${renderPList(homePlayers)}</div>
+      <div class="card"><div class="ct" style="font-size:.82rem;">✈️ ${tn(m.awayId)}</div>${renderPList(awayPlayers)}</div>
+    </div>`;
+  goTab('matchdetail');
+}
+
+// ─── Sort players in team profile ────────────────────────────
+function sortTeamPlayers(teamId, col) {
+  const s = S(), players = s.players.filter(p => p.teamId === teamId);
+  players.sort((a,b) => {
+    if (col === 'rating') return (b.rating.length ? avg(b.rating) : 0) - (a.rating.length ? avg(a.rating) : 0);
+    return (b[col]||0) - (a[col]||0);
+  });
+  const el = $('teamPlayersList_' + teamId); if (!el) return;
+  el.innerHTML = players.map(p => {
+    const ar = p.rating.length ? avg(p.rating).toFixed(1) : '—';
+    return `<div class="pr"><div class="pi"><span class="pb">${p.pos||'—'}</span><span style="font-weight:600;cursor:pointer;color:var(--g);text-decoration:underline dotted;" onclick="viewPlayerProfile('${p.id}')">${p.name}</span></div><div class="psm"><span>⚽${p.goals}</span><span>🎯${p.assists}</span><span>⭐${ar}</span><span>🧤${p.cs}</span><span>${p.matchesPlayed}GP</span></div></div>`;
+  }).join('');
+}
+
+// ─── Player comparator ────────────────────────────────────────
+function viewCompare() {
+  const s = S();
+  const el = $('compareContent'); if (!el) return;
+  if (document._currentTab && document._currentTab !== 'compare') {
+    document._prevTab = document._currentTab;
+  } else if (!document._prevTab) {
+    document._prevTab = 'leaders';
+  }
+  const opts = s.players.map(p => `<option value="${p.id}">${p.name} (${tn(p.teamId)})</option>`).join('');
+  el.innerHTML = `
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:16px;">
+      <button class="btn bg" onclick="goTab('leaders')" style="font-size:.76rem;padding:5px 10px;">← Volver</button>
+      <div style="font-family:'Bebas Neue',sans-serif;font-size:1.4rem;color:var(--g);">⚖️ Comparador</div>
+    </div>
+    <div class="card">
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px;">
+        <select id="cmpA" onchange="renderComparison()" style="background:var(--s2);border:1px solid var(--b);border-radius:8px;color:var(--t);font-family:'Barlow',sans-serif;font-size:.84rem;padding:7px 10px;outline:none;width:100%;"><option value="">— Jugador 1 —</option>${opts}</select>
+        <select id="cmpB" onchange="renderComparison()" style="background:var(--s2);border:1px solid var(--b);border-radius:8px;color:var(--t);font-family:'Barlow',sans-serif;font-size:.84rem;padding:7px 10px;outline:none;width:100%;"><option value="">— Jugador 2 —</option>${opts}</select>
+      </div>
+      <div id="cmpResult"></div>
+    </div>`;
+  goTab('compare');
+}
+
+function renderComparison() {
+  const s = S(), idA = $('cmpA').value, idB = $('cmpB').value;
+  const el = $('cmpResult'); if (!el) return;
+  if (!idA || !idB) { el.innerHTML = ''; return; }
+  const pA = s.players.find(p=>p.id===idA), pB = s.players.find(p=>p.id===idB);
+  if (!pA || !pB) return;
+  const rA = pA.rating.length ? avg(pA.rating) : 0, rB = pB.rating.length ? avg(pB.rating) : 0;
+  const stats = [
+    { lbl:'⚽ Goles', a: pA.goals, b: pB.goals },
+    { lbl:'🎯 Asistencias', a: pA.assists, b: pB.assists },
+    { lbl:'⭐ Nota Promedio', a: rA, b: rB, dec: 1 },
+    { lbl:'🧤 Vallas a 0', a: pA.cs||0, b: pB.cs||0 },
+    { lbl:'🎮 Partidos', a: pA.matchesPlayed||0, b: pB.matchesPlayed||0 },
+  ];
+  el.innerHTML = `
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px;text-align:center;">
+      <div style="cursor:pointer;" onclick="viewPlayerProfile('${pA.id}')">
+        ${getShield(pA.teamId,'lg')}
+        <div style="font-weight:700;color:var(--g);">${pA.name}</div>
+        <div style="font-size:.72rem;color:var(--tm);">${tn(pA.teamId)}</div>
+      </div>
+      <div style="cursor:pointer;" onclick="viewPlayerProfile('${pB.id}')">
+        ${getShield(pB.teamId,'lg')}
+        <div style="font-weight:700;color:var(--pu);">${pB.name}</div>
+        <div style="font-size:.72rem;color:var(--tm);">${tn(pB.teamId)}</div>
+      </div>
+    </div>
+    ${stats.map(st => {
+      const va = st.dec ? +st.a.toFixed(st.dec) : st.a;
+      const vb = st.dec ? +st.b.toFixed(st.dec) : st.b;
+      const aWins = va > vb, bWins = vb > va;
+      const max = Math.max(va, vb, 1);
+      return `<div style="margin-bottom:10px;">
+        <div style="font-size:.72rem;color:var(--tm);margin-bottom:4px;text-align:center;">${st.lbl}</div>
+        <div style="display:grid;grid-template-columns:1fr auto 1fr;gap:6px;align-items:center;">
+          <div style="text-align:right;">
+            <div style="font-weight:700;color:${aWins?'var(--g)':'var(--t)'};">${va}</div>
+            <div style="background:var(--s2);border-radius:4px;height:6px;"><div style="background:${aWins?'var(--g)':'var(--b)'};height:100%;border-radius:4px;width:${Math.round(va/max*100)}%;margin-left:auto;"></div></div>
+          </div>
+          <div style="font-size:.62rem;color:var(--tm);">vs</div>
+          <div style="text-align:left;">
+            <div style="font-weight:700;color:${bWins?'var(--pu)':'var(--t)'};">${vb}</div>
+            <div style="background:var(--s2);border-radius:4px;height:6px;"><div style="background:${bWins?'var(--pu)':'var(--b)'};height:100%;border-radius:4px;width:${Math.round(vb/max*100)}%;"></div></div>
+          </div>
+        </div>
+      </div>`;
+    }).join('')}`;
+}
+
+// ─── Match predictor ────────────────────────────────────────
+function viewPredictor(homeId, awayId) {
+  const s = S();
+  if (document._currentTab && document._currentTab !== 'matchdetail') {
+    document._prevTab = document._currentTab;
+  } else if (!document._prevTab) {
+    document._prevTab = 'fixture';
+  }
+  const hStand = getStandings().find(x=>x.id===homeId) || {W:0,D:0,L:0,P:0,GF:0,GA:0};
+  const aStand = getStandings().find(x=>x.id===awayId) || {W:0,D:0,L:0,P:0,GF:0,GA:0};
+  // Head to head
+  const h2h = s.matches.filter(m=>(m.homeId===homeId&&m.awayId===awayId)||(m.homeId===awayId&&m.awayId===homeId));
+  let hH2H=0, aH2H=0, dH2H=0;
+  h2h.forEach(m => {
+    const hg = m.homeId===homeId ? m.homeGoals : m.awayGoals;
+    const ag = m.homeId===homeId ? m.awayGoals : m.homeGoals;
+    if (hg>ag) hH2H++; else if (ag>hg) aH2H++; else dH2H++;
+  });
+  // Score calculation (simple formula)
+  const hScore = (hStand.P ? hStand.W/hStand.P : 0)*40 + (hH2H/(h2h.length||1))*20 + (hStand.GF - hStand.GA)*0.5 + 5; // +5 home advantage
+  const aScore = (aStand.P ? aStand.W/aStand.P : 0)*40 + (aH2H/(h2h.length||1))*20 + (aStand.GF - aStand.GA)*0.5;
+  const total = Math.max(hScore + aScore + 20, 100);
+  const hPct = Math.round((hScore + 10) / total * 100);
+  const aPct = Math.round((aScore + 5) / total * 100);
+  const dPct = 100 - hPct - aPct;
+  const el = $('matchDetailContent'); if (!el) return;
+  el.innerHTML = `
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:16px;">
+      <button class="btn bg" onclick="goTab(document._prevTab||'fixture')" style="font-size:.76rem;padding:5px 10px;">← Volver</button>
+      <div style="font-family:'Bebas Neue',sans-serif;font-size:1.2rem;color:var(--g);">🔮 Predictor</div>
+    </div>
+    <div class="card">
+      <div style="display:grid;grid-template-columns:1fr auto 1fr;gap:12px;align-items:center;text-align:center;margin-bottom:16px;">
+        <div onclick="viewTeamProfile('${homeId}')" style="cursor:pointer;">${getShield(homeId,'lg')}<div style="font-family:'Bebas Neue',sans-serif;font-size:1rem;">${tn(homeId)}</div><div style="font-size:.66rem;color:var(--tm);">🏠 Local</div></div>
+        <div style="font-family:'Bebas Neue',sans-serif;font-size:1.4rem;color:var(--tm);">vs</div>
+        <div onclick="viewTeamProfile('${awayId}')" style="cursor:pointer;">${getShield(awayId,'lg')}<div style="font-family:'Bebas Neue',sans-serif;font-size:1rem;">${tn(awayId)}</div><div style="font-size:.66rem;color:var(--tm);">✈️ Visitante</div></div>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;text-align:center;margin-bottom:14px;">
+        <div style="padding:10px;background:rgba(0,255,135,.08);border:1px solid rgba(0,255,135,.2);border-radius:8px;">
+          <div style="font-family:'Bebas Neue',sans-serif;font-size:1.6rem;color:var(--g);">${hPct}%</div>
+          <div style="font-size:.68rem;color:var(--tm);">Gana ${tn(homeId).split(' ')[0]}</div>
+        </div>
+        <div style="padding:10px;background:rgba(255,255,255,.03);border:1px solid var(--b);border-radius:8px;">
+          <div style="font-family:'Bebas Neue',sans-serif;font-size:1.6rem;color:var(--gold);">${Math.max(dPct,0)}%</div>
+          <div style="font-size:.68rem;color:var(--tm);">Empate</div>
+        </div>
+        <div style="padding:10px;background:rgba(168,85,247,.08);border:1px solid rgba(168,85,247,.2);border-radius:8px;">
+          <div style="font-family:'Bebas Neue',sans-serif;font-size:1.6rem;color:var(--pu);">${aPct}%</div>
+          <div style="font-size:.68rem;color:var(--tm);">Gana ${tn(awayId).split(' ')[0]}</div>
+        </div>
+      </div>
+      <div style="font-size:.68rem;color:var(--tm);text-align:center;padding-top:8px;border-top:1px solid var(--b);">
+        Basado en rendimiento actual${h2h.length ? ` · ${h2h.length} enfrentamientos previos` : ''} · ⚠️ Solo referencia, no es un pronóstico exacto
+      </div>
+    </div>
+    ${h2h.length ? `<div class="card"><div class="ct">📊 H2H (${h2h.length} partidos)</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;text-align:center;margin-bottom:10px;">
+        <div><div style="font-size:1.4rem;font-weight:700;color:var(--g);">${hH2H}</div><div style="font-size:.68rem;color:var(--tm);">${tn(homeId)}</div></div>
+        <div><div style="font-size:1.4rem;font-weight:700;color:var(--gold);">${dH2H}</div><div style="font-size:.68rem;color:var(--tm);">Empates</div></div>
+        <div><div style="font-size:1.4rem;font-weight:700;color:var(--pu);">${aH2H}</div><div style="font-size:.68rem;color:var(--tm);">${tn(awayId)}</div></div>
+      </div></div>` : ''}`;
+  goTab('matchdetail');
+}
+
 function viewPlayerProfile(playerId) {
   const s = S(), p = s.players.find(pl => pl.id === playerId); if (!p) return;
   const team = s.teams.find(t => t.id === p.teamId);
@@ -2901,7 +3173,6 @@ function viewPlayerProfile(playerId) {
           <span class="pb">${p.pos || '—'}</span>
           <span style="cursor:pointer;color:var(--g);margin-left:6px;" onclick="viewTeamProfile('${p.teamId}')">${team?.name || '—'}</span>
         </div>
-        <div style="font-size:.72rem;color:var(--tm);">🔑 ${team?.code || '—'}</div>
       </div>
       <div style="flex:1;display:grid;grid-template-columns:repeat(4,1fr);gap:7px;min-width:240px;">
         <div class="ss"><div class="v">${p.goals}</div><div class="l">Goles</div></div>
@@ -2934,6 +3205,39 @@ function viewPlayerProfile(playerId) {
       </div>
     </div>
 
+    <!-- Rating bar chart - last 5 matches -->
+    ${(() => {
+      const last5 = [...matchesPlayed].reverse().slice(0, 5);
+      if (!last5.length) return '';
+      const bars = last5.map(m => {
+        const st = m.playerStats[playerId] || {};
+        const r = st.rating || 0;
+        const isHome = m.homeId === p.teamId;
+        const myG = isHome ? m.homeGoals : m.awayGoals;
+        const thG = isHome ? m.awayGoals : m.homeGoals;
+        const res = myG > thG ? 'V' : myG < thG ? 'D' : 'E';
+        const rc = res === 'V' ? '#00ff87' : res === 'D' ? '#ff4757' : '#ffd700';
+        const oppId = isHome ? m.awayId : m.homeId;
+        const oppName = tn(oppId);
+        const barH = r > 0 ? Math.round((r / 10) * 60) : 4;
+        const barColor = r >= 8 ? '#00ff87' : r >= 6.5 ? '#ffd700' : r > 0 ? '#ff4757' : 'var(--b)';
+        return `<div style="display:flex;flex-direction:column;align-items:center;gap:4px;flex:1;">
+          <div style="font-size:.7rem;color:var(--gold);font-weight:700;">${r > 0 ? r.toFixed(1) : '—'}</div>
+          <div style="width:100%;background:var(--s2);border-radius:4px;height:64px;display:flex;align-items:flex-end;overflow:hidden;">
+            <div style="width:100%;height:${barH}px;background:${barColor};border-radius:4px 4px 0 0;transition:height .3s;"></div>
+          </div>
+          <div style="font-size:.62rem;color:${rc};font-weight:700;">${res}</div>
+          <div style="font-size:.58rem;color:var(--tm);text-align:center;max-width:50px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${oppName}">${oppName}</div>
+          ${st.goals ? `<div style="font-size:.6rem;">⚽${st.goals}</div>` : ''}
+        </div>`;
+      }).join('');
+      return `<div class="card">
+        <div class="ct">📊 Últimos ${last5.length} Partidos</div>
+        <div style="display:flex;gap:8px;align-items:flex-end;padding:8px 0;">${bars}</div>
+        <div style="font-size:.64rem;color:var(--tm);text-align:center;margin-top:4px;">Nota por partido</div>
+      </div>`;
+    })()}
+
     <!-- Recent matches -->
     <div class="card">
       <div class="ct">🕹 Últimos Partidos (${recentMatches.length})</div>
@@ -2963,8 +3267,11 @@ function viewPlayerProfile(playerId) {
       }).join('') : `<div class="es" style="padding:14px;"><div class="ei">🎮</div>Sin partidos.</div>`}
     </div>`;
 
-  document._prevTab = document._currentTab || 'leaders';
-  document._currentTab = 'playerprofile';
+  if (document._currentTab && document._currentTab !== 'playerprofile') {
+    document._prevTab = document._currentTab;
+  } else if (!document._prevTab) {
+    document._prevTab = 'leaders';
+  }
   goTab('playerprofile');
 }
 
@@ -3019,7 +3326,7 @@ function viewTeamProfile(teamId) {
   const el = $('teamProfileContent');
   el.innerHTML = `
     <div style="display:flex;align-items:center;gap:12px;margin-bottom:16px;">
-      <button class="btn bg" onclick="goTab('standings')" style="font-size:.76rem;padding:5px 10px;">← Volver</button>
+      <button class="btn bg" onclick="goTab(document._prevTab||'standings')" style="font-size:.76rem;padding:5px 10px;">← Volver</button>
       <div style="font-family:'Bebas Neue',sans-serif;font-size:1.8rem;color:var(--g);">${team.name}</div>
     </div>
 
@@ -3036,14 +3343,23 @@ function viewTeamProfile(teamId) {
 
     <!-- Players -->
     <div class="card">
-      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;flex-wrap:wrap;gap:6px;">
         <div class="ct" style="margin:0;">👤 Jugadores (${players.length})</div>
-        ${mode === 'admin' ? `<button class="btn bp" onclick="addPlayerFromProfile('${teamId}')" style="font-size:.72rem;padding:4px 10px;">➕ Agregar</button>` : ''}
+        <div style="display:flex;gap:4px;flex-wrap:wrap;align-items:center;">
+          ${['⚽ Goles','🎯 Asist','⭐ Nota','🧤 Vallas','🎮 PJ'].map((lbl,i) => {
+            const cols = ['goals','assists','rating','cs','matchesPlayed'];
+            return `<button class="btn bg" style="font-size:.62rem;padding:2px 7px;" onclick="sortTeamPlayers('${teamId}','${cols[i]}')">${lbl}</button>`;
+          }).join('')}
+          ${mode === 'admin' ? `<button class="btn bp" onclick="addPlayerFromProfile('${teamId}')" style="font-size:.72rem;padding:4px 10px;">➕</button>` : ''}
+        </div>
       </div>
-      ${players.length ? players.map(p => {
+      <div id="teamPlayersList_${teamId}">
+      ${players.sort((a,b)=>b.goals-a.goals).map(p => {
         const ar = p.rating.length ? avg(p.rating).toFixed(1) : '—';
         return `<div class="pr"><div class="pi"><span class="pb">${p.pos||'—'}</span><span style="font-weight:600;cursor:pointer;color:var(--g);text-decoration:underline dotted;" onclick="viewPlayerProfile('${p.id}')">${p.name}</span></div><div class="psm"><span>⚽${p.goals}</span><span>🎯${p.assists}</span><span>⭐${ar}</span><span>🧤${p.cs}</span><span>${p.matchesPlayed}GP</span></div></div>`;
-      }).join('') : `<div class="es" style="padding:14px;"><div class="ei">👤</div>Sin jugadores.</div>`}
+      }).join('')}
+      </div>
+      ${players.length ? '' : `<div class="es" style="padding:14px;"><div class="ei">👤</div>Sin jugadores.</div>`}
     </div>
 
     <!-- Played matches -->
@@ -3057,17 +3373,13 @@ function viewTeamProfile(teamId) {
         const theirGoals = isHome ? m.awayGoals : m.homeGoals;
         const res = myGoals > theirGoals ? 'V' : myGoals < theirGoals ? 'D' : 'E';
         const rc = res === 'V' ? 'var(--g)' : res === 'D' ? 'var(--red)' : 'var(--gold)';
-        const clickAction = mode === 'admin' ? `onclick="editMatch('${m.id}')"` : '';
-        const cursor = mode === 'admin' ? 'cursor:pointer;' : '';
-        const editHint = mode === 'admin' ? `<span style="font-size:.62rem;color:var(--tm);">✏️</span>` : '';
-        return `<div style="display:flex;align-items:center;gap:8px;padding:7px 0;border-bottom:1px solid var(--b);${cursor}border-radius:6px;" ${clickAction}>
+        return `<div style="display:flex;align-items:center;gap:8px;padding:7px 0;border-bottom:1px solid var(--b);cursor:pointer;border-radius:6px;" onclick="viewMatch('${m.id}')">
           <span style="font-family:'Bebas Neue',sans-serif;font-size:.9rem;color:${rc};min-width:16px;">${res}</span>
           <span style="font-size:.76rem;color:var(--tm);">${isHome?'\uD83C\uDFE0':'\u2708\uFE0F'}</span>
           ${getShield(oppId,'sm')}
           <span style="font-weight:600;font-size:.84rem;flex:1;">${oppName}</span>
           <span style="font-family:'Bebas Neue',sans-serif;font-size:1.1rem;color:${rc};">${myGoals}–${theirGoals}</span>
           <span style="font-size:.66rem;color:var(--tm);">${m.date||''}</span>
-          ${editHint}
         </div>`;
       }).join('') : `<div class="es" style="padding:14px;"><div class="ei">🎮</div>Sin partidos.</div>`}
     </div>
@@ -3083,13 +3395,25 @@ function viewTeamProfile(teamId) {
           <span style="font-weight:600;font-size:.84rem;cursor:pointer;color:var(--g);text-decoration:underline dotted;" onclick="viewTeamProfile('${fix.oppId}')">${tn(fix.oppId)}</span>
         </div>`).join('') : `<div class="es" style="padding:14px;"><div class="ei">📅</div>Sin pendientes.</div>`}
     </div>`;
+  if (document._currentTab && document._currentTab !== 'teamprofile') {
+    document._prevTab = document._currentTab;
+  } else if (!document._prevTab) {
+    document._prevTab = 'standings';
+  }
   goTab('teamprofile');
 }
 
 function renderStandings() {
   const el = $('standTable'), stand = getStandings();
   if (!stand.length) { el.innerHTML = `<div class="es"><div class="ei">📊</div>Sin datos.</div>`; return; }
-  el.innerHTML = `<table class="st"><thead><tr><th>#</th><th>Equipo</th><th>PJ</th><th>G</th><th>E</th><th>P</th><th>GF</th><th>GC</th><th>DG</th><th>Pts</th><th>Forma</th></tr></thead><tbody>${stand.map((s, i) => `<tr><td><span class="rnk ${['r1', 'r2', 'r3'][i] || ''}">${i + 1}</span></td><td><div style="display:flex;align-items:center;gap:7px;cursor:pointer;" onclick="viewTeamProfile('${s.id}')">${getShield(s.id, 'md')}<div><b style="color:var(--g);text-decoration:underline dotted;">${s.name}</b><div style="font-size:.64rem;color:var(--tm);">👤 ${S().players.filter(p=>p.teamId==s.id).length}</div></div></div></td><td>${s.P}</td><td>${s.W}</td><td>${s.D}</td><td>${s.L}</td><td>${s.GF}</td><td>${s.GA}</td><td style="color:${s.GD > 0 ? 'var(--g)' : s.GD < 0 ? 'var(--red)' : ''}">${s.GD > 0 ? '+' : ''}${s.GD}</td><td><span class="pts">${s.Pts}</span></td><td><div class="fp">${s.form.slice(-5).map(f => `<div class="fpill ${f}">${f}</div>`).join('')}</div></td></tr>`).join('')}</tbody></table>`;
+  el.innerHTML = `<table class="st"><thead><tr><th>#</th><th>Equipo</th><th>PJ</th><th>G</th><th>E</th><th>P</th><th>GF</th><th>GC</th><th>DG</th><th>Pts</th><th>Forma</th></tr></thead><tbody>${stand.map((s, i) => {
+    const revForm = s.form.slice().reverse();
+    const streakType = revForm.length ? revForm[0] : null;
+    let streakCount = 0;
+    if (streakType) { for (const r of revForm) { if (r === streakType) streakCount++; else break; } }
+    const streakBadge = streakCount >= 3 ? `<span style="font-size:.55rem;font-weight:700;color:${streakType==='W'?'var(--g)':streakType==='L'?'var(--red)':'var(--gold)'};white-space:nowrap;">${streakType==='W'?'🔥':'❄️'}${streakCount}</span>` : '';
+    return `<tr><td><span class="rnk ${['r1', 'r2', 'r3'][i] || ''}">${i + 1}</span></td><td><div style="display:flex;align-items:center;gap:7px;cursor:pointer;" onclick="viewTeamProfile('${s.id}')">${getShield(s.id, 'md')}<div><b style="color:var(--g);text-decoration:underline dotted;">${s.name}</b><div style="font-size:.64rem;color:var(--tm);">👤 ${S().players.filter(p=>p.teamId==s.id).length}</div></div></div></td><td>${s.P}</td><td>${s.W}</td><td>${s.D}</td><td>${s.L}</td><td>${s.GF}</td><td>${s.GA}</td><td style="color:${s.GD > 0 ? 'var(--g)' : s.GD < 0 ? 'var(--red)' : ''}">${s.GD > 0 ? '+' : ''}${s.GD}</td><td><span class="pts">${s.Pts}</span></td><td><div class="fp" style="gap:3px;">${streakBadge}${s.form.slice(-5).map(f => `<div class="fpill ${f}">${f}</div>`).join('')}</div></td></tr>`;
+  }).join('')}</tbody></table>`;
 }
 
 let _lbMode = 'jugadores';
@@ -3183,9 +3507,9 @@ function renderTOTW() {
   const totalPicked = xi.GK.length + xi.DEF.length + xi.MID.length + xi.FWD.length;
   const selectorHtml = `<div style="display:flex;gap:8px;align-items:center;margin-bottom:12px;flex-wrap:wrap;justify-content:center;padding:10px;background:rgba(168,85,247,.05);border:1px solid rgba(168,85,247,.2);border-radius:8px;">
     <label style="font-size:.72rem;color:var(--tm);">Desde</label>
-    <select id="totwFrom" onchange="_totwRange.from=+this.value;renderTOTW()" style="background:var(--s2);border:1px solid var(--b);border-radius:6px;color:var(--t);font-size:.82rem;padding:4px 8px;outline:none;">${roundOpts.replace(/value="${_totwRange.from}"/, `value="${_totwRange.from}" selected`)}</select>
+    <select id="totwFrom" onchange="_totwRange.from=+this.value;renderTOTW()" style="background:var(--s2);border:1px solid var(--b);border-radius:6px;color:var(--t);font-size:.82rem;padding:4px 8px;outline:none;">${roundOpts.replace(new RegExp(`value="${_totwRange.from}"`), `value="${_totwRange.from}" selected`)}</select>
     <label style="font-size:.72rem;color:var(--tm);">Hasta</label>
-    <select id="totwTo" onchange="_totwRange.to=+this.value;renderTOTW()" style="background:var(--s2);border:1px solid var(--b);border-radius:6px;color:var(--t);font-size:.82rem;padding:4px 8px;outline:none;">${roundOpts.replace(/value="${_totwRange.to}"/, `value="${_totwRange.to}" selected`)}</select>
+    <select id="totwTo" onchange="_totwRange.to=+this.value;renderTOTW()" style="background:var(--s2);border:1px solid var(--b);border-radius:6px;color:var(--t);font-size:.82rem;padding:4px 8px;outline:none;">${roundOpts.replace(new RegExp(`value="${_totwRange.to}"`), `value="${_totwRange.to}" selected`)}</select>
   </div>`;
 
   if (totalPicked === 0) {
@@ -3363,7 +3687,7 @@ function renderSchedule() {
         return `<div class="fix" style="opacity:0.6;background:rgba(255,255,255,0.02);"><div class="fh" style="grid-column:1/-1;text-align:center;font-size:.8rem;color:var(--tm);">💤 ${tn(freeTeam)} queda Libre esta fecha</div></div>`;
       }
       const res = getMatchResult(fix.home, fix.away); const wh = res && res.homeGoals > res.awayGoals, wa = res && res.awayGoals > res.homeGoals;
-      return `<div class="fix"><div class="fh" style="color:${wh ? 'var(--g)' : ''};cursor:pointer;" onclick="viewTeamProfile('${fix.home}')">🏠 ${tn(fix.home)}</div>${res ? `<div class="fsc">${res.homeGoals}–${res.awayGoals}</div>` : `<div class="fsc pend">vs</div>`}<div class="fa" style="color:${wa ? 'var(--g)' : ''};cursor:pointer;" onclick="viewTeamProfile('${fix.away}')">${tn(fix.away)} ✈️</div><div>${!res && mode === 'admin' ? `<div style="display:flex;gap:3px;"><button class="ben" onclick="showH2H('${fix.home}','${fix.away}')" style="background:rgba(59,130,246,.2);border-color:rgba(59,130,246,.4);color:#60a5fa;" title="Historial H2H">📊</button><button class="ben" onclick="jumpToResult('${fix.home}','${fix.away}')">✏️</button><button class="ben" onclick="jumpToScan('${fix.home}','${fix.away}')" style="background:rgba(168,85,247,.2);border-color:rgba(168,85,247,.4);color:var(--pu);">🤖</button></div>` : `${res && mode === 'admin' ? `<button class="ben" onclick="editMatch('${res.id}')" style="font-size:.64rem;padding:2px 5px;">✏️</button>` : `<span style="color:${res ? 'var(--g)' : 'var(--tm)'}; font-size:.74rem;">${res ? '✓' : ''}</span>`}`}</div></div>`;
+      return `<div class="fix"><div class="fh" style="color:${wh ? 'var(--g)' : ''};cursor:pointer;" onclick="viewTeamProfile('${fix.home}')">🏠 ${tn(fix.home)}</div>${res ? `<div class="fsc">${res.homeGoals}–${res.awayGoals}</div>` : `<div class="fsc pend">vs</div>`}<div class="fa" style="color:${wa ? 'var(--g)' : ''};cursor:pointer;" onclick="viewTeamProfile('${fix.away}')">${tn(fix.away)} ✈️</div><div>${!res && mode === 'admin' ? `<div style="display:flex;gap:3px;"><button class="ben" onclick="showH2H('${fix.home}','${fix.away}')" style="background:rgba(59,130,246,.2);border-color:rgba(59,130,246,.4);color:#60a5fa;" title="H2H">📊</button><button class="ben" onclick="viewPredictor('${fix.home}','${fix.away}')" style="background:rgba(255,165,0,.15);border-color:rgba(255,165,0,.3);color:orange;" title="Predictor">🔮</button><button class="ben" onclick="jumpToResult('${fix.home}','${fix.away}')">✏️</button><button class="ben" onclick="jumpToScan('${fix.home}','${fix.away}')" style="background:rgba(168,85,247,.2);border-color:rgba(168,85,247,.4);color:var(--pu);">🤖</button></div>` : `${res && mode === 'admin' ? `<button class="ben" onclick="editMatch('${res.id}')" style="font-size:.64rem;padding:2px 5px;">✏️</button>` : `<span style="color:${res ? 'var(--g)' : 'var(--tm)'}; font-size:.74rem;">${res ? '✓' : ''}</span>`}`}</div></div>`;
     }).join('')}</div></div>`;
   }).join('')}`;
 }
