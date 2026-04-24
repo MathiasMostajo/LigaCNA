@@ -3071,24 +3071,70 @@ function viewCompare() {
   } else if (!document._prevTab) {
     document._prevTab = 'leaders';
   }
-  const opts = s.players.map(p => `<option value="${p.id}">${p.name} (${tn(p.teamId)})</option>`).join('');
+  const teamOpts = ['<option value="">Todos los clubes</option>', ...s.teams.filter(t=>!t.isBye&&!t.replaced).map(t => `<option value="${t.id}">${t.name}</option>`)].join('');
+  window._cmpA = null; window._cmpB = null;
+  window._cmpFilters = { A: { team: '', search: '' }, B: { team: '', search: '' } };
+  const buildPicker = (side) => `<div style="display:flex;flex-direction:column;gap:6px;">
+    <div style="font-family:'Barlow Condensed',sans-serif;font-size:.78rem;color:var(--tm);letter-spacing:1px;text-transform:uppercase;">Jugador ${side}</div>
+    <input id="cmpSearch${side}" type="text" placeholder="🔍 Buscar por nombre/ID..." oninput="updateCompareFilter('${side}','search',this.value)" style="background:var(--s2);border:1px solid var(--b);border-radius:8px;color:var(--t);font-family:'Barlow',sans-serif;font-size:.82rem;padding:6px 10px;outline:none;width:100%;">
+    <select id="cmpTeam${side}" onchange="updateCompareFilter('${side}','team',this.value)" style="background:var(--s2);border:1px solid var(--b);border-radius:8px;color:var(--t);font-family:'Barlow',sans-serif;font-size:.82rem;padding:6px 10px;outline:none;width:100%;">${teamOpts}</select>
+    <div id="cmpList${side}" style="max-height:160px;overflow-y:auto;background:var(--s2);border:1px solid var(--b);border-radius:8px;padding:4px;"></div>
+    <div id="cmpSelected${side}" style="font-size:.74rem;color:var(--g);min-height:18px;"></div>
+  </div>`;
   el.innerHTML = `
     <div style="display:flex;align-items:center;gap:10px;margin-bottom:16px;">
-      <button class="btn bg" onclick="goTab('leaders')" style="font-size:.76rem;padding:5px 10px;">← Volver</button>
+      <button class="btn bg" onclick="goTab(document._prevTab||'leaders')" style="font-size:.76rem;padding:5px 10px;">← Volver</button>
       <div style="font-family:'Bebas Neue',sans-serif;font-size:1.4rem;color:var(--g);">⚖️ Comparador</div>
     </div>
     <div class="card">
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px;">
-        <select id="cmpA" onchange="renderComparison()" style="background:var(--s2);border:1px solid var(--b);border-radius:8px;color:var(--t);font-family:'Barlow',sans-serif;font-size:.84rem;padding:7px 10px;outline:none;width:100%;"><option value="">— Jugador 1 —</option>${opts}</select>
-        <select id="cmpB" onchange="renderComparison()" style="background:var(--s2);border:1px solid var(--b);border-radius:8px;color:var(--t);font-family:'Barlow',sans-serif;font-size:.84rem;padding:7px 10px;outline:none;width:100%;"><option value="">— Jugador 2 —</option>${opts}</select>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px;">
+        ${buildPicker('A')}
+        ${buildPicker('B')}
       </div>
       <div id="cmpResult"></div>
     </div>`;
   goTab('compare');
+  renderComparePickerList('A');
+  renderComparePickerList('B');
+}
+
+function updateCompareFilter(side, key, value) {
+  if (!window._cmpFilters) window._cmpFilters = { A:{team:'',search:''}, B:{team:'',search:''} };
+  window._cmpFilters[side][key] = value;
+  renderComparePickerList(side);
+}
+
+function renderComparePickerList(side) {
+  const s = S();
+  const f = window._cmpFilters?.[side] || { team:'', search:'' };
+  const list = $('cmpList' + side); if (!list) return;
+  let players = [...s.players];
+  if (f.team) players = players.filter(p => p.teamId === f.team);
+  if (f.search) {
+    const q = f.search.toLowerCase();
+    players = players.filter(p => p.name.toLowerCase().includes(q) || (p.id+'').includes(q));
+  }
+  if (!players.length) { list.innerHTML = `<div style="padding:8px;font-size:.76rem;color:var(--tm);text-align:center;">Sin resultados</div>`; return; }
+  list.innerHTML = players.slice(0, 50).map(p => {
+    const selected = (side === 'A' && window._cmpA === p.id) || (side === 'B' && window._cmpB === p.id);
+    return `<div onclick="pickCompare('${side}','${p.id}')" style="padding:5px 8px;cursor:pointer;border-radius:4px;font-size:.78rem;background:${selected?'rgba(0,255,135,.15)':'transparent'};color:${selected?'var(--g)':'var(--t)'};" onmouseover="this.style.background='rgba(0,255,135,.08)'" onmouseout="this.style.background='${selected?'rgba(0,255,135,.15)':'transparent'}'">
+      ${selected?'✓ ':''}${p.name} <span style="color:var(--tm);font-size:.7rem;">· ${tn(p.teamId)}</span>
+    </div>`;
+  }).join('');
+}
+
+function pickCompare(side, playerId) {
+  if (side === 'A') window._cmpA = playerId;
+  else window._cmpB = playerId;
+  const s = S(), p = s.players.find(pl => pl.id === playerId);
+  const sel = $('cmpSelected' + side);
+  if (sel && p) sel.innerHTML = `✓ <strong>${p.name}</strong> <span style="color:var(--tm);">· ${tn(p.teamId)}</span>`;
+  renderComparePickerList(side);
+  renderComparison();
 }
 
 function renderComparison() {
-  const s = S(), idA = $('cmpA').value, idB = $('cmpB').value;
+  const s = S(), idA = window._cmpA, idB = window._cmpB;
   const el = $('cmpResult'); if (!el) return;
   if (!idA || !idB) { el.innerHTML = ''; return; }
   const pA = s.players.find(p=>p.id===idA), pB = s.players.find(p=>p.id===idB);
@@ -3154,13 +3200,25 @@ function viewPredictor(homeId, awayId) {
     const ag = m.homeId===homeId ? m.awayGoals : m.homeGoals;
     if (hg>ag) hH2H++; else if (ag>hg) aH2H++; else dH2H++;
   });
-  // Score calculation (simple formula)
-  const hScore = (hStand.P ? hStand.W/hStand.P : 0)*40 + (hH2H/(h2h.length||1))*20 + (hStand.GF - hStand.GA)*0.5 + 5; // +5 home advantage
-  const aScore = (aStand.P ? aStand.W/aStand.P : 0)*40 + (aH2H/(h2h.length||1))*20 + (aStand.GF - aStand.GA)*0.5;
-  const total = Math.max(hScore + aScore + 20, 100);
-  const hPct = Math.round((hScore + 10) / total * 100);
-  const aPct = Math.round((aScore + 5) / total * 100);
-  const dPct = 100 - hPct - aPct;
+  // Score calculation — normalized to guarantee valid percentages
+  const hWinRate = hStand.P ? hStand.W/hStand.P : 0.33;
+  const aWinRate = aStand.P ? aStand.W/aStand.P : 0.33;
+  const hH2HRate = h2h.length ? hH2H/h2h.length : 0.33;
+  const aH2HRate = h2h.length ? aH2H/h2h.length : 0.33;
+  const hGDRate = Math.max(0, (hStand.GF - hStand.GA + 10) / 20); // normalized 0-1
+  const aGDRate = Math.max(0, (aStand.GF - aStand.GA + 10) / 20);
+  // Raw scores (each factor 0-1 range)
+  const hRaw = hWinRate*0.4 + hH2HRate*0.25 + hGDRate*0.2 + 0.15; // +0.15 home advantage
+  const aRaw = aWinRate*0.4 + aH2HRate*0.25 + aGDRate*0.2;
+  const dRaw = 0.25; // baseline draw probability
+  const totalRaw = hRaw + aRaw + dRaw;
+  let hPct = Math.round(hRaw / totalRaw * 100);
+  let aPct = Math.round(aRaw / totalRaw * 100);
+  let dPct = 100 - hPct - aPct;
+  // Enforce minimum 1% for each outcome
+  if (hPct < 1) { const diff = 1 - hPct; hPct = 1; if (aPct > dPct) aPct -= diff; else dPct -= diff; }
+  if (aPct < 1) { const diff = 1 - aPct; aPct = 1; if (hPct > dPct) hPct -= diff; else dPct -= diff; }
+  if (dPct < 1) { const diff = 1 - dPct; dPct = 1; if (hPct > aPct) hPct -= diff; else aPct -= diff; }
   const el = $('matchDetailContent'); if (!el) return;
   el.innerHTML = `
     <div style="display:flex;align-items:center;gap:10px;margin-bottom:16px;">
@@ -3179,7 +3237,7 @@ function viewPredictor(homeId, awayId) {
           <div style="font-size:.68rem;color:var(--tm);">Gana ${tn(homeId).split(' ')[0]}</div>
         </div>
         <div style="padding:10px;background:rgba(255,255,255,.03);border:1px solid var(--b);border-radius:8px;">
-          <div style="font-family:'Bebas Neue',sans-serif;font-size:1.6rem;color:var(--gold);">${Math.max(dPct,0)}%</div>
+          <div style="font-family:'Bebas Neue',sans-serif;font-size:1.6rem;color:var(--gold);">${dPct}%</div>
           <div style="font-size:.68rem;color:var(--tm);">Empate</div>
         </div>
         <div style="padding:10px;background:rgba(168,85,247,.08);border:1px solid rgba(168,85,247,.2);border-radius:8px;">
@@ -3737,7 +3795,7 @@ function renderSchedule() {
         return `<div class="fix" style="opacity:0.6;background:rgba(255,255,255,0.02);"><div class="fh" style="grid-column:1/-1;text-align:center;font-size:.8rem;color:var(--tm);">💤 ${tn(freeTeam)} queda Libre esta fecha</div></div>`;
       }
       const res = getMatchResult(fix.home, fix.away); const wh = res && res.homeGoals > res.awayGoals, wa = res && res.awayGoals > res.homeGoals;
-      return `<div class="fix"><div class="fh" style="color:${wh ? 'var(--g)' : ''};cursor:pointer;" onclick="viewTeamProfile('${fix.home}')">🏠 ${tn(fix.home)}</div>${res ? `<div class="fsc">${res.homeGoals}–${res.awayGoals}</div>` : `<div class="fsc pend">vs</div>`}<div class="fa" style="color:${wa ? 'var(--g)' : ''};cursor:pointer;" onclick="viewTeamProfile('${fix.away}')">${tn(fix.away)} ✈️</div><div>${!res ? `<div style="display:flex;gap:3px;"><button class="ben" onclick="showH2H('${fix.home}','${fix.away}')" style="background:rgba(59,130,246,.2);border-color:rgba(59,130,246,.4);color:#60a5fa;" title="H2H">📊</button><button class="ben" onclick="viewPredictor('${fix.home}','${fix.away}')" style="background:rgba(255,165,0,.15);border-color:rgba(255,165,0,.3);color:orange;" title="Predictor">🔮</button>${mode === 'admin' ? `<button class="ben" onclick="jumpToResult('${fix.home}','${fix.away}')">✏️</button><button class="ben" onclick="jumpToScan('${fix.home}','${fix.away}')" style="background:rgba(168,85,247,.2);border-color:rgba(168,85,247,.4);color:var(--pu);">🤖</button>` : ''}</div>` : `${res ? `<div style="display:flex;gap:3px;"><button class="ben" onclick="viewMatch('${res.id}')" style="background:rgba(59,130,246,.15);border-color:rgba(59,130,246,.3);color:#60a5fa;" title="Ver detalle">📊</button>${mode === 'admin' ? `<button class="ben" onclick="editMatch('${res.id}')" style="font-size:.64rem;padding:2px 5px;">✏️</button>` : ''}</div>` : `<span style="color:var(--tm); font-size:.74rem;"></span>`}`}</div></div>`;
+      return `<div class="fix"><div class="fh" style="color:${wh ? 'var(--g)' : ''};cursor:pointer;" onclick="viewTeamProfile('${fix.home}')">🏠 ${tn(fix.home)}</div>${res ? `<div class="fsc">${res.homeGoals}–${res.awayGoals}</div>` : `<div class="fsc pend">vs</div>`}<div class="fa" style="color:${wa ? 'var(--g)' : ''};cursor:pointer;" onclick="viewTeamProfile('${fix.away}')">${tn(fix.away)} ✈️</div><div style="display:flex;gap:4px;flex-wrap:wrap;justify-content:flex-end;">${!res ? `<button class="ben" onclick="showH2H('${fix.home}','${fix.away}')" style="background:rgba(59,130,246,.2);border-color:rgba(59,130,246,.4);color:#60a5fa;font-size:.66rem;padding:3px 7px;" title="Historial">📊 Historial</button><button class="ben" onclick="viewPredictor('${fix.home}','${fix.away}')" style="background:rgba(255,165,0,.15);border-color:rgba(255,165,0,.3);color:orange;font-size:.66rem;padding:3px 7px;" title="Predictor">🔮 Predictor</button>${mode === 'admin' ? `<button class="ben" onclick="jumpToResult('${fix.home}','${fix.away}')" title="Cargar resultado" style="font-size:.66rem;padding:3px 7px;">✏️</button><button class="ben" onclick="jumpToScan('${fix.home}','${fix.away}')" style="background:rgba(168,85,247,.2);border-color:rgba(168,85,247,.4);color:var(--pu);font-size:.66rem;padding:3px 7px;" title="Escanear con IA">🤖</button>` : ''}` : `${res ? `<button class="ben" onclick="viewMatch('${res.id}')" style="background:rgba(59,130,246,.15);border-color:rgba(59,130,246,.3);color:#60a5fa;font-size:.66rem;padding:3px 7px;" title="Ver detalle del partido">📊 Detalle</button>${mode === 'admin' ? `<button class="ben" onclick="editMatch('${res.id}')" style="font-size:.66rem;padding:3px 7px;" title="Editar">✏️</button>` : ''}` : `<span style="color:var(--tm); font-size:.74rem;"></span>`}`}</div></div>`;
     }).join('')}</div></div>`;
   }).join('')}`;
 }
