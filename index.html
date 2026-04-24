@@ -165,7 +165,7 @@ select option{background:var(--s2);}
 .rst.done{background:rgba(0,255,135,.15);color:var(--g);}
 .rst.partial{background:rgba(255,215,0,.15);color:var(--gold);}
 .rst.pending{background:rgba(42,61,42,.5);color:var(--tm);}
-.rb2{padding:5px 12px;}
+.rb2{padding:5px 12px;display:none;}
 .fix{display:grid;grid-template-columns:1fr auto 1fr auto;align-items:center;gap:5px;padding:6px 0;border-bottom:1px solid rgba(42,61,42,.4);}
 .fix:last-child{border-bottom:none;}
 .fh{text-align:right;font-weight:600;font-size:.83rem;}
@@ -376,7 +376,7 @@ select option{background:var(--s2);}
 </div>
 
 <!-- ════ TAB: LEADERS (public) ════ -->
-<div class="sec" id="tab-compare" style="display:none;">
+<div class="sec" id="tab-compare">
   <div id="compareContent"></div>
 </div>
 
@@ -725,6 +725,19 @@ select option{background:var(--s2);}
     <div class="ib">Compartí estos códigos con los capitanes.</div>
     <div id="teamCodes"><div class="es"><div class="ei">🔑</div>Sin equipos.</div></div>
   </div>
+  <div class="card" style="border-color:rgba(255,165,0,.3);">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
+      <div class="ct" style="margin:0;">🔧 Modo Mantenimiento</div>
+      <label style="display:flex;align-items:center;gap:8px;cursor:pointer;">
+        <span style="font-size:.78rem;color:var(--tm);" id="mntStatusLbl">Inactivo</span>
+        <div style="position:relative;width:42px;height:24px;" onclick="toggleMaintenance()">
+          <div id="mntTrack" style="position:absolute;inset:0;border-radius:12px;background:var(--s3);border:1px solid var(--b);transition:background .2s;"></div>
+          <div id="mntThumb" style="position:absolute;top:3px;left:3px;width:18px;height:18px;border-radius:50%;background:var(--tm);transition:transform .2s,background .2s;"></div>
+        </div>
+      </label>
+    </div>
+    <div class="ib" style="margin-bottom:4px;">Cuando está activo, los capitanes no pueden subir fotos, enviar fichajes, ni hacer operaciones con IA.</div>
+  </div>
   <div class="card">
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
       <div class="ct" style="margin:0;">📋 Ventana de Fichajes</div>
@@ -930,7 +943,7 @@ function applyMode() {
   // Show fichajes tab for captain only if window is open
   const ftb = $('fichajesTabBtn');
   if (ftb) ftb.style.display = mode === 'captain' ? 'inline-flex' : 'none';
-  updateTWToggleUI();
+  updateTWToggleUI(); updateMaintenanceUI();
   document.querySelectorAll('.cap-only').forEach(el => el.style.display = mode === 'captain' ? '' : 'none');
   document.querySelectorAll('button.cap-only').forEach(el => el.style.display = mode === 'captain' ? 'inline-flex' : 'none');
   const sab = $('schedAdminBtns'); if (sab) sab.style.display = mode === 'admin' ? 'block' : 'none';
@@ -1228,12 +1241,45 @@ function updateTWToggleUI() {
   }
 }
 
+function isMaintenanceMode() { return !!db.maintenanceMode; }
+
+function toggleMaintenance() {
+  db.maintenanceMode = !db.maintenanceMode;
+  saveDB();
+  updateMaintenanceUI();
+  applyMode();
+  toast(db.maintenanceMode ? '🔧 Mantenimiento ACTIVADO' : '✅ Mantenimiento desactivado');
+}
+
+function updateMaintenanceUI() {
+  const active = isMaintenanceMode();
+  const track = $('mntTrack'), thumb = $('mntThumb'), lbl = $('mntStatusLbl');
+  if (track) track.style.background = active ? 'orange' : 'var(--s3)';
+  if (thumb) { thumb.style.transform = active ? 'translateX(18px)' : 'none'; thumb.style.background = active ? '#fff' : 'var(--tm)'; }
+  if (lbl) lbl.textContent = active ? '🔧 Activo' : 'Inactivo';
+  // Show maintenance banner for captain views
+  let banner = $('maintenanceBanner');
+  if (active && mode === 'captain') {
+    if (!banner) {
+      banner = document.createElement('div');
+      banner.id = 'maintenanceBanner';
+      banner.style.cssText = 'position:fixed;top:0;left:0;right:0;background:linear-gradient(90deg,#ff6b00,#ff9500);color:#000;text-align:center;padding:10px;font-weight:700;z-index:9998;font-family:\'Barlow Condensed\',sans-serif;letter-spacing:1px;font-size:.9rem;box-shadow:0 2px 8px rgba(0,0,0,.3);';
+      banner.innerHTML = '🔧 MODO MANTENIMIENTO · Subida de fotos y fichajes temporalmente deshabilitada';
+      document.body.appendChild(banner);
+      document.querySelector('.app').style.paddingTop = '40px';
+    }
+  } else if (banner) {
+    banner.remove();
+    document.querySelector('.app').style.paddingTop = '';
+  }
+}
+
 function toggleTransferWindow() {
   const s = S();
   if (!s.transferWindow) s.transferWindow = { open: false, deadline: null };
   s.transferWindow.open = !s.transferWindow.open;
   saveDB();
-  updateTWToggleUI();
+  updateTWToggleUI(); updateMaintenanceUI();
   applyMode();
   toast(s.transferWindow.open ? '✅ Ventana de fichajes ABIERTA' : '❌ Ventana de fichajes CERRADA');
 }
@@ -1283,6 +1329,7 @@ function renderFichajesTab() {
 }
 
 async function submitFichaje() {
+  if (isMaintenanceMode()) { toast('🔧 Liga en mantenimiento — intentá más tarde', true); return; }
   const s = S();
   const name = $('twPlayerName')?.value.trim();
   const pos = $('twPlayerPos')?.value || '—';
@@ -1304,7 +1351,7 @@ async function submitFichaje() {
     saveDB();
     $('twPlayerName').value = '';
     toast(`✅ Solicitud enviada: ${name}`);
-    updateTWToggleUI();
+    updateTWToggleUI(); updateMaintenanceUI();
   } catch(e) { toast('⚠️ Error: ' + e.message, true); }
 }
 
@@ -1378,7 +1425,7 @@ function approveAllFichajes() {
         rejected++;
       }
     });
-    saveDB(); render(); renderTWAdmin(); updateTWToggleUI();
+    saveDB(); render(); renderTWAdmin(); updateTWToggleUI(); updateMaintenanceUI();
     if (rejected > 0) toast(`✅ ${added} agregados · ⚠️ ${rejected} rechazados por límite`);
     else toast(`✅ ${added} jugadores agregados`);
   }, true);
@@ -1392,7 +1439,7 @@ function approveFichaje(reqId) {
     if (teamCount >= maxP) { toast(`⚠️ ${req.teamName} ya tiene el máximo de ${maxP} jugadores`, true); return; }
     req.status = 'approved';
     s.players.push({ id: Date.now().toString(), name: req.playerName, teamId: req.teamId, pos: req.pos, goals: 0, assists: 0, rating: [], cs: 0, matchesPlayed: 0 });
-    saveDB(); render(); renderTWAdmin(); updateTWToggleUI();
+    saveDB(); render(); renderTWAdmin(); updateTWToggleUI(); updateMaintenanceUI();
     toast(`✅ ${req.playerName} agregado a ${req.teamName}`);
   }, true);
 }
@@ -1401,7 +1448,7 @@ function rejectFichaje(reqId) {
   const s = S(), req = (s.fichajeRequests||[]).find(r => r.id === reqId); if (!req) return;
   showModal(`✕ Rechazar: ${req.playerName}?`, `El DT de ${req.teamName} será notificado.`, 'Rechazar', () => {
     req.status = 'rejected';
-    saveDB(); renderTWAdmin(); updateTWToggleUI();
+    saveDB(); renderTWAdmin(); updateTWToggleUI(); updateMaintenanceUI();
     toast(`✕ Solicitud de ${req.playerName} rechazada`);
   }, true);
 }
@@ -2042,6 +2089,7 @@ async function runScan() {
 }
 
 async function runCapScan() {
+  if (isMaintenanceMode()) { toast('🔧 Liga en mantenimiento — intentá más tarde', true); return; }
   const btn = $('capScanBtn'); btn.disabled = true;
   $('capScanRes').innerHTML = `<div class="card"><div class="ald"><div class="spin"></div>IA leyendo capturas...</div></div>`;
   try { const r = await callAI(capImgData); capScanResult = r; renderCapResult(r); }
@@ -2194,6 +2242,7 @@ function renderCapResult(r) {
 }
 
 async function submitCapResult() {
+  if (isMaintenanceMode()) { toast('🔧 Liga en mantenimiento — intentá más tarde', true); return; }
   if (!capScanResult || !capTeamCode) { toast('⚠️ Escaneá primero', true); return; }
   const matchSel = $('capMatchSel');
   if (matchSel && !matchSel.value) { toast('⚠️ Seleccioná el partido primero', true); return; }
@@ -2809,6 +2858,7 @@ function renderHistory() {
     const homeShield = m.homeDisplayName ? `<div style="width:20px;height:20px;border-radius:50%;background:var(--s3);border:1px solid var(--b);display:inline-flex;align-items:center;justify-content:center;font-size:.6rem;color:var(--tm);">${homeName[0]}</div>` : getShield(m.homeId, 'sm');
     const awayShield = m.awayDisplayName ? `<div style="width:20px;height:20px;border-radius:50%;background:var(--s3);border:1px solid var(--b);display:inline-flex;align-items:center;justify-content:center;font-size:.6rem;color:var(--tm);">${awayName[0]}</div>` : getShield(m.awayId, 'sm');
     const editBtn = mode === 'admin' ? `<button class="btn bg" onclick="editMatch('${m.id}')" style="font-size:.62rem;padding:2px 7px;margin-left:4px;">✏️</button>` : '';
+    const viewBtn = `<button class="btn bg" onclick="viewMatch('${m.id}')" style="font-size:.62rem;padding:2px 7px;margin-left:4px;background:rgba(59,130,246,.15);border-color:rgba(59,130,246,.3);color:#60a5fa;">📊 Detalle</button>`;
     return `<div class="me">
       <div class="mt home" style="color:${w === 'home' ? 'var(--g)' : ''};${!m.homeDisplayName?'cursor:pointer;':''}" ${!m.homeDisplayName?`onclick="viewTeamProfile('${m.homeId}')"`:''}>${homeShield} ${homeName}</div>
       <div style="font-family:'Bebas Neue';font-size:1.3rem;color:${w === 'home' ? 'var(--g)' : 'var(--tm)'};">${m.homeGoals}</div>
@@ -2816,7 +2866,7 @@ function renderHistory() {
       <div style="font-family:'Bebas Neue';font-size:1.3rem;color:${w === 'away' ? 'var(--g)' : 'var(--tm)'};">${m.awayGoals}</div>
       <div class="mt" style="color:${w === 'away' ? 'var(--g)' : ''};${!m.awayDisplayName?'cursor:pointer;':''}" ${!m.awayDisplayName?`onclick="viewTeamProfile('${m.awayId}')"`:''}>${awayName} ${awayShield}</div>
     </div>
-    <div style="font-size:.66rem;color:var(--tm);text-align:center;padding-bottom:5px;display:flex;align-items:center;justify-content:center;gap:4px;">${m.date} ${wb}${(m.homeDisplayName || m.awayDisplayName) ? '<span style="color:var(--or);font-size:.62rem;">📌 equipo reemplazado</span>' : ''}${editBtn}</div>`;
+    <div style="font-size:.66rem;color:var(--tm);text-align:center;padding-bottom:5px;display:flex;align-items:center;justify-content:center;gap:4px;">${m.date} ${wb}${(m.homeDisplayName || m.awayDisplayName) ? '<span style="color:var(--or);font-size:.62rem;">📌 equipo reemplazado</span>' : ''}${viewBtn}${editBtn}</div>`;
   }).join('');
 }
 
@@ -3681,13 +3731,13 @@ function renderSchedule() {
     const validFixes = validFixtures(round.fixtures);
     const rp = validFixes.filter(f => getMatchResult(f.home, f.away)).length, rt = validFixes.length;
     const st = rt > 0 && rp === rt ? 'done' : rp > 0 ? 'partial' : 'pending';
-    return `<div class="rc"><div class="rh" onclick="toggleRound(${ri})"><div class="rhl"><span class="rnum">Fecha ${round.round}</span><span class="rlbl">${rp}/${rt}</span></div><div style="display:flex;align-items:center;gap:5px;"><span class="rst ${st}">${st === 'done' ? 'Listo' : st === 'partial' ? 'En curso' : 'Pendiente'}</span><span id="chev-${ri}" style="color:var(--tm);transition:transform .2s;">▼</span></div></div><div class="rb2" id="rb-${ri}">${round.fixtures.map(fix => {
+    return `<div class="rc"><div class="rh" onclick="toggleRound(${ri})"><div class="rhl"><span class="rnum">Fecha ${round.round}</span><span class="rlbl">${rp}/${rt}</span></div><div style="display:flex;align-items:center;gap:5px;"><span class="rst ${st}">${st === 'done' ? 'Listo' : st === 'partial' ? 'En curso' : 'Pendiente'}</span><span id="chev-${ri}" style="color:var(--tm);transition:transform .2s;transform:rotate(-90deg);">▼</span></div></div><div class="rb2" id="rb-${ri}">${round.fixtures.map(fix => {
       if (isByeTeam(fix.home) || isByeTeam(fix.away)) {
         const freeTeam = isByeTeam(fix.home) ? fix.away : fix.home;
         return `<div class="fix" style="opacity:0.6;background:rgba(255,255,255,0.02);"><div class="fh" style="grid-column:1/-1;text-align:center;font-size:.8rem;color:var(--tm);">💤 ${tn(freeTeam)} queda Libre esta fecha</div></div>`;
       }
       const res = getMatchResult(fix.home, fix.away); const wh = res && res.homeGoals > res.awayGoals, wa = res && res.awayGoals > res.homeGoals;
-      return `<div class="fix"><div class="fh" style="color:${wh ? 'var(--g)' : ''};cursor:pointer;" onclick="viewTeamProfile('${fix.home}')">🏠 ${tn(fix.home)}</div>${res ? `<div class="fsc">${res.homeGoals}–${res.awayGoals}</div>` : `<div class="fsc pend">vs</div>`}<div class="fa" style="color:${wa ? 'var(--g)' : ''};cursor:pointer;" onclick="viewTeamProfile('${fix.away}')">${tn(fix.away)} ✈️</div><div>${!res && mode === 'admin' ? `<div style="display:flex;gap:3px;"><button class="ben" onclick="showH2H('${fix.home}','${fix.away}')" style="background:rgba(59,130,246,.2);border-color:rgba(59,130,246,.4);color:#60a5fa;" title="H2H">📊</button><button class="ben" onclick="viewPredictor('${fix.home}','${fix.away}')" style="background:rgba(255,165,0,.15);border-color:rgba(255,165,0,.3);color:orange;" title="Predictor">🔮</button><button class="ben" onclick="jumpToResult('${fix.home}','${fix.away}')">✏️</button><button class="ben" onclick="jumpToScan('${fix.home}','${fix.away}')" style="background:rgba(168,85,247,.2);border-color:rgba(168,85,247,.4);color:var(--pu);">🤖</button></div>` : `${res && mode === 'admin' ? `<button class="ben" onclick="editMatch('${res.id}')" style="font-size:.64rem;padding:2px 5px;">✏️</button>` : `<span style="color:${res ? 'var(--g)' : 'var(--tm)'}; font-size:.74rem;">${res ? '✓' : ''}</span>`}`}</div></div>`;
+      return `<div class="fix"><div class="fh" style="color:${wh ? 'var(--g)' : ''};cursor:pointer;" onclick="viewTeamProfile('${fix.home}')">🏠 ${tn(fix.home)}</div>${res ? `<div class="fsc">${res.homeGoals}–${res.awayGoals}</div>` : `<div class="fsc pend">vs</div>`}<div class="fa" style="color:${wa ? 'var(--g)' : ''};cursor:pointer;" onclick="viewTeamProfile('${fix.away}')">${tn(fix.away)} ✈️</div><div>${!res ? `<div style="display:flex;gap:3px;"><button class="ben" onclick="showH2H('${fix.home}','${fix.away}')" style="background:rgba(59,130,246,.2);border-color:rgba(59,130,246,.4);color:#60a5fa;" title="H2H">📊</button><button class="ben" onclick="viewPredictor('${fix.home}','${fix.away}')" style="background:rgba(255,165,0,.15);border-color:rgba(255,165,0,.3);color:orange;" title="Predictor">🔮</button>${mode === 'admin' ? `<button class="ben" onclick="jumpToResult('${fix.home}','${fix.away}')">✏️</button><button class="ben" onclick="jumpToScan('${fix.home}','${fix.away}')" style="background:rgba(168,85,247,.2);border-color:rgba(168,85,247,.4);color:var(--pu);">🤖</button>` : ''}</div>` : `${res ? `<div style="display:flex;gap:3px;"><button class="ben" onclick="viewMatch('${res.id}')" style="background:rgba(59,130,246,.15);border-color:rgba(59,130,246,.3);color:#60a5fa;" title="Ver detalle">📊</button>${mode === 'admin' ? `<button class="ben" onclick="editMatch('${res.id}')" style="font-size:.64rem;padding:2px 5px;">✏️</button>` : ''}</div>` : `<span style="color:var(--tm); font-size:.74rem;"></span>`}`}</div></div>`;
     }).join('')}</div></div>`;
   }).join('')}`;
 }
