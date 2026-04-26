@@ -1311,13 +1311,36 @@ function renderFichajesTab() {
     }
   }
 
-  // Show all teams players for transparency
+  // Show captain's own team players first with removal option
   const allEl = $('twAllPlayers');
   if (allEl) {
-    allEl.innerHTML = s.teams.filter(t => !t.replaced).map(t => {
+    let html = '';
+    if (myTeam) {
+      const myPlayers = s.players.filter(p => p.teamId === myTeam.id);
+      const pendingRemovals = (s.removalRequests||[]).filter(r => r.status === 'pending').map(r => r.playerId);
+      html += `<div style="margin-bottom:14px;border:2px solid rgba(0,255,135,.3);border-radius:8px;overflow:hidden;">
+        <div style="display:flex;align-items:center;gap:8px;padding:8px 10px;background:rgba(0,255,135,.08);font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:.86rem;color:var(--g);">
+          ${getShield(myTeam.id,'sm')} ${myTeam.name} (Tu equipo) <span style="font-weight:400;color:var(--tm);">(${myPlayers.length} jug.)</span>
+        </div>
+        <div style="padding:8px 10px;">
+          ${myPlayers.length ? myPlayers.map(p => {
+            const isPending = pendingRemovals.includes(p.id);
+            return `<div style="display:flex;align-items:center;justify-content:space-between;padding:5px 0;border-bottom:1px solid var(--b);font-size:.82rem;">
+              <span><span class="pb">${p.pos||'?'}</span> ${p.name}</span>
+              ${isPending
+                ? '<span style="font-size:.7rem;color:var(--gold);">⏳ Baja pendiente</span>'
+                : `<button class="btn bd" style="font-size:.66rem;padding:3px 8px;" onclick="requestRemoval('${p.id}')">👋 Pedir baja</button>`}
+            </div>`;
+          }).join('') : '<div style="color:var(--tm);font-size:.78rem;padding:6px 0;">Sin jugadores</div>'}
+        </div>
+      </div>`;
+    }
+    // Other teams (transparency view)
+    html += `<div class="ib" style="margin:10px 0 6px;">📋 Otros equipos en la liga:</div>`;
+    html += s.teams.filter(t => !t.replaced && t.id !== myTeam?.id).map(t => {
       const players = s.players.filter(p => p.teamId === t.id);
       return `<div style="margin-bottom:10px;border:1px solid var(--b);border-radius:8px;overflow:hidden;">
-        <div style="display:flex;align-items:center;gap:8px;padding:7px 10px;background:var(--s2);font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:.82rem;color:${myTeam?.id===t.id?'var(--g)':'var(--t)'};">
+        <div style="display:flex;align-items:center;gap:8px;padding:7px 10px;background:var(--s2);font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:.82rem;color:var(--t);">
           ${getShield(t.id,'sm')} ${t.name} <span style="font-weight:400;color:var(--tm);">(${players.length} jug.)</span>
         </div>
         <div style="padding:6px 10px;">
@@ -1325,7 +1348,51 @@ function renderFichajesTab() {
         </div>
       </div>`;
     }).join('');
+    allEl.innerHTML = html;
   }
+}
+
+function requestRemoval(playerId) {
+  if (isMaintenanceMode()) { toast('🔧 Liga en mantenimiento — intentá más tarde', true); return; }
+  const s = S(), p = s.players.find(pl => pl.id == playerId);
+  if (!p) return;
+  // Check if already pending
+  const exists = (s.removalRequests||[]).find(r => r.status === 'pending' && r.playerId == playerId);
+  if (exists) { toast('⚠️ Ya hay una solicitud pendiente para este jugador', true); return; }
+  showModal(`👋 Pedir baja: ${p.name}?`, 'Se enviará una solicitud al admin para eliminar este jugador del club.', 'Enviar solicitud', () => {
+    if (!s.removalRequests) s.removalRequests = [];
+    s.removalRequests.push({
+      id: Date.now().toString(),
+      playerId: p.id,
+      playerName: p.name,
+      teamId: p.teamId,
+      teamName: tn(p.teamId),
+      status: 'pending',
+      createdAt: new Date().toISOString()
+    });
+    saveDB();
+    renderFichajesTab();
+    toast(`✅ Solicitud de baja enviada para ${p.name}`);
+  }, false);
+}
+
+function approveRemoval(reqId) {
+  const s = S(), req = (s.removalRequests||[]).find(r => r.id === reqId); if (!req) return;
+  showModal(`👋 Aprobar baja: ${req.playerName}?`, `Se eliminará ${req.playerName} de ${req.teamName}. No se puede deshacer.`, 'Aprobar baja', () => {
+    req.status = 'approved';
+    s.players = s.players.filter(p => p.id != req.playerId);
+    saveDB(); render(); renderTWAdmin();
+    toast(`✅ ${req.playerName} eliminado de ${req.teamName}`);
+  }, true);
+}
+
+function rejectRemoval(reqId) {
+  const s = S(), req = (s.removalRequests||[]).find(r => r.id === reqId); if (!req) return;
+  showModal(`✕ Rechazar baja: ${req.playerName}?`, `${req.playerName} se mantiene en ${req.teamName}.`, 'Rechazar', () => {
+    req.status = 'rejected';
+    saveDB(); renderTWAdmin();
+    toast(`✕ Baja rechazada`);
+  }, true);
 }
 
 async function submitFichaje() {
@@ -1343,6 +1410,14 @@ async function submitFichaje() {
   // Check if already has a pending request with same name
   const pendingReq = (s.fichajeRequests||[]).find(r => r.status === 'pending' && strictMatch(r.playerName, name));
   if (pendingReq) { toast(`⚠️ Ya hay una solicitud pendiente para "${name}"`, true); return; }
+  // Check team max player limit (counting current players + pending approvals)
+  const maxP = s.maxPlayersPerTeam || 99;
+  const currentCount = s.players.filter(p => p.teamId === myTeam.id).length;
+  const pendingCount = (s.fichajeRequests||[]).filter(r => r.status === 'pending' && r.teamId === myTeam.id).length;
+  if (currentCount + pendingCount >= maxP) {
+    toast(`⚠️ ${myTeam.name} ya tiene ${currentCount + pendingCount}/${maxP} jugadores (incluyendo solicitudes pendientes). No se pueden enviar más.`, true);
+    return;
+  }
 
   try {
     const req = { id: Date.now().toString(), teamId: myTeam.id, teamName: myTeam.name, playerName: name, pos, status: 'pending', createdAt: new Date().toISOString() };
@@ -1358,12 +1433,36 @@ async function submitFichaje() {
 function renderTWAdmin() {
   const s = S(), el = $('twAdminContent'); if (!el) return;
   const requests = s.fichajeRequests || [];
-  if (!requests.length) { el.innerHTML = `<div class="card"><div class="es"><div class="ei">📋</div>No hay solicitudes.</div></div>`; return; }
+  const removals = s.removalRequests || [];
+  if (!requests.length && !removals.length) { el.innerHTML = `<div class="card"><div class="es"><div class="ei">📋</div>No hay solicitudes.</div></div>`; return; }
 
   const pending = requests.filter(r => r.status === 'pending');
   const resolved = requests.filter(r => r.status !== 'pending');
+  const pendingRemovals = removals.filter(r => r.status === 'pending');
 
   let h = '';
+
+  // Removal requests section (shown first since they affect existing data)
+  if (pendingRemovals.length) {
+    h += `<div class="card" style="border-color:rgba(255,71,87,.3);"><div class="ct" style="color:var(--red);">👋 Bajas Pendientes (${pendingRemovals.length})</div>`;
+    h += pendingRemovals.map(r => {
+      return `<div style="display:flex;align-items:center;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--b);flex-wrap:wrap;gap:6px;">
+        <div style="display:flex;align-items:center;gap:8px;">
+          ${getShield(r.teamId,'sm')}
+          <div>
+            <div style="font-weight:600;font-size:.88rem;">${r.playerName}</div>
+            <div style="font-size:.72rem;color:var(--tm);">${r.teamName} · ${new Date(r.createdAt).toLocaleDateString()}</div>
+          </div>
+        </div>
+        <div style="display:flex;gap:5px;">
+          <button class="btn bd" style="font-size:.72rem;padding:4px 8px;" onclick="approveRemoval('${r.id}')">👋 Aprobar baja</button>
+          <button class="btn bg" style="font-size:.72rem;padding:4px 8px;" onclick="rejectRemoval('${r.id}')">✕ Rechazar</button>
+        </div>
+      </div>`;
+    }).join('');
+    h += `</div>`;
+  }
+
   if (pending.length) {
     h += `<div class="card"><div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;"><div class="ct" style="margin:0;">📥 Solicitudes Pendientes (${pending.length})</div><button class="btn bp" style="font-size:.72rem;padding:4px 10px;" onclick="approveAllFichajes()">✅ Aceptar todos</button></div>`;
     h += pending.map(r => {
@@ -1455,10 +1554,40 @@ function rejectFichaje(reqId) {
 
 function uploadShield(e, teamId) {
   const f = e.target.files[0]; if (!f) return;
+  if (f.size > 15 * 1024 * 1024) { toast('⚠️ Imagen muy grande (max 15MB)', true); return; }
   const r = new FileReader();
   r.onload = ev => {
-    const t = S().teams.find(t => t.id == teamId);
-    if (t) { t.shield = ev.target.result; saveDB(); render(); toast('🖼️ Escudo guardado!'); }
+    // Compress shield: resize to 200x200, JPEG quality 85, transparent → white background
+    const img = new Image();
+    img.onload = () => {
+      try {
+        const size = 200;
+        const canvas = document.createElement('canvas');
+        canvas.width = size; canvas.height = size;
+        const ctx = canvas.getContext('2d');
+        // Fill white background (in case original is PNG with transparency)
+        ctx.fillStyle = '#ffffff';
+        ctx.fillRect(0, 0, size, size);
+        // Calculate scale to fit while keeping aspect
+        const scale = Math.min(size / img.width, size / img.height);
+        const w = img.width * scale, h = img.height * scale;
+        const dx = (size - w) / 2, dy = (size - h) / 2;
+        ctx.drawImage(img, dx, dy, w, h);
+        const compressed = canvas.toDataURL('image/jpeg', 0.85);
+        const t = S().teams.find(t => t.id == teamId);
+        if (t) {
+          t.shield = compressed;
+          saveDB(); render();
+          const origKB = Math.round(ev.target.result.length / 1024);
+          const newKB = Math.round(compressed.length / 1024);
+          toast(`🖼️ Escudo guardado! (${origKB}KB → ${newKB}KB)`);
+        }
+      } catch(err) {
+        toast('⚠️ Error procesando imagen: ' + err.message, true);
+      }
+    };
+    img.onerror = () => toast('⚠️ No se pudo leer la imagen', true);
+    img.src = ev.target.result;
   };
   r.readAsDataURL(f);
 }
@@ -1540,7 +1669,9 @@ function submitResult() {
     const playedEl = row.querySelector('.pplayed');
     const played = playedEl ? playedEl.checked : (goals > 0 || assists > 0 || rating > 0);
     if (played || goals || assists || rating) {
-      ps[pid] = { goals, assists, rating, played, cs: csEl ? csEl.checked : false };
+      // Get player's registered position as fallback (used by TOTW)
+      const p = S().players.find(pl => pl.id === pid);
+      ps[pid] = { goals, assists, rating, played, cs: csEl ? csEl.checked : false, pos: (p?.pos || '').toUpperCase() };
     }
   });
   _saveResult(homeId, awayId, hg, ag, ps, null);
@@ -2610,8 +2741,10 @@ async function approveSub(subId) {
           return spN === rpN || spN.includes(rpN) || rpN.includes(spN);
         });
         if (!p) return;
-        const isGK = ['GK','POR','PO'].includes((p.pos||'').toUpperCase());
-        ps[p.id] = { goals: rp.goals||0, assists: rp.assists||0, rating: rp.rating||0, played: true, cs: false, isGK };
+        const scannedPos = (rp.pos || '').toUpperCase();
+        const isGK = ['GK','POR','PO'].includes(scannedPos) || ['GK','POR','PO'].includes((p.pos||'').toUpperCase());
+        // Save scanned position (where they ACTUALLY played in this match) for TOTW
+        ps[p.id] = { goals: rp.goals||0, assists: rp.assists||0, rating: rp.rating||0, played: true, cs: false, isGK, pos: scannedPos || (p.pos || '').toUpperCase() };
       });
 
       // Check if match already exists BEFORE saving — if so, merge stats
@@ -2969,7 +3102,9 @@ function saveEditMatch(matchId) {
       const isGK = ['GK','POR','PO'].includes((p.pos||'').toUpperCase());
       const isHome = p.teamId == m.homeId;
       const autoCS = isGK && (isHome ? newAG === 0 : newHG === 0);
-      newPs[pid] = { goals, assists, rating, played, cs: autoCS };
+      // Preserve previously scanned pos if present, else use registered pos
+      const prevPos = m.playerStats?.[pid]?.pos;
+      newPs[pid] = { goals, assists, rating, played, cs: autoCS, pos: prevPos || (p.pos || '').toUpperCase() };
       p.goals += goals; p.assists += assists;
       if (rating > 0) p.rating.push(rating);
       if (played) p.matchesPlayed++;
@@ -3573,6 +3708,7 @@ function renderTOTW() {
   const roundOpts = rounds.map(r => `<option value="${r.round}">Fecha ${r.round}</option>`).join('');
 
   // Gather all player ratings from matches in selected rounds
+  // Use the position the player ACTUALLY played in each match (st.pos), not their registered pos
   const playersInRound = {};
   selectedRounds.forEach(round => {
     round.fixtures.forEach(fix => {
@@ -3583,21 +3719,36 @@ function renderTOTW() {
         if (!st.rating || st.rating <= 0) return;
         const p = s.players.find(pl => pl.id == pid);
         if (!p) return;
-        // Keep highest rating if player appears multiple times
+        // Position priority: position played in this match > registered position
+        const matchPos = (st.pos || p.pos || '').toUpperCase();
+        // Keep highest rating if player appears multiple times across the range
         if (!playersInRound[pid] || playersInRound[pid].rating < st.rating) {
-          playersInRound[pid] = { id: pid, name: p.name, teamId: p.teamId, pos: (p.pos||'').toUpperCase(), rating: st.rating, goals: st.goals||0, assists: st.assists||0 };
+          playersInRound[pid] = { id: pid, name: p.name, teamId: p.teamId, pos: matchPos, rating: st.rating, goals: st.goals||0, assists: st.assists||0 };
         }
       });
     });
   });
 
   const allPlayers = Object.values(playersInRound);
+  // Bilingual position normalization (Spanish + English EA FC acronyms)
   const norm = p => {
+    if (!p) return 'MID';
+    p = p.toUpperCase().trim();
+    // Goalkeeper: GK / POR / PO
     if (['GK','POR','PO'].includes(p)) return 'GK';
-    if (['DEF','DF','DFC','DI','DD','CB','LB','RB','LWB','RWB'].includes(p)) return 'DEF';
-    if (['MID','MCD','MC','MCO','MI','MD','CM','CDM','CAM','LM','RM'].includes(p)) return 'MID';
-    if (['FWD','DC','ED','EI','ST','CF','LW','RW'].includes(p)) return 'FWD';
-    return 'MID'; // unknown/? → mid as fallback
+    // Defenders
+    // ES: DFC (central), LI/LD (lateral), CAI/CAD (carrilero)
+    // EN: CB, LB/RB, LWB/RWB
+    if (['DEF','DF','DFC','LI','LD','CAI','CAD','CB','LB','RB','LWB','RWB','LCB','RCB'].includes(p)) return 'DEF';
+    // Midfielders
+    // ES: MCD, MC, MCO, MI/MD (interior)
+    // EN: CDM, CM, CAM, LM/RM
+    if (['MID','MCD','MC','MCO','MI','MD','CDM','CM','CAM','LM','RM','LCM','RCM'].includes(p)) return 'MID';
+    // Forwards
+    // ES: EI/ED (extremo), SDI/SDD (segundo delantero), DC, MP (media punta)
+    // EN: LW/RW, CF (segundo delantero), ST (delantero centro)
+    if (['FWD','EI','ED','SDI','SDD','DC','MP','LW','RW','CF','ST','LF','RF'].includes(p)) return 'FWD';
+    return 'MID'; // unknown → mid as fallback
   };
 
   const byPos = { GK: [], DEF: [], MID: [], FWD: [] };
@@ -4044,4 +4195,3 @@ init();
 </script>
 </body>
 </html>
-
