@@ -832,16 +832,32 @@ function closeModal() { $('modal').classList.remove('open'); }
 // ════════════════════════════════════════════════════════
 function setSdot(s) { const d = $('sdot'); if (d) d.className = 'sdot ' + (s === 'ok' ? 'ok' : s === 'err' ? 'err' : s === 'syncing' ? 'syncing' : ''); }
 
+let _syncPending = false; // true when local changes haven't been confirmed by Supabase yet
+
 async function syncToCloud() {
   if (isSyncing) { setTimeout(syncToCloud, 500); return; }
   isSyncing = true; setSdot('syncing');
   try {
     const { error } = await supa.from('liga_data').upsert({ id: DB_KEY, data: db, updated_at: new Date().toISOString() });
     if (error) throw error;
+    _syncPending = false; // sync confirmed
     setSdot('ok');
-  } catch (e) { setSdot('err'); console.error(e); }
+  } catch (e) {
+    setSdot('err');
+    console.error(e);
+    // Retry once after 2 seconds on failure
+    setTimeout(syncToCloud, 2000);
+  }
   isSyncing = false;
 }
+
+// Warn user if they try to close/refresh while sync is pending
+window.addEventListener('beforeunload', e => {
+  if (_syncPending) {
+    e.preventDefault();
+    e.returnValue = 'Hay cambios guardando... Esperá un momento antes de cerrar.';
+  }
+});
 
 async function loadFromCloud() {
   setSdot('syncing');
@@ -854,7 +870,11 @@ async function loadFromCloud() {
   } catch (e) { setSdot('err'); toast('⚠️ Sin conexión cloud. Offline.', true); }
 }
 
-function saveDB() { localStorage.setItem('ligacna_bk', JSON.stringify(db)); syncToCloud(); }
+function saveDB() {
+  localStorage.setItem('ligacna_bk', JSON.stringify(db));
+  _syncPending = true; // mark as pending until Supabase confirms
+  syncToCloud();
+}
 
 // ════════════════════════════════════════════════════════
 // AUTH
@@ -1356,42 +1376,64 @@ function requestRemoval(playerId) {
   if (isMaintenanceMode()) { toast('🔧 Liga en mantenimiento — intentá más tarde', true); return; }
   const s = S(), p = s.players.find(pl => pl.id == playerId);
   if (!p) return;
-  // Check if already pending
   const exists = (s.removalRequests||[]).find(r => r.status === 'pending' && r.playerId == playerId);
   if (exists) { toast('⚠️ Ya hay una solicitud pendiente para este jugador', true); return; }
-  showModal(`👋 Pedir baja: ${p.name}?`, 'Se enviará una solicitud al admin para eliminar este jugador del club.', 'Enviar solicitud', () => {
+  showModal(`👋 Pedir baja: ${p.name}?`, 'Se enviará una solicitud al admin para eliminar este jugador del club.', 'Enviar solicitud', async () => {
     if (!s.removalRequests) s.removalRequests = [];
-    s.removalRequests.push({
-      id: Date.now().toString(),
-      playerId: p.id,
-      playerName: p.name,
-      teamId: p.teamId,
-      teamName: tn(p.teamId),
-      status: 'pending',
-      createdAt: new Date().toISOString()
-    });
-    saveDB();
-    renderFichajesTab();
-    toast(`✅ Solicitud de baja enviada para ${p.name}`);
+    const req = { id: Date.now().toString(), playerId: p.id, playerName: p.name, teamId: p.teamId, teamName: tn(p.teamId), status: 'pending', createdAt: new Date().toISOString() };
+    s.removalRequests.push(req);
+    localStorage.setItem('ligacna_bk', JSON.stringify(db));
+    try {
+      const { error } = await supa.from('liga_data').upsert({ id: DB_KEY, data: db, updated_at: new Date().toISOString() });
+      if (error) throw error;
+      renderFichajesTab();
+      toast(`✅ Solicitud de baja enviada para ${p.name}`);
+    } catch(e) {
+      // Revert on failure
+      s.removalRequests = s.removalRequests.filter(r => r.id !== req.id);
+      localStorage.setItem('ligacna_bk', JSON.stringify(db));
+      toast('⚠️ Error al enviar. Revisá tu conexión e intentá de nuevo.', true);
+    }
   }, false);
 }
 
 function approveRemoval(reqId) {
   const s = S(), req = (s.removalRequests||[]).find(r => r.id === reqId); if (!req) return;
-  showModal(`👋 Aprobar baja: ${req.playerName}?`, `Se eliminará ${req.playerName} de ${req.teamName}. No se puede deshacer.`, 'Aprobar baja', () => {
+  showModal(`👋 Aprobar baja: ${req.playerName}?`, `Se eliminará ${req.playerName} de ${req.teamName}. No se puede deshacer.`, 'Aprobar baja', async () => {
     req.status = 'approved';
+    const removed = s.players.find(p => p.id == req.playerId);
     s.players = s.players.filter(p => p.id != req.playerId);
-    saveDB(); render(); renderTWAdmin();
-    toast(`✅ ${req.playerName} eliminado de ${req.teamName}`);
+    localStorage.setItem('ligacna_bk', JSON.stringify(db));
+    try {
+      const { error } = await supa.from('liga_data').upsert({ id: DB_KEY, data: db, updated_at: new Date().toISOString() });
+      if (error) throw error;
+      render(); renderTWAdmin();
+      toast(`✅ ${req.playerName} eliminado de ${req.teamName}`);
+    } catch(e) {
+      // Revert on failure
+      req.status = 'pending';
+      if (removed) s.players.push(removed);
+      localStorage.setItem('ligacna_bk', JSON.stringify(db));
+      toast('⚠️ Error al guardar. Revisá tu conexión e intentá de nuevo.', true);
+    }
   }, true);
 }
 
 function rejectRemoval(reqId) {
   const s = S(), req = (s.removalRequests||[]).find(r => r.id === reqId); if (!req) return;
-  showModal(`✕ Rechazar baja: ${req.playerName}?`, `${req.playerName} se mantiene en ${req.teamName}.`, 'Rechazar', () => {
+  showModal(`✕ Rechazar baja: ${req.playerName}?`, `${req.playerName} se mantiene en ${req.teamName}.`, 'Rechazar', async () => {
     req.status = 'rejected';
-    saveDB(); renderTWAdmin();
-    toast(`✕ Baja rechazada`);
+    localStorage.setItem('ligacna_bk', JSON.stringify(db));
+    try {
+      const { error } = await supa.from('liga_data').upsert({ id: DB_KEY, data: db, updated_at: new Date().toISOString() });
+      if (error) throw error;
+      renderTWAdmin();
+      toast('✕ Baja rechazada');
+    } catch(e) {
+      req.status = 'pending';
+      localStorage.setItem('ligacna_bk', JSON.stringify(db));
+      toast('⚠️ Error al guardar. Revisá tu conexión e intentá de nuevo.', true);
+    }
   }, true);
 }
 
@@ -1419,15 +1461,23 @@ async function submitFichaje() {
     return;
   }
 
+  const req = { id: Date.now().toString(), teamId: myTeam.id, teamName: myTeam.name, playerName: name, pos, status: 'pending', createdAt: new Date().toISOString() };
+  if (!s.fichajeRequests) s.fichajeRequests = [];
+  s.fichajeRequests.push(req);
+  localStorage.setItem('ligacna_bk', JSON.stringify(db));
+  // Await Supabase sync so mobile doesn't lose data on page refresh
   try {
-    const req = { id: Date.now().toString(), teamId: myTeam.id, teamName: myTeam.name, playerName: name, pos, status: 'pending', createdAt: new Date().toISOString() };
-    if (!s.fichajeRequests) s.fichajeRequests = [];
-    s.fichajeRequests.push(req);
-    saveDB();
-    $('twPlayerName').value = '';
+    const { error } = await supa.from('liga_data').upsert({ id: DB_KEY, data: db, updated_at: new Date().toISOString() });
+    if (error) throw error;
+    if ($('twPlayerName')) $('twPlayerName').value = '';
     toast(`✅ Solicitud enviada: ${name}`);
     updateTWToggleUI(); updateMaintenanceUI();
-  } catch(e) { toast('⚠️ Error: ' + e.message, true); }
+  } catch(e) {
+    // Revert on failure
+    s.fichajeRequests = s.fichajeRequests.filter(r => r.id !== req.id);
+    localStorage.setItem('ligacna_bk', JSON.stringify(db));
+    toast('⚠️ Error al enviar. Revisá tu conexión e intentá de nuevo.', true);
+  }
 }
 
 function renderTWAdmin() {
@@ -3448,36 +3498,86 @@ function viewPlayerProfile(playerId) {
       </div>
     </div>
 
-    <!-- Rating bar chart - last 5 matches -->
+    <!-- Rating bar chart + evolution line - last 5 matches -->
     ${(() => {
       const last5 = [...matchesPlayed].reverse().slice(0, 5);
       if (!last5.length) return '';
-      const bars = last5.map(m => {
+
+      // Bar chart data
+      const data = last5.map(m => {
         const st = m.playerStats[playerId] || {};
         const r = st.rating || 0;
         const isHome = m.homeId === p.teamId;
         const myG = isHome ? m.homeGoals : m.awayGoals;
         const thG = isHome ? m.awayGoals : m.homeGoals;
         const res = myG > thG ? 'V' : myG < thG ? 'D' : 'E';
-        const rc = res === 'V' ? '#00ff87' : res === 'D' ? '#ff4757' : '#ffd700';
-        const oppId = isHome ? m.awayId : m.homeId;
-        const oppName = tn(oppId);
-        const barH = r > 0 ? Math.round((r / 10) * 60) : 4;
-        const barColor = r >= 8 ? '#00ff87' : r >= 6.5 ? '#ffd700' : r > 0 ? '#ff4757' : 'var(--b)';
-        return `<div style="display:flex;flex-direction:column;align-items:center;gap:4px;flex:1;">
-          <div style="font-size:.7rem;color:var(--gold);font-weight:700;">${r > 0 ? r.toFixed(1) : '—'}</div>
-          <div style="width:100%;background:var(--s2);border-radius:4px;height:64px;display:flex;align-items:flex-end;overflow:hidden;">
-            <div style="width:100%;height:${barH}px;background:${barColor};border-radius:4px 4px 0 0;transition:height .3s;"></div>
+        return { r, res, goals: st.goals || 0, assists: st.assists || 0, opp: tn(isHome ? m.awayId : m.homeId) };
+      });
+
+      const bars = data.map(d => {
+        const rc = d.res === 'V' ? '#00ff87' : d.res === 'D' ? '#ff4757' : '#ffd700';
+        const barH = d.r > 0 ? Math.round((d.r / 10) * 60) : 4;
+        const barColor = d.r >= 8 ? '#00ff87' : d.r >= 6.5 ? '#ffd700' : d.r > 0 ? '#ff4757' : 'var(--b)';
+        return `<div style="display:flex;flex-direction:column;align-items:center;gap:4px;flex:1;min-width:0;">
+          <div style="font-size:.7rem;color:var(--gold);font-weight:700;">${d.r > 0 ? d.r.toFixed(1) : '—'}</div>
+          <div style="width:100%;background:var(--s2);border-radius:4px;height:60px;display:flex;align-items:flex-end;overflow:hidden;">
+            <div style="width:100%;height:${barH}px;background:${barColor};border-radius:4px 4px 0 0;"></div>
           </div>
-          <div style="font-size:.62rem;color:${rc};font-weight:700;">${res}</div>
-          <div style="font-size:.58rem;color:var(--tm);text-align:center;max-width:50px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${oppName}">${oppName}</div>
-          ${st.goals ? `<div style="font-size:.6rem;">⚽${st.goals}</div>` : ''}
+          <div style="font-size:.62rem;color:${rc};font-weight:700;">${d.res}</div>
+          <div style="font-size:.56rem;color:var(--tm);text-align:center;max-width:52px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${d.opp}">${d.opp}</div>
+          <div style="font-size:.56rem;color:var(--tm);">${d.goals?'⚽'+d.goals:''}${d.assists?' 🎯'+d.assists:''}</div>
         </div>`;
       }).join('');
+
+      // Line chart: ALL matches rating evolution (SVG)
+      const allWithRating = [...matchesPlayed].filter(m => (m.playerStats[playerId]?.rating || 0) > 0);
+      let lineChart = '';
+      if (allWithRating.length >= 2) {
+        const ratings = allWithRating.map(m => m.playerStats[playerId].rating);
+        const W = 100, H = 50, pad = 6;
+        const minR = Math.max(0, Math.min(...ratings) - 1);
+        const maxR = Math.min(10, Math.max(...ratings) + 0.5);
+        const toX = i => pad + (i / (ratings.length - 1)) * (W - pad * 2);
+        const toY = r => H - pad - ((r - minR) / (maxR - minR)) * (H - pad * 2);
+        const pts = ratings.map((r, i) => `${toX(i).toFixed(1)},${toY(r).toFixed(1)}`).join(' ');
+        const lastR = ratings[ratings.length - 1];
+        const avgR = (ratings.reduce((a, b) => a + b, 0) / ratings.length);
+        const trend = lastR > avgR ? '📈' : lastR < avgR ? '📉' : '➡️';
+        lineChart = `<div style="margin-top:12px;padding-top:10px;border-top:1px solid var(--b);">
+          <div style="font-size:.68rem;color:var(--tm);margin-bottom:4px;display:flex;justify-content:space-between;align-items:center;">
+            <span>📈 Evolución (${allWithRating.length} partidos)</span>
+            <span style="color:var(--gold);">${trend} Promedio: ${avgR.toFixed(1)}</span>
+          </div>
+          <svg viewBox="0 0 ${W} ${H}" style="width:100%;height:50px;overflow:visible;">
+            <!-- Grid lines -->
+            <line x1="${pad}" y1="${toY(Math.round(avgR * 2) / 2).toFixed(1)}" x2="${W - pad}" y2="${toY(Math.round(avgR * 2) / 2).toFixed(1)}" stroke="rgba(255,255,255,.06)" stroke-width="0.5" stroke-dasharray="2,2"/>
+            <!-- Area fill -->
+            <polygon points="${toX(0).toFixed(1)},${H - pad} ${pts} ${toX(ratings.length-1).toFixed(1)},${H - pad}" fill="url(#ratingGrad)" opacity="0.3"/>
+            <!-- Line -->
+            <polyline points="${pts}" fill="none" stroke="#00ff87" stroke-width="1.5" stroke-linejoin="round" stroke-linecap="round"/>
+            <!-- Dots -->
+            ${ratings.map((r, i) => `<circle cx="${toX(i).toFixed(1)}" cy="${toY(r).toFixed(1)}" r="2" fill="${r >= 8 ? '#00ff87' : r >= 6.5 ? '#ffd700' : '#ff4757'}" stroke="var(--s1)" stroke-width="1"/>`).join('')}
+            <!-- Last value label -->
+            <text x="${toX(ratings.length-1).toFixed(1)}" y="${(toY(lastR) - 4).toFixed(1)}" text-anchor="middle" fill="#00ff87" font-size="5" font-family="Barlow">${lastR.toFixed(1)}</text>
+            <defs>
+              <linearGradient id="ratingGrad" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stop-color="#00ff87" stop-opacity="0.4"/>
+                <stop offset="100%" stop-color="#00ff87" stop-opacity="0"/>
+              </linearGradient>
+            </defs>
+          </svg>
+          <!-- X axis labels -->
+          <div style="display:flex;justify-content:space-between;font-size:.52rem;color:var(--tm);margin-top:2px;padding:0 ${pad}px;">
+            <span>Jornada 1</span>
+            <span>Jornada ${allWithRating.length}</span>
+          </div>
+        </div>`;
+      }
+
       return `<div class="card">
         <div class="ct">📊 Últimos ${last5.length} Partidos</div>
-        <div style="display:flex;gap:8px;align-items:flex-end;padding:8px 0;">${bars}</div>
-        <div style="font-size:.64rem;color:var(--tm);text-align:center;margin-top:4px;">Nota por partido</div>
+        <div style="display:flex;gap:6px;align-items:flex-end;padding:8px 0;">${bars}</div>
+        ${lineChart}
       </div>`;
     })()}
 
