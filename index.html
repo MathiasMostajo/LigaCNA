@@ -2190,6 +2190,7 @@ RULES:
 - For each player in stats: check if their name fuzzy-matches any gamertag (same player may appear differently due to display names vs gamertags)
 - If a stats player has NO match in the gamertags → FIFA bot, IGNORE completely
 - If YES match → use the gamertag name, include their stats
+- CRITICAL: For "pos", read the EXACT abbreviation from the POS column in the stats screen (e.g. POR, DFC, LI, LD, CAI, CAD, MCD, MC, MCO, MI, MD, EI, ED, DC, MP, SDI, SDD or in English: GK, CB, LB, RB, LWB, RWB, CDM, CM, CAM, LM, RM, LW, RW, CF, ST). Do NOT default to "MID" — read the actual position shown on screen.
 
 REGISTERED PLAYERS in league: [${s.players.map(p => p.name).join(', ') || 'none'}]
 
@@ -2198,7 +2199,7 @@ Return this exact JSON:
   "score": {"home": "", "away": "", "homeGoals": 0, "awayGoals": 0},
   "homeIds": ["exact gamertag1", "exact gamertag2"],
   "awayIds": ["exact gamertag1", "exact gamertag2"],
-  "stats": [{"name": "exact gamertag name", "team": "home", "goals": 0, "assists": 0, "rating": 0, "pos": "MID"}]
+  "stats": [{"name": "exact gamertag name", "team": "home", "goals": 0, "assists": 0, "rating": 0, "pos": "exact position from POS column like DFC or MC or EI"}]
 }`;
 
   const content = [{ type: 'text', text: prompt }];
@@ -3855,13 +3856,42 @@ function renderTOTW() {
   allPlayers.forEach(p => { byPos[norm(p.pos)].push(p); });
   Object.keys(byPos).forEach(k => byPos[k].sort((a,b) => b.rating - a.rating));
 
-  // Pick 4-3-3: 1 GK, 4 DEF, 3 MID, 3 FWD
-  const xi = {
-    GK: byPos.GK.slice(0, 1),
-    DEF: byPos.DEF.slice(0, 4),
-    MID: byPos.MID.slice(0, 3),
-    FWD: byPos.FWD.slice(0, 3)
+  // Pick 4-3-3 with STRICT position enforcement
+  // Step 1: Fill each slot ONLY with players of the correct position
+  const slots = { GK: 1, DEF: 4, MID: 3, FWD: 3 };
+  const xi = { GK: [], DEF: [], MID: [], FWD: [] };
+  const used = new Set(); // prevent duplicates
+
+  // First pass: fill each position with its own players
+  Object.keys(slots).forEach(pos => {
+    const candidates = byPos[pos].filter(p => !used.has(p.id));
+    const take = candidates.slice(0, slots[pos]);
+    take.forEach(p => { xi[pos].push(p); used.add(p.id); });
+  });
+
+  // Second pass: if a position has empty slots, fill from adjacent positions
+  // DEF shortage → take from MID (defensive mids could cover)
+  // FWD shortage → take from MID (attacking mids could cover)
+  // MID shortage → take from DEF or FWD (whoever has higher rated spare)
+  const fillShortage = (pos, maxSlots, donors) => {
+    while (xi[pos].length < maxSlots) {
+      let best = null, bestDonor = null;
+      donors.forEach(d => {
+        const spare = byPos[d].filter(p => !used.has(p.id));
+        if (spare.length && (!best || spare[0].rating > best.rating)) {
+          best = spare[0]; bestDonor = d;
+        }
+      });
+      if (!best) break;
+      xi[pos].push({ ...best, originalPos: best.pos, pos: pos }); // mark as out-of-position
+      used.add(best.id);
+    }
   };
+
+  fillShortage('DEF', slots.DEF, ['MID']);
+  fillShortage('FWD', slots.FWD, ['MID']);
+  fillShortage('MID', slots.MID, ['DEF', 'FWD']);
+  fillShortage('GK', slots.GK, ['DEF']); // rare edge case
 
   const totalPicked = xi.GK.length + xi.DEF.length + xi.MID.length + xi.FWD.length;
   const selectorHtml = `<div style="display:flex;gap:8px;align-items:center;margin-bottom:12px;flex-wrap:wrap;justify-content:center;padding:10px;background:rgba(168,85,247,.05);border:1px solid rgba(168,85,247,.2);border-radius:8px;">
