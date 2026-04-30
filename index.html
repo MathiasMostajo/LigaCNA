@@ -1747,6 +1747,29 @@ function _saveResult(homeId, awayId, hg, ag, ps, flag) {
 // ════════════════════════════════════════════════════════
 // STANDINGS
 // ════════════════════════════════════════════════════════
+// Convert any position abbreviation (EN or ES) to Spanish display name
+function posToES(pos) {
+  if (!pos) return '?';
+  const p = pos.toUpperCase().trim();
+  const map = {
+    // Goalkeeper
+    'GK': 'POR', 'POR': 'POR', 'PO': 'POR',
+    // Defenders
+    'CB': 'DFC', 'DFC': 'DFC', 'LB': 'LI', 'LI': 'LI', 'RB': 'LD', 'LD': 'LD',
+    'LWB': 'CAI', 'CAI': 'CAI', 'RWB': 'CAD', 'CAD': 'CAD',
+    'LCB': 'DFC', 'RCB': 'DFC', 'DEF': 'DEF', 'DF': 'DEF',
+    // Midfielders
+    'CDM': 'MCD', 'MCD': 'MCD', 'CM': 'MC', 'MC': 'MC',
+    'CAM': 'MCO', 'MCO': 'MCO', 'LM': 'MI', 'MI': 'MI',
+    'RM': 'MD', 'MD': 'MD', 'LCM': 'MC', 'RCM': 'MC', 'MID': 'MC',
+    // Forwards
+    'LW': 'EI', 'EI': 'EI', 'RW': 'ED', 'ED': 'ED',
+    'ST': 'DC', 'DC': 'DC', 'CF': 'SD', 'SDI': 'SDI', 'SDD': 'SDD',
+    'MP': 'MP', 'LF': 'EI', 'RF': 'ED', 'FWD': 'DC',
+  };
+  return map[p] || p;
+}
+
 function isByeTeam(teamId) {
   if (teamId === '__WO__') return true;
   const t = S().teams.find(t => t.id == teamId);
@@ -2190,7 +2213,7 @@ RULES:
 - For each player in stats: check if their name fuzzy-matches any gamertag (same player may appear differently due to display names vs gamertags)
 - If a stats player has NO match in the gamertags → FIFA bot, IGNORE completely
 - If YES match → use the gamertag name, include their stats
-- CRITICAL: For "pos", read the EXACT abbreviation from the POS column in the stats screen (e.g. POR, DFC, LI, LD, CAI, CAD, MCD, MC, MCO, MI, MD, EI, ED, DC, MP, SDI, SDD or in English: GK, CB, LB, RB, LWB, RWB, CDM, CM, CAM, LM, RM, LW, RW, CF, ST). Do NOT default to "MID" — read the actual position shown on screen.
+- CRITICAL: For "pos", read the EXACT abbreviation from the POS column in the stats screen. The screen may show positions in Spanish or English. Read whichever is shown — common values: POR, DFC, LI, LD, CAI, CAD, MCD, MC, MCO, MI, MD, EI, ED, DC, MP, SDI, SDD (Spanish) or GK, CB, LB, RB, LWB, RWB, CDM, CM, CAM, LM, RM, LW, RW, CF, ST (English). Do NOT default to "MID" — read the actual position shown on screen.
 
 REGISTERED PLAYERS in league: [${s.players.map(p => p.name).join(', ') || 'none'}]
 
@@ -3199,15 +3222,24 @@ function viewMatch(matchId) {
   const awayPlayers = Object.entries(m.playerStats||{})
     .map(([pid,st]) => ({ pid, ...st, p: s.players.find(pl=>pl.id===pid) }))
     .filter(x => x.p && x.p.teamId === m.awayId);
-  const renderPList = (plist) => plist.sort((a,b)=>(b.rating||0)-(a.rating||0)).map(x =>
-    `<div style="display:flex;align-items:center;gap:6px;padding:5px 0;border-bottom:1px solid var(--b);font-size:.8rem;">
-      <span style="font-weight:600;cursor:pointer;color:var(--g);" onclick="viewPlayerProfile('${x.pid}')">${x.p.name}</span>
-      <span style="flex:1;"></span>
+  const renderPList = (plist) => plist.sort((a,b)=>(b.rating||0)-(a.rating||0)).map(x => {
+    const posDisplay = posToES(x.pos || x.p?.pos || '');
+    const posColor = (() => {
+      const zone = posDisplay;
+      if (zone === 'POR') return '#ff9500';
+      if (['DFC','LI','LD','CAI','CAD','DEF'].includes(zone)) return '#3b82f6';
+      if (['MCD','MC','MCO','MI','MD'].includes(zone)) return '#00ff87';
+      return '#ff4757'; // forwards
+    })();
+    return `<div style="display:flex;align-items:center;gap:6px;padding:5px 0;border-bottom:1px solid var(--b);font-size:.8rem;">
+      <span style="background:${posColor};color:#000;font-size:.58rem;font-weight:700;padding:2px 5px;border-radius:4px;min-width:28px;text-align:center;flex-shrink:0;">${posDisplay}</span>
+      <span style="font-weight:600;cursor:pointer;color:var(--g);flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" onclick="viewPlayerProfile('${x.pid}')">${x.p.name}</span>
       ${x.goals?`<span>⚽${x.goals}</span>`:''}
       ${x.assists?`<span>🎯${x.assists}</span>`:''}
       ${x.rating?`<span style="color:var(--gold);">⭐${x.rating}</span>`:''}
       ${x.cs?`<span>🧤</span>`:''}
-    </div>`).join('') || '<div style="color:var(--tm);font-size:.78rem;padding:6px 0;">Sin stats</div>';
+    </div>`;
+  }).join('') || '<div style="color:var(--tm);font-size:.78rem;padding:6px 0;">Sin stats</div>';
   el.innerHTML = `
     <div style="display:flex;align-items:center;gap:10px;margin-bottom:16px;">
       <button class="btn bg" onclick="goTab(document._prevTab||'standings')" style="font-size:.76rem;padding:5px 10px;">← Volver</button>
