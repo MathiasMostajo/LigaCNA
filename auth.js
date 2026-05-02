@@ -47,7 +47,16 @@ async function signOut() {
 // ─── Data Loaders ────────────────────────────────────────────
 async function loadProfile(userId) {
   const { data, error } = await supa.from('profiles').select('*').eq('id', userId).maybeSingle();
-  if (error) throw error;
+  if (error) { console.warn('Profile load error (may not exist yet):', error.message); }
+  // Auto-create profile if missing (user created before trigger existed)
+  if (!data) {
+    const email = state.user?.email || '';
+    const { data: created, error: createErr } = await supa.from('profiles')
+      .upsert({ id: userId, email, display_name: email.split('@')[0] }, { onConflict: 'id' })
+      .select().maybeSingle();
+    if (createErr) console.warn('Profile auto-create failed:', createErr.message);
+    return created || { id: userId, email, role: 'user', plan_type: 'amateur', ai_trial_scans: 3 };
+  }
   return data;
 }
 
@@ -94,10 +103,13 @@ async function handleSession(session) {
   if (session?.user) {
     state.user = session.user;
     try {
-      const [profile, leagues] = await Promise.all([loadProfile(session.user.id), loadMyLeagues(session.user.id)]);
-      state.profile = profile;
-      state.leagues = leagues;
-      state.isSuperadmin = profile?.role === 'superadmin';
+      // Load profile and leagues — if either fails, still proceed with defaults
+      let profile = null, leagues = [];
+      try { profile = await loadProfile(session.user.id); } catch(e) { console.warn('Profile load failed, using defaults:', e); }
+      try { leagues = await loadMyLeagues(session.user.id); } catch(e) { console.warn('Leagues load failed:', e); leagues = []; }
+      state.profile = profile || { id: session.user.id, role: 'user', plan_type: 'amateur', ai_trial_scans: 3 };
+      state.leagues = leagues || [];
+      state.isSuperadmin = state.profile?.role === 'superadmin';
       state.loading = false;
       emit('auth:ready', state);
     } catch(e) {
