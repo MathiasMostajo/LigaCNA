@@ -101,7 +101,6 @@ function initOnboardingUI() {
 // Scanner state
 let scanImages = { score: null, players: null, stats: null };
 let scanResult = null;
-let apiKey = '';
 
 function initDashboard() {
   if (_dashBound) return;
@@ -148,9 +147,7 @@ function initDashboard() {
   // ─── Scanner UI ────────────────────────────────────────────
   initScannerUI();
 
-  // ─── Load API key from league settings ─────────────────────
-  apiKey = state.league.settings?.apiKey || localStorage.getItem('lcna_api_key') || '';
-  if ($('api-key-input')) $('api-key-input').value = apiKey ? '••••••••' : '';
+  // apiKey no longer needed — handled by Edge Function
 
   // ─── Load pending submissions ──────────────────────────────
   loadSubmissions();
@@ -166,16 +163,13 @@ function initScannerUI() {
       <h2 class="font-display text-3xl tracking-wide text-white">ESCÁNER IA</h2>
     </div>
 
-    <!-- API Key -->
-    <div class="bg-pitch-800/60 border border-white/5 rounded-2xl p-5 mb-4">
-      <div class="flex items-center gap-3 mb-3">
-        <span>🔑</span>
-        <span class="text-sm font-semibold text-gray-400 uppercase tracking-wider">Claude API Key</span>
+    <!-- Plan badge -->
+    <div id="plan-badge" class="bg-pitch-800/60 border border-white/5 rounded-2xl p-4 mb-4 flex items-center justify-between">
+      <div>
+        <p class="text-xs text-gray-500 uppercase tracking-wider font-semibold mb-1">Tu Plan</p>
+        <p id="plan-name" class="font-display text-xl text-white"></p>
       </div>
-      <div class="flex gap-2">
-        <input id="api-key-input" type="password" placeholder="sk-ant-..." class="flex-1 bg-pitch-900/60 border border-white/10 rounded-xl px-4 py-2.5 text-white text-sm outline-none focus:border-lime-400/40">
-        <button id="btn-save-key" class="bg-lime-400/10 text-lime-400 border border-lime-400/20 px-4 py-2 rounded-xl text-sm font-semibold hover:bg-lime-400/20 transition-all">Guardar</button>
-      </div>
+      <div id="scans-remaining" class="text-right"></div>
     </div>
 
     <!-- Upload zones -->
@@ -221,15 +215,22 @@ function initScannerUI() {
 
   // ─── Event Listeners ───────────────────────────────────────
 
-  // Save API Key
-  $('btn-save-key').onclick = () => {
-    const val = $('api-key-input').value.trim();
-    if (!val || val === '••••••••') return;
-    apiKey = val;
-    localStorage.setItem('lcna_api_key', val);
-    $('api-key-input').value = '••••••••';
-    toast('🔑 API Key guardada');
-  };
+  // Render plan info
+  const planEl = $('plan-name');
+  const scansEl = $('scans-remaining');
+  if (planEl) {
+    const p = state.league?.plan_type || 'amateur';
+    const colors = { superadmin: 'text-yellow-400', elite: 'text-purple-400', pro: 'text-lime-400', amateur: 'text-gray-400' };
+    planEl.innerHTML = `<span class="${colors[p] || 'text-gray-400'}">${p.toUpperCase()}</span>`;
+  }
+  if (scansEl) {
+    if (state.isSuperadmin || ['pro','elite'].includes(state.league?.plan_type)) {
+      scansEl.innerHTML = `<span class="text-lime-400 text-sm font-semibold">∞ Ilimitado</span>`;
+    } else {
+      const remaining = state.profile?.ai_trial_scans ?? 3;
+      scansEl.innerHTML = `<span class="font-display text-2xl ${remaining > 0 ? 'text-white' : 'text-red-400'}">${remaining}</span><span class="text-xs text-gray-500 block">scans restantes</span>`;
+    }
+  }
 
   // Image upload handlers
   document.querySelectorAll('[data-scan-type]').forEach(input => {
@@ -259,7 +260,7 @@ function updateScanBtn() {
   const btn = $('btn-scan');
   if (!btn) return;
   const hasImages = scanImages.score || scanImages.players || scanImages.stats;
-  btn.disabled = !hasImages || !apiKey;
+  btn.disabled = !hasImages;
 }
 
 // ═══════════════════════════════════════════════════════════════
@@ -278,8 +279,14 @@ async function runScan() {
     const images = [scanImages.score, scanImages.players, scanImages.stats].filter(Boolean);
     if (!images.length) { toast('⚠️ Subí al menos una imagen', true); return; }
 
-    // Call AI
-    const raw = await callAI(images, players || [], apiKey);
+    // Check plan limits before calling AI
+    if (!state.isSuperadmin && state.profile?.ai_trial_scans <= 0 && !['pro','elite'].includes(state.league?.plan_type)) {
+      toast('⚠️ Agotaste los 3 escaneos del plan Amateur. Actualizá a Pro.', true);
+      return;
+    }
+
+    // Call AI via Edge Function (no apiKey needed — handled server-side)
+    const raw = await callAI(images, players || []);
     scanResult = processResult(raw, players || []);
 
     // Render results
