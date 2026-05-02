@@ -12,7 +12,7 @@ function getSupabase() {
 let supa;
 try { supa = getSupabase(); } catch(e) { console.error(e); }
 
-const state = { user: null, league: null, loading: true };
+const state = { user: null, league: null, profile: null, isSuperadmin: false, loading: true };
 
 const listeners = {};
 function on(event, fn) { (listeners[event] ||= []).push(fn); }
@@ -47,6 +47,16 @@ async function resolveLeague(userId) {
     .from('leagues')
     .select('*')
     .eq('admin_id', userId)
+    .maybeSingle();
+  if (error) throw error;
+  return data;
+}
+
+async function resolveProfile(userId) {
+  const { data, error } = await supa
+    .from('profiles')
+    .select('role, plan_type, ai_trial_scans')
+    .eq('id', userId)
     .maybeSingle();
   if (error) throw error;
   return data;
@@ -116,4 +126,4 @@ function initAuth() {
   });
 }
 
-export { supa, state, on, emit, signUp, signIn, signOut, createLeague, initAuth };
+export { supa, state, on, emit, signUp, signIn, signOut, createLeague, initAuth, resolveProfile };
