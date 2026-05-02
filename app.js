@@ -166,7 +166,7 @@ function initLoginUI() {
       if (isRegister) { await signUp(email, password); showError('✅ Revisá tu email para confirmar', false); }
       else { await signIn(email, password); }
     } catch(e) { showError(e.message); }
-    submitBtn.disabled = false; submitBtn.textContent = orig;
+    finally { submitBtn.disabled = false; submitBtn.textContent = orig; }
   };
 
   $('auth-password').onkeydown = e => { if (e.key === 'Enter') submitBtn.click(); };
