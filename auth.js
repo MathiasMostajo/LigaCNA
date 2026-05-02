@@ -1,129 +1,129 @@
 // ═══════════════════════════════════════════════════════════════
-// auth.js — Supabase Auth + League State (Bug fixes applied)
+// auth.js v5 — Auth + Profile + League resolution
 // ═══════════════════════════════════════════════════════════════
 const SB_URL = 'https://wrgexwyjivfxijivdbqa.supabase.co';
 const SB_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6IndyZ2V4d3lqaXZmeGlqaXZkYnFhIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzM1NDI2NTgsImV4cCI6MjA4OTExODY1OH0.KGBX0-PQGiwrAHrWrZ1TS_rbHtDbQwNA0F2NRhlT830';
-
+ 
 function getSupabase() {
   if (window.supabase?.createClient) return window.supabase.createClient(SB_URL, SB_KEY);
   throw new Error('Supabase SDK not loaded');
 }
-
+ 
 let supa;
 try { supa = getSupabase(); } catch(e) { console.error(e); }
-
-const state = { user: null, league: null, profile: null, isSuperadmin: false, loading: true };
-
+ 
+const state = {
+  user: null,
+  profile: null,
+  leagues: [],        // all leagues owned by user
+  activeLeague: null,  // currently selected league
+  isSuperadmin: false,
+  loading: true,
+};
+ 
 const listeners = {};
 function on(event, fn) { (listeners[event] ||= []).push(fn); }
 function emit(event, data) { (listeners[event] || []).forEach(fn => fn(data)); }
-
+ 
+// ─── Auth Actions ────────────────────────────────────────────
 async function signUp(email, password) {
   const { data, error } = await supa.auth.signUp({ email, password });
   if (error) throw error;
   return data;
 }
-
+ 
 async function signIn(email, password) {
   const { data, error } = await supa.auth.signInWithPassword({ email, password });
   if (error) throw error;
   return data;
 }
-
+ 
 async function signOut() {
-  try {
-    await supa.auth.signOut();
-  } catch (e) {
-    console.error('SignOut error (forcing local cleanup):', e);
-  }
-  // Always clean up local state even if Supabase call fails
-  state.user = null;
-  state.league = null;
+  try { await supa.auth.signOut(); } catch(e) { console.error(e); }
+  state.user = null; state.profile = null; state.leagues = []; state.activeLeague = null; state.isSuperadmin = false;
   emit('auth:logout');
 }
-
-async function resolveLeague(userId) {
-  const { data, error } = await supa
-    .from('leagues')
-    .select('*')
-    .eq('admin_id', userId)
-    .maybeSingle();
+ 
+// ─── Data Loaders ────────────────────────────────────────────
+async function loadProfile(userId) {
+  const { data, error } = await supa.from('profiles').select('*').eq('id', userId).maybeSingle();
   if (error) throw error;
   return data;
 }
-
-async function resolveProfile(userId) {
-  const { data, error } = await supa
-    .from('profiles')
-    .select('role, plan_type, ai_trial_scans')
-    .eq('id', userId)
-    .maybeSingle();
+ 
+async function loadMyLeagues(userId) {
+  const { data, error } = await supa.from('leagues').select('*').eq('admin_id', userId).order('created_at', { ascending: false });
   if (error) throw error;
-  return data;
+  return data || [];
 }
-
+ 
 async function createLeague(name, maxPlayers) {
-  const { data, error } = await supa
-    .from('leagues')
-    .insert({ admin_id: state.user.id, name, max_players_per_team: maxPlayers })
-    .select()
-    .single();
+  const planLimits = { amateur: 10, pro: 16, elite: 999, superadmin: 999 };
+  const plan = state.profile?.plan_type || 'amateur';
+  const maxTeams = planLimits[plan] || 10;
+ 
+  const { data, error } = await supa.from('leagues')
+    .insert({ admin_id: state.user.id, name, max_teams: maxTeams, max_players_per_team: maxPlayers, plan_type: plan })
+    .select().single();
   if (error) throw error;
-  state.league = data;
-  emit('auth:ready', state);
+  state.leagues.push(data);
   return data;
 }
-
-// ─── Shared session handler (used by both getSession and onAuthStateChange) ──
+ 
+function setActiveLeague(league) {
+  state.activeLeague = league;
+  emit('league:selected', state);
+}
+ 
+// ─── Public League Search ────────────────────────────────────
+async function searchPublicLeagues(query) {
+  const { data, error } = await supa.from('leagues').select('id, name, slug, max_teams, created_at')
+    .eq('is_public', true).ilike('name', `%${query}%`).limit(20);
+  if (error) throw error;
+  return data || [];
+}
+ 
+async function loadPublicLeague(slug) {
+  const { data, error } = await supa.from('leagues').select('*').eq('slug', slug).eq('is_public', true).maybeSingle();
+  if (error) throw error;
+  return data;
+}
+ 
+// ─── Session Handler ─────────────────────────────────────────
 async function handleSession(session) {
   if (session?.user) {
     state.user = session.user;
     try {
-      state.league = await resolveLeague(session.user.id);
+      const [profile, leagues] = await Promise.all([loadProfile(session.user.id), loadMyLeagues(session.user.id)]);
+      state.profile = profile;
+      state.leagues = leagues;
+      state.isSuperadmin = profile?.role === 'superadmin';
       state.loading = false;
-      emit(state.league ? 'auth:ready' : 'auth:needs-onboarding', state);
-    } catch (e) {
-      console.error('resolveLeague failed:', e);
+      emit('auth:ready', state);
+    } catch(e) {
+      console.error('Session load failed:', e);
       state.loading = false;
-      // Don't block — show login so user can retry
       emit('auth:error', e);
     }
   } else {
-    state.user = null;
-    state.league = null;
+    state.user = null; state.profile = null; state.leagues = []; state.activeLeague = null;
     state.loading = false;
     emit('auth:logout');
   }
 }
-
+ 
 function initAuth() {
-  if (!supa) {
-    try { supa = getSupabase(); } catch(e) {
-      setTimeout(initAuth, 500);
-      return;
-    }
-  }
-
-  // BUG FIX 2: Added .catch() so loading screen never hangs
+  if (!supa) { try { supa = getSupabase(); } catch(e) { setTimeout(initAuth, 500); return; } }
+ 
   supa.auth.getSession()
     .then(({ data: { session } }) => handleSession(session))
-    .catch(e => {
-      console.error('getSession failed:', e);
-      state.loading = false;
-      emit('auth:logout'); // Fallback to login screen instead of hanging
-    });
-
+    .catch(e => { console.error(e); state.loading = false; emit('auth:logout'); });
+ 
   supa.auth.onAuthStateChange(async (event, session) => {
     if (event === 'INITIAL_SESSION') return;
-    if (event === 'SIGNED_IN') {
-      await handleSession(session);
-    } else if (event === 'SIGNED_OUT') {
-      state.user = null;
-      state.league = null;
-      state.loading = false;
-      emit('auth:logout');
-    }
+    if (event === 'SIGNED_IN') await handleSession(session);
+    else if (event === 'SIGNED_OUT') { state.user = null; state.loading = false; emit('auth:logout'); }
   });
 }
-
-export { supa, state, on, emit, signUp, signIn, signOut, createLeague, initAuth, resolveProfile };
+ 
+export { supa, state, on, emit, signUp, signIn, signOut, createLeague, setActiveLeague, searchPublicLeagues, loadPublicLeague, loadMyLeagues, initAuth };
