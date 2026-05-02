@@ -128,7 +128,17 @@ function initDashboard() {
   });
 
   // Logout
-  $('btn-logout').onclick = () => { _dashBound = false; _loginBound = false; signOut(); };
+  // BUG FIX 1: Robust logout binding with error handling
+  const logoutBtn = $('btn-logout');
+  if (logoutBtn) {
+    logoutBtn.onclick = async () => {
+      _dashBound = false;
+      _loginBound = false;
+      try { await signOut(); } catch(e) { console.error('Logout error:', e); window.location.reload(); }
+    };
+  } else {
+    console.warn('btn-logout not found in DOM');
+  }
 
   // Mobile sidebar
   const sidebar = $('sidebar'), overlay = $('sidebar-overlay');
@@ -531,3 +541,14 @@ on('auth:error', (e) => { console.error(e); showScreen('auth'); _loginBound = fa
 
 // ─── Boot ────────────────────────────────────────────────────
 initAuth();
+
+// Safety: if loading screen is still visible after 10s, force show login
+setTimeout(() => {
+  if (state.loading) {
+    console.warn('Loading timeout — forcing login screen');
+    state.loading = false;
+    showScreen('auth');
+    _loginBound = false;
+    initLoginUI();
+  }
+}, 10000);
