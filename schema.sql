@@ -1,22 +1,51 @@
 -- ═══════════════════════════════════════════════════════════════
--- schema.sql — Multi-liga completo. Ejecutar en Supabase SQL Editor.
+-- schema.sql v4 — Multi-liga + Subscription Tiers + Superadmin
+-- Ejecutar completo en Supabase SQL Editor
 -- ═══════════════════════════════════════════════════════════════
 
--- ─── 1. LEAGUES (ya creada, upsert seguro) ───────────────────
+-- ─── 1. PROFILES (vinculado a auth.users) ───────────────────
+CREATE TABLE IF NOT EXISTS public.profiles (
+  id UUID PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
+  email TEXT,
+  role TEXT DEFAULT 'user' CHECK (role IN ('user', 'superadmin')),
+  plan_type TEXT DEFAULT 'amateur' CHECK (plan_type IN ('amateur', 'pro', 'elite', 'superadmin')),
+  ai_trial_scans INTEGER DEFAULT 3,  -- Amateur gets 3 free scans, counts down
+  plan_activated_at TIMESTAMPTZ,
+  plan_expires_at TIMESTAMPTZ,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Auto-create profile on signup
+CREATE OR REPLACE FUNCTION public.handle_new_user()
+RETURNS TRIGGER AS $$
+BEGIN
+  INSERT INTO public.profiles (id, email)
+  VALUES (NEW.id, NEW.email)
+  ON CONFLICT (id) DO NOTHING;
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+DROP TRIGGER IF EXISTS on_auth_user_created ON auth.users;
+CREATE TRIGGER on_auth_user_created
+  AFTER INSERT ON auth.users
+  FOR EACH ROW EXECUTE FUNCTION public.handle_new_user();
+
+-- ─── 2. LEAGUES ──────────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS public.leagues (
   id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
   admin_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
   name TEXT NOT NULL,
+  plan_type TEXT DEFAULT 'amateur' CHECK (plan_type IN ('amateur', 'pro', 'elite', 'superadmin')),
+  max_teams INTEGER DEFAULT 10,
   max_players_per_team INTEGER DEFAULT 11,
-  max_teams INTEGER DEFAULT 14,
-  prize_pool NUMERIC DEFAULT 0,
+  trial_ends_at TIMESTAMPTZ DEFAULT (NOW() + INTERVAL '7 days'),
   settings JSONB DEFAULT '{}',
   created_at TIMESTAMPTZ DEFAULT NOW(),
   updated_at TIMESTAMPTZ DEFAULT NOW()
 );
-CREATE INDEX IF NOT EXISTS idx_leagues_admin ON public.leagues(admin_id);
 
--- ─── 2. TEAMS ────────────────────────────────────────────────
+-- ─── 3. TEAMS ────────────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS public.teams (
   id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
   league_id UUID NOT NULL REFERENCES public.leagues(id) ON DELETE CASCADE,
@@ -28,9 +57,8 @@ CREATE TABLE IF NOT EXISTS public.teams (
   paid BOOLEAN DEFAULT FALSE,
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
-CREATE INDEX IF NOT EXISTS idx_teams_league ON public.teams(league_id);
 
--- ─── 3. PLAYERS ──────────────────────────────────────────────
+-- ─── 4. PLAYERS ──────────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS public.players (
   id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
   league_id UUID NOT NULL REFERENCES public.leagues(id) ON DELETE CASCADE,
@@ -44,10 +72,8 @@ CREATE TABLE IF NOT EXISTS public.players (
   ratings NUMERIC[] DEFAULT '{}',
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
-CREATE INDEX IF NOT EXISTS idx_players_league ON public.players(league_id);
-CREATE INDEX IF NOT EXISTS idx_players_team ON public.players(team_id);
 
--- ─── 4. MATCHES ──────────────────────────────────────────────
+-- ─── 5. MATCHES ──────────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS public.matches (
   id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
   league_id UUID NOT NULL REFERENCES public.leagues(id) ON DELETE CASCADE,
@@ -58,34 +84,23 @@ CREATE TABLE IF NOT EXISTS public.matches (
   round INTEGER,
   date TEXT,
   player_stats JSONB DEFAULT '{}',
-  flag TEXT,
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
-CREATE INDEX IF NOT EXISTS idx_matches_league ON public.matches(league_id);
 
--- ─── 5. SUBMISSIONS (con status + retención 24h) ────────────
+-- ─── 6. SUBMISSIONS ──────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS public.submissions (
   id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
   league_id UUID NOT NULL REFERENCES public.leagues(id) ON DELETE CASCADE,
   team_code TEXT,
   team_name TEXT,
   scan_result JSONB NOT NULL,
-  images JSONB DEFAULT '[]',
   status TEXT DEFAULT 'pending' CHECK (status IN ('pending', 'approved', 'rejected')),
   reviewed_at TIMESTAMPTZ,
   reviewed_by UUID REFERENCES auth.users(id),
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
-CREATE INDEX IF NOT EXISTS idx_submissions_league ON public.submissions(league_id);
-CREATE INDEX IF NOT EXISTS idx_submissions_status ON public.submissions(status);
 
--- Cleanup: auto-delete rejected/approved submissions older than 24h
--- Run via Supabase CRON or pg_cron:
--- SELECT cron.schedule('cleanup-submissions', '0 * * * *',
---   $$DELETE FROM public.submissions WHERE status != 'pending' AND reviewed_at < NOW() - INTERVAL '24 hours'$$
--- );
-
--- ─── 6. FICHAJE REQUESTS ────────────────────────────────────
+-- ─── 7. FICHAJE REQUESTS ─────────────────────────────────────
 CREATE TABLE IF NOT EXISTS public.fichaje_requests (
   id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
   league_id UUID NOT NULL REFERENCES public.leagues(id) ON DELETE CASCADE,
@@ -96,9 +111,8 @@ CREATE TABLE IF NOT EXISTS public.fichaje_requests (
   status TEXT DEFAULT 'pending' CHECK (status IN ('pending', 'approved', 'rejected')),
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
-CREATE INDEX IF NOT EXISTS idx_fichajes_league ON public.fichaje_requests(league_id);
 
--- ─── 7. REMOVAL REQUESTS ────────────────────────────────────
+-- ─── 8. REMOVAL REQUESTS ─────────────────────────────────────
 CREATE TABLE IF NOT EXISTS public.removal_requests (
   id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
   league_id UUID NOT NULL REFERENCES public.leagues(id) ON DELETE CASCADE,
@@ -111,16 +125,9 @@ CREATE TABLE IF NOT EXISTS public.removal_requests (
 );
 
 -- ═══════════════════════════════════════════════════════════════
--- RLS POLICIES — cada admin solo ve datos de su liga
+-- RLS POLICIES
 -- ═══════════════════════════════════════════════════════════════
-
--- Helper: get current user's league_id
-CREATE OR REPLACE FUNCTION public.user_league_id()
-RETURNS UUID AS $$
-  SELECT id FROM public.leagues WHERE admin_id = auth.uid() LIMIT 1;
-$$ LANGUAGE sql STABLE SECURITY DEFINER;
-
--- Enable RLS on all tables
+ALTER TABLE public.profiles ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.leagues ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.teams ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.players ENABLE ROW LEVEL SECURITY;
@@ -129,7 +136,25 @@ ALTER TABLE public.submissions ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.fichaje_requests ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.removal_requests ENABLE ROW LEVEL SECURITY;
 
--- Leagues: admin CRUD on own leagues
+-- Profiles: each user sees only their own
+DROP POLICY IF EXISTS "profiles_select" ON public.profiles;
+CREATE POLICY "profiles_select" ON public.profiles FOR SELECT USING (id = auth.uid());
+DROP POLICY IF EXISTS "profiles_update" ON public.profiles;
+CREATE POLICY "profiles_update" ON public.profiles FOR UPDATE USING (id = auth.uid());
+
+-- Helper: get current user's league_id
+CREATE OR REPLACE FUNCTION public.user_league_id()
+RETURNS UUID AS $$
+  SELECT id FROM public.leagues WHERE admin_id = auth.uid() LIMIT 1;
+$$ LANGUAGE sql STABLE SECURITY DEFINER;
+
+-- Helper: check if current user is superadmin (SERVER-SIDE, cannot be faked)
+CREATE OR REPLACE FUNCTION public.is_superadmin()
+RETURNS BOOLEAN AS $$
+  SELECT COALESCE(role = 'superadmin', false) FROM public.profiles WHERE id = auth.uid();
+$$ LANGUAGE sql STABLE SECURITY DEFINER;
+
+-- Leagues
 DROP POLICY IF EXISTS "leagues_select" ON public.leagues;
 CREATE POLICY "leagues_select" ON public.leagues FOR SELECT USING (admin_id = auth.uid());
 DROP POLICY IF EXISTS "leagues_insert" ON public.leagues;
@@ -139,26 +164,67 @@ CREATE POLICY "leagues_update" ON public.leagues FOR UPDATE USING (admin_id = au
 DROP POLICY IF EXISTS "leagues_delete" ON public.leagues;
 CREATE POLICY "leagues_delete" ON public.leagues FOR DELETE USING (admin_id = auth.uid());
 
--- Teams: scoped to league
-DROP POLICY IF EXISTS "teams_all" ON public.teams;
-CREATE POLICY "teams_all" ON public.teams FOR ALL USING (league_id = public.user_league_id());
+-- Teams, Players, Matches, Submissions, Fichajes, Removals
+-- All scoped to league of current user
+DO $$
+DECLARE tbl TEXT;
+BEGIN
+  FOREACH tbl IN ARRAY ARRAY['teams','players','matches','submissions','fichaje_requests','removal_requests']
+  LOOP
+    EXECUTE format('DROP POLICY IF EXISTS "%s_all" ON public.%s', tbl, tbl);
+    EXECUTE format('CREATE POLICY "%s_all" ON public.%s FOR ALL USING (league_id = public.user_league_id())', tbl, tbl);
+  END LOOP;
+END $$;
 
--- Players: scoped to league
-DROP POLICY IF EXISTS "players_all" ON public.players;
-CREATE POLICY "players_all" ON public.players FOR ALL USING (league_id = public.user_league_id());
+-- ═══════════════════════════════════════════════════════════════
+-- PLAN LIMITS (server-side function, used by Edge Function)
+-- ═══════════════════════════════════════════════════════════════
+CREATE OR REPLACE FUNCTION public.get_user_plan_limits(user_id UUID)
+RETURNS JSONB AS $$
+DECLARE
+  profile_row public.profiles%ROWTYPE;
+  league_row public.leagues%ROWTYPE;
+BEGIN
+  SELECT * INTO profile_row FROM public.profiles WHERE id = user_id;
+  SELECT * INTO league_row FROM public.leagues WHERE admin_id = user_id LIMIT 1;
 
--- Matches: scoped to league
-DROP POLICY IF EXISTS "matches_all" ON public.matches;
-CREATE POLICY "matches_all" ON public.matches FOR ALL USING (league_id = public.user_league_id());
+  -- Superadmin bypasses everything
+  IF profile_row.role = 'superadmin' THEN
+    RETURN jsonb_build_object(
+      'plan', 'superadmin',
+      'is_superadmin', true,
+      'can_scan', true,
+      'max_teams', 999,
+      'ai_scans_remaining', 999
+    );
+  END IF;
 
--- Submissions: scoped to league
-DROP POLICY IF EXISTS "submissions_all" ON public.submissions;
-CREATE POLICY "submissions_all" ON public.submissions FOR ALL USING (league_id = public.user_league_id());
+  -- Check active trial
+  IF league_row.trial_ends_at > NOW() THEN
+    RETURN jsonb_build_object(
+      'plan', league_row.plan_type || '_trial',
+      'is_superadmin', false,
+      'can_scan', true,
+      'max_teams', CASE league_row.plan_type WHEN 'elite' THEN 999 WHEN 'pro' THEN 16 ELSE 10 END,
+      'ai_scans_remaining', profile_row.ai_trial_scans
+    );
+  END IF;
 
--- Fichaje requests: scoped to league
-DROP POLICY IF EXISTS "fichajes_all" ON public.fichaje_requests;
-CREATE POLICY "fichajes_all" ON public.fichaje_requests FOR ALL USING (league_id = public.user_league_id());
+  -- Apply plan limits
+  RETURN jsonb_build_object(
+    'plan', league_row.plan_type,
+    'is_superadmin', false,
+    'can_scan', league_row.plan_type IN ('pro', 'elite'),
+    'max_teams', CASE league_row.plan_type WHEN 'elite' THEN 999 WHEN 'pro' THEN 16 ELSE 10 END,
+    'ai_scans_remaining', CASE WHEN league_row.plan_type IN ('pro', 'elite') THEN 999 ELSE profile_row.ai_trial_scans END
+  );
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
 
--- Removal requests: scoped to league
-DROP POLICY IF EXISTS "removals_all" ON public.removal_requests;
-CREATE POLICY "removals_all" ON public.removal_requests FOR ALL USING (league_id = public.user_league_id());
+-- ═══════════════════════════════════════════════════════════════
+-- SET SUPERADMIN (run this manually for your own account)
+-- Replace with your real email
+-- ═══════════════════════════════════════════════════════════════
+-- UPDATE public.profiles
+-- SET role = 'superadmin', plan_type = 'superadmin'
+-- WHERE email = 'TU_EMAIL_AQUI@gmail.com';
