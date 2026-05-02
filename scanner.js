@@ -34,45 +34,36 @@ Return ONLY this JSON (no markdown, no backticks):
 }`;
 }
 
-// ─── Call AI (Anthropic Claude) ──────────────────────────────
-async function callAI(images, players, apiKey) {
-  const content = [];
+// ─── Call AI via Edge Function (API key stays server-side) ──
+async function callAI(images, players) {
+  // Get current user's JWT for server-side auth
+  const { data: { session } } = await supa.auth.getSession();
+  if (!session) throw new Error('No active session');
 
-  // Add images
-  for (const img of images) {
-    if (!img) continue;
-    const base64 = img.replace(/^data:image\/\w+;base64,/, '');
-    content.push({
-      type: 'image',
-      source: { type: 'base64', media_type: 'image/jpeg', data: base64 }
-    });
-  }
-
-  content.push({ type: 'text', text: buildPrompt(players) });
-
-  const res = await fetch('https://api.anthropic.com/v1/messages', {
+  const res = await fetch(`${supa.supabaseUrl}/functions/v1/scan-ai`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
-      'x-api-key': apiKey,
-      'anthropic-version': '2023-06-01',
-      'anthropic-dangerous-direct-browser-access': 'true'
+      'Authorization': `Bearer ${session.access_token}`,
     },
     body: JSON.stringify({
-      model: 'claude-haiku-4-5-20251001',
-      max_tokens: 2048,
-      messages: [{ role: 'user', content }]
-    })
+      images,
+      registered_players: players,
+      league_id: state.league?.id,
+    }),
   });
 
-  if (!res.ok) {
-    const err = await res.text();
-    throw new Error(`AI error ${res.status}: ${err}`);
+  const data = await res.json();
+
+  if (!res.ok || data.error) {
+    // Handle plan limit specifically
+    if (data.error === 'PLAN_LIMIT') {
+      throw new Error(data.message || 'Límite de plan alcanzado');
+    }
+    throw new Error(data.error || `Error ${res.status}`);
   }
 
-  const data = await res.json();
-  const text = data.content?.[0]?.text || '';
-  return JSON.parse(text);
+  return data.result;
 }
 
 // ─── Process scan result → match players with registered ones ─
@@ -275,5 +266,5 @@ function posToZone(pos) {
 export {
   callAI, processResult, saveSubmission, saveMatchStats,
   updatePlayerStats, approveSubmission, rejectSubmission,
-  posToES, posToZone, buildPrompt
+  posToES, posToZone,
 };
