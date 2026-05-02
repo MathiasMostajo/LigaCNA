@@ -2213,7 +2213,7 @@ RULES:
 - For each player in stats: check if their name fuzzy-matches any gamertag (same player may appear differently due to display names vs gamertags)
 - If a stats player has NO match in the gamertags → FIFA bot, IGNORE completely
 - If YES match → use the gamertag name, include their stats
-- CRITICAL: For "pos", read the EXACT abbreviation from the POS column in the stats screen. The screen may show positions in Spanish or English. Read whichever is shown — common values: POR, DFC, LI, LD, CAI, CAD, MCD, MC, MCO, MI, MD, EI, ED, DC, MP, SDI, SDD (Spanish) or GK, CB, LB, RB, LWB, RWB, CDM, CM, CAM, LM, RM, LW, RW, CF, ST (English). Do NOT default to "MID" — read the actual position shown on screen.
+- MANDATORY FIELD "pos": In the STATS table, there is a column called POS (first column, before the player name). For EVERY player, read the 2-3 letter code shown in that POS column and put it in the "pos" field. Examples of what you might see: POR, DFC, LI, LD, CAI, CAD, MCD, MC, MCO, MI, MD, EI, ED, DC, MP (Spanish) or GK, CB, LB, RB, LWB, RWB, CDM, CM, CAM, LM, RM, LW, RW, CF, ST (English). Copy EXACTLY what is shown. If you cannot read it, put "N/A". NEVER leave "pos" empty. NEVER default to "MID".
 
 REGISTERED PLAYERS in league: [${s.players.map(p => p.name).join(', ') || 'none'}]
 
@@ -2222,7 +2222,7 @@ Return this exact JSON:
   "score": {"home": "", "away": "", "homeGoals": 0, "awayGoals": 0},
   "homeIds": ["exact gamertag1", "exact gamertag2"],
   "awayIds": ["exact gamertag1", "exact gamertag2"],
-  "stats": [{"name": "exact gamertag name", "team": "home", "goals": 0, "assists": 0, "rating": 0, "pos": "exact position from POS column like DFC or MC or EI"}]
+  "stats": [{"name": "exact gamertag name", "team": "home", "goals": 0, "assists": 0, "rating": 0, "pos": "DFC"}]
 }`;
 
   const content = [{ type: 'text', text: prompt }];
@@ -2246,14 +2246,17 @@ Return this exact JSON:
     const idMatch = allIds.find(idp => fuzzyMatch(sp.name, idp.name));
     if (!idMatch) return; // FIFA bot
     const regMatch = s.players.find(lp => fuzzyMatch(idMatch.name, lp.name));
-    const isGK = ['GK','POR','PO'].includes((sp.pos||'').toUpperCase());
+    // Read position from whichever field the AI returned (pos or position)
+    const rawPos = (sp.pos || sp.position || '').toUpperCase().trim();
+    const validPos = rawPos && rawPos !== 'MID' && rawPos !== 'N/A' && rawPos.length <= 4 ? rawPos : '';
+    const isGK = ['GK','POR','PO'].includes(rawPos);
     matchedPlayers.push({
       name: regMatch ? regMatch.name : idMatch.name,
       team: idMatch.team,
       goals: sp.goals || 0,
       assists: sp.assists || 0,
       rating: sp.rating || 0,
-      pos: sp.pos || 'MID',
+      pos: validPos || rawPos || '',
       registered: !!regMatch,
       isGK
     });
@@ -2583,12 +2586,16 @@ let _pollTimer;
 async function pollSubmissions() {
   if (_pollTimer) clearTimeout(_pollTimer);
   try {
-    const { data } = await supa.from('submissions').select('*').eq('status', 'pending').order('created_at', { ascending: false });
-    const cnt = data?.length || 0;
+    // Fetch pending submissions
+    const { data: pending } = await supa.from('submissions').select('*').eq('status', 'pending').order('created_at', { ascending: false });
+    // Fetch recently reviewed submissions (last 24h) for audit trail
+    const yesterday = new Date(Date.now() - 24*60*60*1000).toISOString();
+    const { data: reviewed } = await supa.from('submissions').select('*').neq('status', 'pending').gte('created_at', yesterday).order('created_at', { ascending: false });
+    const cnt = pending?.length || 0;
     const sb = $('subBtn'), pc = $('pCount');
     if (cnt > 0 && mode === 'admin') { if (sb) sb.style.display = 'inline-flex'; if (pc) pc.textContent = cnt; }
     else { if (sb) sb.style.display = 'none'; }
-    renderSubs(data || []);
+    renderSubs(pending || [], reviewed || []);
   } catch (e) { console.error(e); }
   _pollTimer = setTimeout(pollSubmissions, 30000);
 }
@@ -2629,9 +2636,27 @@ function fixNoRegSub(subId, playerIdx) {
   $('modal').classList.add('open');
 }
 
-function renderSubs(subs) {
+function renderSubs(subs, reviewedSubs) {
   const el = $('subsList'); if (!el) return;
-  if (!subs.length) { el.innerHTML = `<div class="es"><div class="ei">📥</div>Sin submissions.</div>`; return; }
+  if (!subs.length) {
+    let html = `<div class="es"><div class="ei">📥</div>Sin submissions pendientes.</div>`;
+    if (reviewedSubs && reviewedSubs.length) {
+      html += `<div class="card" style="margin-top:16px;opacity:.7;">
+        <div class="ct" style="font-size:.82rem;">📋 Historial (últimas 24h) — ${reviewedSubs.length} procesadas</div>
+        ${reviewedSubs.map(sub => {
+          const sc = sub.scan_result?.score || {};
+          const statusIcon = sub.status === 'approved' ? '✅' : '✕';
+          const statusColor = sub.status === 'approved' ? 'var(--g)' : 'var(--red)';
+          return `<div style="display:flex;align-items:center;justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--b);font-size:.78rem;">
+            <span style="color:${statusColor};font-weight:600;">${statusIcon} ${sc.home||'?'} ${sc.homeGoals??'?'}–${sc.awayGoals??'?'} ${sc.away||'?'}</span>
+            <span style="color:var(--tm);font-size:.68rem;">${sub.status} · ${new Date(sub.created_at).toLocaleString()}</span>
+          </div>`;
+        }).join('')}
+      </div>`;
+    }
+    el.innerHTML = html;
+    return;
+  }
   // Store in memory cache to avoid passing large base64 through onclick attributes
   subs.forEach(sub => { subsCache[sub.id] = sub; });
   el.innerHTML = subs.map(sub => {
@@ -2673,6 +2698,21 @@ function renderSubs(subs) {
       ${screenshotsHtml}${urHtml}${playersHtml}
     </div>`;
   }).join('');
+  // Show reviewed submissions (24h audit trail)
+  if (reviewedSubs && reviewedSubs.length) {
+    el.innerHTML += `<div class="card" style="margin-top:16px;opacity:.7;">
+      <div class="ct" style="font-size:.82rem;">📋 Historial (últimas 24h) — ${reviewedSubs.length} procesadas</div>
+      ${reviewedSubs.map(sub => {
+        const sc = sub.scan_result?.score || {};
+        const statusIcon = sub.status === 'approved' ? '✅' : '✕';
+        const statusColor = sub.status === 'approved' ? 'var(--g)' : 'var(--red)';
+        return `<div style="display:flex;align-items:center;justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--b);font-size:.78rem;">
+          <span style="color:${statusColor};font-weight:600;">${statusIcon} ${sc.home||'?'} ${sc.homeGoals??'?'}–${sc.awayGoals??'?'} ${sc.away||'?'}</span>
+          <span style="color:var(--tm);font-size:.68rem;">${sub.status} · ${new Date(sub.created_at).toLocaleString()}</span>
+        </div>`;
+      }).join('')}
+    </div>`;
+  }
 }
 
 function showSubImg(subId, type) {
@@ -2838,11 +2878,23 @@ async function approveSub(subId) {
             p.matchesPlayed++;
           }
         });
-        saveDB(); render(); toast('✅ Stats fusionadas con partido existente!');
+        localStorage.setItem('ligacna_bk', JSON.stringify(db));
+        render();
+        // Await Supabase sync before marking submission as approved
+        try {
+          const { error: syncErr } = await supa.from('liga_data').upsert({ id: DB_KEY, data: db, updated_at: new Date().toISOString() });
+          if (syncErr) throw syncErr;
+        } catch(syncE) {
+          toast('⚠️ Error guardando datos — revisá tu conexión e intentá de nuevo', true);
+          return; // DON'T mark as approved if sync failed
+        }
+        toast('✅ Stats fusionadas con partido existente!');
       } else {
         _saveResult(fixtureHomeId, fixtureAwayId, homeGoals, awayGoals, ps, null);
+        // Wait for _saveResult's syncToCloud to finish
+        await new Promise(r => setTimeout(r, 2000)); // give syncToCloud time
       }
-      await supa.from('submissions').update({ status: 'approved' }).eq('id', subId);
+      await supa.from('submissions').update({ status: 'approved', reviewed_at: new Date().toISOString() }).eq('id', subId);
       pollSubmissions();
     } catch (e) { toast('⚠️ Error: ' + e.message, true); }
   };
@@ -2853,7 +2905,7 @@ async function approveSub(subId) {
   $('modal').classList.add('open');
 }
 async function rejectSub(subId) {
-  showModal('¿Rechazar?', 'El capitán tendrá que reenviar.', 'Rechazar', async () => { await supa.from('submissions').update({ status: 'rejected' }).eq('id', subId); toast('🗑 Rechazado.'); pollSubmissions(); }, true);
+  showModal('¿Rechazar?', 'El capitán tendrá que reenviar.', 'Rechazar', async () => { await supa.from('submissions').update({ status: 'rejected', reviewed_at: new Date().toISOString() }).eq('id', subId); toast('🗑 Rechazado.'); pollSubmissions(); }, true);
 }
 
 // ════════════════════════════════════════════════════════
