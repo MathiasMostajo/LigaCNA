@@ -1,5 +1,5 @@
 // ═══════════════════════════════════════════════════════════════
-// auth.js — Supabase Auth + League State
+// auth.js — Supabase Auth + League State (Bug fixes applied)
 // ═══════════════════════════════════════════════════════════════
 const SB_URL = 'https://wrgexwyjivfxijivdbqa.supabase.co';
 const SB_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6IndyZ2V4d3lqaXZmeGlqaXZkYnFhIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzM1NDI2NTgsImV4cCI6MjA4OTExODY1OH0.KGBX0-PQGiwrAHrWrZ1TS_rbHtDbQwNA0F2NRhlT830';
@@ -31,7 +31,12 @@ async function signIn(email, password) {
 }
 
 async function signOut() {
-  await supa.auth.signOut();
+  try {
+    await supa.auth.signOut();
+  } catch (e) {
+    console.error('SignOut error (forcing local cleanup):', e);
+  }
+  // Always clean up local state even if Supabase call fails
   state.user = null;
   state.league = null;
   emit('auth:logout');
@@ -59,6 +64,28 @@ async function createLeague(name, maxPlayers) {
   return data;
 }
 
+// ─── Shared session handler (used by both getSession and onAuthStateChange) ──
+async function handleSession(session) {
+  if (session?.user) {
+    state.user = session.user;
+    try {
+      state.league = await resolveLeague(session.user.id);
+      state.loading = false;
+      emit(state.league ? 'auth:ready' : 'auth:needs-onboarding', state);
+    } catch (e) {
+      console.error('resolveLeague failed:', e);
+      state.loading = false;
+      // Don't block — show login so user can retry
+      emit('auth:error', e);
+    }
+  } else {
+    state.user = null;
+    state.league = null;
+    state.loading = false;
+    emit('auth:logout');
+  }
+}
+
 function initAuth() {
   if (!supa) {
     try { supa = getSupabase(); } catch(e) {
@@ -67,35 +94,19 @@ function initAuth() {
     }
   }
 
-  supa.auth.getSession().then(async ({ data: { session } }) => {
-    if (session?.user) {
-      state.user = session.user;
-      try {
-        state.league = await resolveLeague(session.user.id);
-        state.loading = false;
-        emit(state.league ? 'auth:ready' : 'auth:needs-onboarding', state);
-      } catch (e) {
-        state.loading = false;
-        emit('auth:error', e);
-      }
-    } else {
+  // BUG FIX 2: Added .catch() so loading screen never hangs
+  supa.auth.getSession()
+    .then(({ data: { session } }) => handleSession(session))
+    .catch(e => {
+      console.error('getSession failed:', e);
       state.loading = false;
-      emit('auth:logout');
-    }
-  });
+      emit('auth:logout'); // Fallback to login screen instead of hanging
+    });
 
   supa.auth.onAuthStateChange(async (event, session) => {
     if (event === 'INITIAL_SESSION') return;
-    if (event === 'SIGNED_IN' && session?.user) {
-      state.user = session.user;
-      try {
-        state.league = await resolveLeague(session.user.id);
-        state.loading = false;
-        emit(state.league ? 'auth:ready' : 'auth:needs-onboarding', state);
-      } catch (e) {
-        state.loading = false;
-        emit('auth:error', e);
-      }
+    if (event === 'SIGNED_IN') {
+      await handleSession(session);
     } else if (event === 'SIGNED_OUT') {
       state.user = null;
       state.league = null;
