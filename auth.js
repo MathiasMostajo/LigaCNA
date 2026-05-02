@@ -4,6 +4,14 @@
 const SB_URL = 'https://wrgexwyjivfxijivdbqa.supabase.co';
 const SB_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6IndyZ2V4d3lqaXZmeGlqaXZkYnFhIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzM1NDI2NTgsImV4cCI6MjA4OTExODY1OH0.KGBX0-PQGiwrAHrWrZ1TS_rbHtDbQwNA0F2NRhlT830';
 
+// Cache bust: clear stale sessions from old app versions
+const APP_VERSION = 'v5';
+if (localStorage.getItem('lcna_version') !== APP_VERSION) {
+  localStorage.clear();
+  sessionStorage.clear();
+  localStorage.setItem('lcna_version', APP_VERSION);
+}
+
 function getSupabase() {
   if (window.supabase?.createClient) return window.supabase.createClient(SB_URL, SB_KEY);
   throw new Error('Supabase SDK not loaded');
