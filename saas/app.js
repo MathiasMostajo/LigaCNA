@@ -216,7 +216,11 @@ function initHubUI() {
     $('btn-confirm-create').disabled = false; $('btn-confirm-create').textContent = 'Crear →';
   };
 
-  $('btn-hub-logout').onclick = () => { Object.keys(_bound).forEach(k => _bound[k] = false); signOut(); };
+  $('btn-hub-logout').onclick = async () => {
+    Object.keys(_bound).forEach(k => _bound[k] = false);
+    try { await signOut(); } catch(e) { console.error(e); }
+    setTimeout(() => window.location.reload(), 1000);
+  };
 }
 
 function renderHubLeagues() {
