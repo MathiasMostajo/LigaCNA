@@ -291,9 +291,15 @@ function initDashboard() {
     showScreen('hub');
   };
 
-  // Logout
+  // Logout — bind with force reload fallback
+  const doLogout = async () => {
+    Object.keys(_bound).forEach(k => _bound[k] = false);
+    try { await signOut(); } catch(e) { console.error(e); }
+    // If still on dashboard after 1s, force reload
+    setTimeout(() => window.location.reload(), 1000);
+  };
   const logoutBtn = $('btn-logout');
-  if (logoutBtn) logoutBtn.onclick = async () => { Object.keys(_bound).forEach(k => _bound[k] = false); await signOut(); };
+  if (logoutBtn) logoutBtn.onclick = doLogout;
 
   // Mobile sidebar
   const sidebar = $('sidebar'), overlay = $('sidebar-overlay');
@@ -731,9 +737,11 @@ window._uploadShield = async (teamId, event) => {
   if (!file) return;
   if (file.size > 10 * 1024 * 1024) { toast('⚠️ Imagen muy grande (max 10MB)', true); return; }
 
+  toast('🖼️ Procesando imagen...');
+
   try {
     // Compress to 200x200 JPEG
-    const base64 = await new Promise((resolve, reject) => {
+    const compressed = await new Promise((resolve, reject) => {
       const reader = new FileReader();
       reader.onload = () => {
         const img = new Image();
@@ -746,36 +754,41 @@ window._uploadShield = async (teamId, event) => {
           const scale = Math.min(200 / img.width, 200 / img.height);
           const w = img.width * scale, h = img.height * scale;
           ctx.drawImage(img, (200 - w) / 2, (200 - h) / 2, w, h);
-          resolve(canvas.toDataURL('image/jpeg', 0.85));
+          resolve(canvas.toDataURL('image/jpeg', 0.8));
         };
-        img.onerror = reject;
+        img.onerror = () => reject(new Error('No se pudo leer la imagen'));
         img.src = reader.result;
       };
-      reader.onerror = reject;
+      reader.onerror = () => reject(new Error('Error leyendo archivo'));
       reader.readAsDataURL(file);
     });
 
-    // Upload to Supabase Storage
-    const fileName = `${teamId}.jpg`;
-    const blob = await fetch(base64).then(r => r.blob());
-    const { error: uploadErr } = await supa.storage.from('shields').upload(fileName, blob, { upsert: true, contentType: 'image/jpeg' });
-    if (uploadErr) throw uploadErr;
+    // Try Supabase Storage first, fall back to base64 in team record
+    let shieldUrl = compressed;
+    try {
+      const fileName = teamId + '.jpg';
+      const blob = await fetch(compressed).then(r => r.blob());
+      const { error: upErr } = await supa.storage.from('shields').upload(fileName, blob, { upsert: true, contentType: 'image/jpeg' });
+      if (upErr) throw upErr;
+      const { data: urlData } = supa.storage.from('shields').getPublicUrl(fileName);
+      shieldUrl = urlData.publicUrl + '?t=' + Date.now();
+    } catch(storageErr) {
+      console.warn('Storage upload failed, using base64 fallback:', storageErr.message);
+      // shieldUrl stays as compressed base64 — still works as img src
+    }
 
-    // Get public URL
-    const { data: urlData } = supa.storage.from('shields').getPublicUrl(fileName);
-    const shieldUrl = urlData.publicUrl + '?t=' + Date.now(); // bust cache
-
-    // Update team record
     const { error: updateErr } = await supa.from('teams').update({ shield_url: shieldUrl }).eq('id', teamId);
     if (updateErr) throw updateErr;
 
     const team = _teamsCache.find(t => t.id === teamId);
     if (team) team.shield_url = shieldUrl;
-
     renderTeamsList();
     window._viewTeam(teamId);
     toast('🖼️ Escudo guardado');
-  } catch(e) { toast('⚠️ ' + e.message, true); }
+  } catch(e) {
+    console.error('Shield upload error:', e);
+    toast('⚠️ ' + e.message, true);
+  }
 };
 
 window._sortPlayers = (col) => {
