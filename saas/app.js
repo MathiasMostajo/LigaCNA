@@ -281,6 +281,7 @@ function initDashboard() {
       if (target) target.classList.remove('hidden');
       // Lazy-load section content
       if (section === 'teams') initTeamsSection();
+      if (section === 'fixture') initFixtureSection();
     };
   });
 
@@ -803,4 +804,359 @@ window._sortPlayers = (col) => {
     return (b[col] || 0) - (a[col] || 0);
   });
   el.innerHTML = renderPlayersHTML(sorted);
+};
+
+// ═══════════════════════════════════════════════════════════════
+// FIXTURE MODULE
+// ═══════════════════════════════════════════════════════════════
+let _scheduleCache = [];
+let _matchesCache = [];
+
+async function loadMatches() {
+  const { data, error } = await supa.from('matches').select('*')
+    .eq('league_id', state.activeLeague.id)
+    .order('created_at');
+  if (error) { console.error(error); return []; }
+  _matchesCache = data || [];
+  return _matchesCache;
+}
+
+function getMatchResult(homeId, awayId) {
+  return _matchesCache.find(m =>
+    (m.home_id === homeId && m.away_id === awayId) ||
+    (m.home_id === awayId && m.away_id === homeId)
+  );
+}
+
+function tn(teamId) {
+  const t = _teamsCache.find(t => t.id === teamId);
+  return t ? t.name : '?';
+}
+
+function generateCalendar(teamIds) {
+  let teams = [...teamIds];
+  const hasBye = teams.length % 2 !== 0;
+  if (hasBye) teams.push('__BYE__');
+  const n = teams.length;
+
+  let rotation = [...teams];
+  const leg1Pairs = [];
+
+  for (let r = 0; r < n - 1; r++) {
+    const roundPairs = [];
+    for (let i = 0; i < n / 2; i++) {
+      const t1 = rotation[i];
+      const t2 = rotation[n - 1 - i];
+      if (t1 !== '__BYE__' && t2 !== '__BYE__') {
+        if (r % 2 === 0) roundPairs.push({ home: t1, away: t2 });
+        else roundPairs.push({ home: t2, away: t1 });
+      }
+    }
+    leg1Pairs.push(roundPairs);
+    const last = rotation.pop();
+    rotation.splice(1, 0, last);
+  }
+
+  const leg2Pairs = leg1Pairs.map(round =>
+    round.map(f => ({ home: f.away, away: f.home }))
+  );
+
+  const shift = Math.floor((n - 1) / 2);
+  const leg2Shifted = [...leg2Pairs.slice(shift), ...leg2Pairs.slice(0, shift)];
+
+  const schedule = [];
+  let rnum = 1;
+  leg1Pairs.forEach(pairs => { schedule.push({ round: rnum++, fixtures: pairs }); });
+  leg2Shifted.forEach(pairs => { schedule.push({ round: rnum++, fixtures: pairs }); });
+
+  return schedule;
+}
+
+async function initFixtureSection() {
+  try { await _initFixtureSectionInner(); } catch(e) {
+    console.error('Fixture error:', e);
+    const container = document.querySelector('[data-section="fixture"]');
+    if (container) container.innerHTML = `<div class="bg-red-500/10 border border-red-500/20 rounded-2xl p-6 text-center"><p class="text-red-400">Error: ${e.message}</p><button onclick="initFixtureSection()" class="mt-3 bg-white/5 text-gray-400 px-4 py-2 rounded-xl text-sm">Reintentar</button></div>`;
+  }
+}
+
+async function _initFixtureSectionInner() {
+  const container = document.querySelector('[data-section="fixture"]');
+  if (!container) return;
+
+  // Load data
+  if (!_teamsCache.length) await loadTeams();
+  await loadMatches();
+  if (!_playersCache.length) await loadPlayers();
+  _scheduleCache = state.activeLeague.settings?.schedule || [];
+
+  const hasSchedule = _scheduleCache.length > 0;
+
+  container.innerHTML = `
+    <div class="flex items-center justify-between mb-6">
+      <div class="flex items-center gap-3">
+        <span class="text-2xl">📅</span>
+        <h2 class="font-display text-3xl tracking-wide text-white">FIXTURE</h2>
+      </div>
+      <div class="flex gap-2">
+        ${hasSchedule ? `<button id="btn-clear-fixture" class="bg-red-500/10 text-red-400 border border-red-500/20 px-4 py-2 rounded-xl text-sm font-semibold hover:bg-red-500/20 transition-all">🗑 Borrar</button>` : ''}
+        <button id="btn-gen-fixture" class="bg-gradient-to-r from-lime-400 to-emerald-500 text-pitch-900 font-bold py-2 px-5 rounded-xl text-sm uppercase tracking-wider hover:from-lime-300 hover:to-emerald-400 transition-all shadow-lg shadow-lime-400/10 active:scale-[.98]">${hasSchedule ? '🔄 Regenerar' : '📅 Generar Fixture'}</button>
+      </div>
+    </div>
+
+    <!-- Summary -->
+    ${hasSchedule ? `
+      <div class="grid grid-cols-3 gap-3 mb-6">
+        <div class="bg-pitch-800/60 border border-white/5 rounded-xl p-4 text-center">
+          <p class="font-display text-2xl text-white">${_scheduleCache.length}</p>
+          <p class="text-xs text-gray-500 uppercase tracking-wider">Fechas</p>
+        </div>
+        <div class="bg-pitch-800/60 border border-white/5 rounded-xl p-4 text-center">
+          <p class="font-display text-2xl text-white">${_scheduleCache.reduce((t, r) => t + r.fixtures.length, 0)}</p>
+          <p class="text-xs text-gray-500 uppercase tracking-wider">Partidos</p>
+        </div>
+        <div class="bg-pitch-800/60 border border-white/5 rounded-xl p-4 text-center">
+          <p class="font-display text-2xl text-lime-400">${_matchesCache.length}</p>
+          <p class="text-xs text-gray-500 uppercase tracking-wider">Jugados</p>
+        </div>
+      </div>
+    ` : ''}
+
+    <!-- Rounds -->
+    <div id="fixture-rounds">
+      ${hasSchedule ? renderFixtureRounds() : `
+        <div class="bg-pitch-800/40 border border-dashed border-white/10 rounded-2xl p-12 text-center">
+          <span class="text-4xl mb-4 block">📅</span>
+          <p class="text-gray-500 mb-2">No hay fixture generado</p>
+          <p class="text-sm text-gray-600">Necesitás al menos 2 equipos para generar el calendario</p>
+        </div>
+      `}
+    </div>
+
+    <!-- Result form (hidden) -->
+    <div id="result-form" class="hidden fixed inset-0 bg-black/70 z-50 flex items-center justify-center p-4">
+      <div class="bg-pitch-800 border border-white/10 rounded-2xl p-6 w-full max-w-md">
+        <div class="flex items-center justify-between mb-4">
+          <h3 class="font-display text-xl text-white">✏️ Cargar Resultado</h3>
+          <button onclick="$('result-form').classList.add('hidden')" class="text-gray-500 hover:text-white">✕</button>
+        </div>
+        <div id="result-form-body"></div>
+      </div>
+    </div>
+  `;
+
+  // Bind events
+  $('btn-gen-fixture').onclick = () => {
+    const activeTeams = _teamsCache.filter(t => !t.is_bye && !t.replaced);
+    if (activeTeams.length < 2) { toast('⚠️ Necesitás al menos 2 equipos activos', true); return; }
+
+    const doGen = async () => {
+      const schedule = generateCalendar(activeTeams.map(t => t.id));
+      _scheduleCache = schedule;
+      // Save schedule in league settings
+      const settings = { ...(state.activeLeague.settings || {}), schedule };
+      const { error } = await supa.from('leagues').update({ settings }).eq('id', state.activeLeague.id);
+      if (error) { toast('⚠️ Error: ' + error.message, true); return; }
+      state.activeLeague.settings = settings;
+      initFixtureSection();
+      const totalGames = schedule.reduce((t, r) => t + r.fixtures.length, 0);
+      toast(`📅 ${totalGames} partidos en ${schedule.length} fechas!`);
+    };
+
+    if (hasSchedule) {
+      if (confirm('¿Regenerar fixture? Se borrará el actual.')) doGen();
+    } else doGen();
+  };
+
+  if ($('btn-clear-fixture')) {
+    $('btn-clear-fixture').onclick = async () => {
+      if (!confirm('¿Borrar fixture? Los resultados no se tocan.')) return;
+      _scheduleCache = [];
+      const settings = { ...(state.activeLeague.settings || {}), schedule: [] };
+      const { error } = await supa.from('leagues').update({ settings }).eq('id', state.activeLeague.id);
+      if (error) { toast('⚠️ Error: ' + error.message, true); return; }
+      state.activeLeague.settings = settings;
+      initFixtureSection();
+      toast('🗑 Fixture borrado');
+    };
+  }
+}
+
+function renderFixtureRounds() {
+  return _scheduleCache.map((round, ri) => {
+    const fixtures = round.fixtures;
+    const played = fixtures.filter(f => getMatchResult(f.home, f.away)).length;
+    const total = fixtures.length;
+    const isComplete = played === total;
+    const pct = total ? Math.round(played / total * 100) : 0;
+
+    return `<div class="mb-3">
+      <button onclick="window._toggleRound(${ri})" class="w-full bg-pitch-800/60 border border-white/5 rounded-xl p-3 flex items-center justify-between hover:border-lime-400/20 transition-all">
+        <div class="flex items-center gap-3">
+          <span id="chev-${ri}" class="text-gray-500 transition-transform rotate-[-90deg]">▼</span>
+          <span class="font-display text-lg text-white">FECHA ${round.round}</span>
+          <span class="text-xs text-gray-500">${played}/${total} partidos</span>
+        </div>
+        <div class="flex items-center gap-2">
+          <div class="w-20 h-1.5 bg-pitch-700 rounded-full overflow-hidden">
+            <div class="h-full rounded-full transition-all ${isComplete ? 'bg-lime-400' : 'bg-lime-400/50'}" style="width:${pct}%"></div>
+          </div>
+          ${isComplete ? '<span class="text-lime-400 text-xs">✓</span>' : ''}
+        </div>
+      </button>
+      <div id="round-${ri}" class="hidden mt-1 space-y-1 pl-2">
+        ${fixtures.map(f => {
+          const res = getMatchResult(f.home, f.away);
+          const homeName = tn(f.home);
+          const awayName = tn(f.away);
+
+          if (res) {
+            const hg = res.home_id === f.home ? res.home_goals : res.away_goals;
+            const ag = res.home_id === f.home ? res.away_goals : res.home_goals;
+            return `<div class="bg-pitch-800/40 border border-white/5 rounded-lg p-3 flex items-center justify-between">
+              <div class="flex items-center gap-2 flex-1 min-w-0">
+                <span class="text-sm text-white truncate flex-1 text-right">${homeName}</span>
+                <span class="font-display text-lg text-lime-400 px-2">${hg} – ${ag}</span>
+                <span class="text-sm text-white truncate flex-1">${awayName}</span>
+              </div>
+              <button onclick="window._viewMatchDetail('${res.id}')" class="text-xs text-blue-400 hover:text-blue-300 ml-2 shrink-0">📊 Detalle</button>
+            </div>`;
+          } else {
+            return `<div class="bg-pitch-800/40 border border-white/5 rounded-lg p-3 flex items-center justify-between">
+              <div class="flex items-center gap-2 flex-1 min-w-0">
+                <span class="text-sm text-white truncate flex-1 text-right">${homeName}</span>
+                <span class="font-display text-lg text-gray-600 px-2">vs</span>
+                <span class="text-sm text-white truncate flex-1">${awayName}</span>
+              </div>
+              <button onclick="window._showResultForm('${f.home}','${f.away}',${round.round})" class="text-xs bg-lime-400/10 text-lime-400 border border-lime-400/20 px-3 py-1 rounded-lg hover:bg-lime-400/20 transition-all ml-2 shrink-0">✏️ Resultado</button>
+            </div>`;
+          }
+        }).join('')}
+      </div>
+    </div>`;
+  }).join('');
+}
+
+window._toggleRound = (ri) => {
+  const el = $('round-' + ri);
+  const chev = $('chev-' + ri);
+  if (!el) return;
+  const hidden = el.classList.contains('hidden');
+  el.classList.toggle('hidden');
+  if (chev) chev.style.transform = hidden ? '' : 'rotate(-90deg)';
+};
+
+// ─── Result Form ─────────────────────────────────────────────
+window._showResultForm = (homeId, awayId, round) => {
+  const body = $('result-form-body');
+  if (!body) return;
+
+  const homePlayers = _playersCache.length
+    ? _playersCache.filter(p => p.team_id === homeId)
+    : [];
+  const awayPlayers = _playersCache.length
+    ? _playersCache.filter(p => p.team_id === awayId)
+    : [];
+
+  body.innerHTML = `
+    <div class="grid grid-cols-[1fr_auto_1fr] gap-3 items-center mb-5">
+      <div class="text-center">
+        <p class="font-semibold text-white text-sm mb-1">${tn(homeId)}</p>
+        <p class="text-[10px] text-gray-500">🏠 LOCAL</p>
+      </div>
+      <span class="text-gray-600">vs</span>
+      <div class="text-center">
+        <p class="font-semibold text-white text-sm mb-1">${tn(awayId)}</p>
+        <p class="text-[10px] text-gray-500">✈️ VISITANTE</p>
+      </div>
+    </div>
+
+    <div class="grid grid-cols-[1fr_auto_1fr] gap-3 items-center mb-5">
+      <input type="number" id="rf-hg" min="0" value="0" class="bg-pitch-900/60 border border-white/10 rounded-xl px-3 py-2.5 text-white text-center font-display text-2xl outline-none focus:border-lime-400/40">
+      <span class="text-gray-500 text-lg">–</span>
+      <input type="number" id="rf-ag" min="0" value="0" class="bg-pitch-900/60 border border-white/10 rounded-xl px-3 py-2.5 text-white text-center font-display text-2xl outline-none focus:border-lime-400/40">
+    </div>
+
+    <button id="btn-save-result" class="w-full bg-gradient-to-r from-lime-400 to-emerald-500 text-pitch-900 font-bold py-3 rounded-xl text-sm uppercase tracking-wider hover:from-lime-300 hover:to-emerald-400 transition-all shadow-lg shadow-lime-400/10 active:scale-[.98]">
+      ✅ Guardar Resultado
+    </button>
+  `;
+
+  $('result-form').classList.remove('hidden');
+
+  $('btn-save-result').onclick = async () => {
+    const hg = parseInt($('rf-hg').value) || 0;
+    const ag = parseInt($('rf-ag').value) || 0;
+
+    $('btn-save-result').disabled = true;
+    $('btn-save-result').textContent = 'Guardando...';
+
+    try {
+      const { data, error } = await supa.from('matches').insert({
+        league_id: state.activeLeague.id,
+        home_id: homeId,
+        away_id: awayId,
+        home_goals: hg,
+        away_goals: ag,
+        round: round,
+        date: new Date().toISOString().split('T')[0],
+      }).select().single();
+
+      if (error) throw error;
+      _matchesCache.push(data);
+      $('result-form').classList.add('hidden');
+      $('fixture-rounds').innerHTML = renderFixtureRounds();
+      toast(`✅ ${tn(homeId)} ${hg}–${ag} ${tn(awayId)}`);
+    } catch(e) {
+      toast('⚠️ ' + e.message, true);
+    }
+
+    $('btn-save-result').disabled = false;
+    $('btn-save-result').textContent = '✅ Guardar Resultado';
+  };
+};
+
+window._viewMatchDetail = async (matchId) => {
+  const match = _matchesCache.find(m => m.id === matchId);
+  if (!match) return;
+
+  const ps = match.player_stats || {};
+  const homeName = tn(match.home_id);
+  const awayName = tn(match.away_id);
+
+  const renderPlayers = (teamId) => {
+    const entries = Object.entries(ps).filter(([pid, st]) => {
+      const p = _playersCache.find(pl => pl.id === pid);
+      return p && p.team_id === teamId;
+    });
+
+    if (!entries.length) return '<p class="text-gray-600 text-xs py-2">Sin stats individuales</p>';
+
+    return entries.sort((a,b) => (b[1].rating||0) - (a[1].rating||0)).map(([pid, st]) => {
+      const p = _playersCache.find(pl => pl.id === pid);
+      return `<div class="flex items-center gap-2 py-1.5 border-b border-white/5 text-xs">
+        <span class="text-gray-500 w-8">${st.position || p?.pos || '?'}</span>
+        <span class="flex-1 text-white font-medium">${p?.name || '?'}</span>
+        ${st.goals ? `<span>⚽${st.goals}</span>` : ''}
+        ${st.assists ? `<span>🎯${st.assists}</span>` : ''}
+        ${st.rating ? `<span class="text-yellow-400">⭐${st.rating}</span>` : ''}
+      </div>`;
+    }).join('');
+  };
+
+  // Show as modal
+  const body = $('result-form-body');
+  body.innerHTML = `
+    <div class="grid grid-cols-3 gap-3 items-center text-center mb-4 py-3 bg-pitch-900/40 rounded-xl">
+      <div><p class="font-display text-sm text-white">${homeName}</p></div>
+      <div class="font-display text-3xl text-lime-400">${match.home_goals} – ${match.away_goals}</div>
+      <div><p class="font-display text-sm text-white">${awayName}</p></div>
+    </div>
+    <div class="grid grid-cols-2 gap-3">
+      <div><p class="text-xs text-gray-500 font-semibold mb-2">🏠 ${homeName}</p>${renderPlayers(match.home_id)}</div>
+      <div><p class="text-xs text-gray-500 font-semibold mb-2">✈️ ${awayName}</p>${renderPlayers(match.away_id)}</div>
+    </div>
+    <p class="text-xs text-gray-600 mt-3 text-center">${match.date || ''}</p>
+  `;
+  $('result-form').classList.remove('hidden');
 };
