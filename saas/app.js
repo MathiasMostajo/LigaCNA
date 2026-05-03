@@ -417,7 +417,7 @@ async function initTeamsSection() {
   $('btn-add-team').onclick = () => {
     const maxTeams = state.activeLeague.max_teams || 10;
     if (_teamsCache.length >= maxTeams && !state.isSuperadmin) {
-      toast(\`⚠️ Límite de \${maxTeams} equipos alcanzado para tu plan\`, true);
+      toast(`⚠️ Límite de ${maxTeams} equipos alcanzado para tu plan`, true);
       return;
     }
     $('team-create-form').classList.toggle('hidden');
