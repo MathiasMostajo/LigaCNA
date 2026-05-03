@@ -5,7 +5,7 @@ const SB_URL = 'https://wrgexwyjivfxijivdbqa.supabase.co';
 const SB_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6IndyZ2V4d3lqaXZmeGlqaXZkYnFhIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzM1NDI2NTgsImV4cCI6MjA4OTExODY1OH0.KGBX0-PQGiwrAHrWrZ1TS_rbHtDbQwNA0F2NRhlT830';
 
 // ─── Cache bust ──────────────────────────────────────────────
-const APP_VERSION = 'v11';
+const APP_VERSION = 'v12';
 const SAAS_KEY = 'lcna_saas_version';
 if (localStorage.getItem(SAAS_KEY) !== APP_VERSION) {
   console.log('[AUTH] Version changed to', APP_VERSION);
@@ -203,10 +203,25 @@ function initAuth() {
   supa.auth.onAuthStateChange(async (event, session) => {
     console.log('[AUTH] onAuthStateChange:', event);
     if (event === 'INITIAL_SESSION') return;
-    if (event === 'SIGNED_IN') await handleSession(session);
-    else if (event === 'SIGNED_OUT') {
+    
+    // TOKEN_REFRESHED — don't reload everything, just update the session
+    if (event === 'TOKEN_REFRESHED') {
+      console.log('[AUTH] token refreshed, keeping current state');
+      if (session?.user) state.user = session.user;
+      return;
+    }
+    
+    if (event === 'SIGNED_IN') {
+      // If same user is already loaded, skip full reload (prevents UI flicker)
+      if (state.user?.id === session?.user?.id && state.profile && state.leagues.length >= 0 && !state.loading) {
+        console.log('[AUTH] same user already loaded, skipping reload');
+        state.user = session.user; // update token but keep data
+        return;
+      }
+      await handleSession(session);
+    } else if (event === 'SIGNED_OUT') {
       state.user = null; state.profile = null; state.leagues = [];
-      state.loading = false;
+      state.activeLeague = null; state.loading = false;
       emit('auth:logout');
     }
   });
