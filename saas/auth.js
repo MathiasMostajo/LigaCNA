@@ -5,19 +5,12 @@ const SB_URL = 'https://wrgexwyjivfxijivdbqa.supabase.co';
 const SB_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6IndyZ2V4d3lqaXZmeGlqaXZkYnFhIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzM1NDI2NTgsImV4cCI6MjA4OTExODY1OH0.KGBX0-PQGiwrAHrWrZ1TS_rbHtDbQwNA0F2NRhlT830';
 
 // ─── Cache bust ──────────────────────────────────────────────
-const APP_VERSION = 'v10';
+const APP_VERSION = 'v11';
 const SAAS_KEY = 'lcna_saas_version';
 if (localStorage.getItem(SAAS_KEY) !== APP_VERSION) {
-  console.log('[AUTH] Version changed, clearing cache');
-  const keysToRemove = [];
-  for (let i = 0; i < localStorage.length; i++) {
-    const key = localStorage.key(i);
-    if (key && (key.startsWith('sb-') || key.startsWith('lcna_saas') || key === 'lcna_version' || key === 'lcna_api_key')) {
-      keysToRemove.push(key);
-    }
-  }
-  keysToRemove.forEach(k => localStorage.removeItem(k));
-  sessionStorage.clear();
+  console.log('[AUTH] Version changed to', APP_VERSION);
+  // Only clear app-specific keys — NEVER touch sb-* (Supabase auth session)
+  ['lcna_version', 'lcna_api_key'].forEach(k => localStorage.removeItem(k));
   localStorage.setItem(SAAS_KEY, APP_VERSION);
 }
 
