@@ -826,10 +826,8 @@ async function loadMatches() {
 }
 
 function getMatchResult(homeId, awayId) {
-  return _matchesCache.find(m =>
-    (m.home_id === homeId && m.away_id === awayId) ||
-    (m.home_id === awayId && m.away_id === homeId)
-  );
+  // Only match the EXACT home/away pair — A vs B is different from B vs A
+  return _matchesCache.find(m => m.home_id === homeId && m.away_id === awayId);
 }
 
 function tn(teamId) {
