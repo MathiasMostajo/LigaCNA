@@ -188,8 +188,36 @@ function initHubUI() {
   if (badgeEl) {
     const plan = state.profile?.plan_type || 'amateur';
     const colors = { superadmin: 'border-yellow-400/30 text-yellow-400', elite: 'border-purple-400/30 text-purple-400', pro: 'border-lime-400/30 text-lime-400', amateur: 'border-gray-600 text-gray-500' };
-    badgeEl.className = `text-[10px] uppercase tracking-wider px-2 py-1 rounded-full border font-semibold ${colors[plan] || colors.amateur}`;
-    badgeEl.textContent = plan;
+    if (state.isSuperadmin) {
+      // Superadmin gets a dropdown to switch plans for testing
+      badgeEl.outerHTML = `<select id="plan-switcher" class="text-[10px] uppercase tracking-wider px-2 py-1 rounded-full border font-semibold bg-transparent border-yellow-400/30 text-yellow-400 outline-none cursor-pointer">
+        <option value="superadmin" ${plan==='superadmin'?'selected':''}>⚡ SUPERADMIN</option>
+        <option value="elite" ${plan==='elite'?'selected':''}>💎 ELITE</option>
+        <option value="pro" ${plan==='pro'?'selected':''}>🟢 PRO</option>
+        <option value="amateur" ${plan==='amateur'?'selected':''}>⚪ AMATEUR</option>
+      </select>`;
+      const switcher = $('plan-switcher');
+      if (switcher) {
+        switcher.onchange = async () => {
+          const newPlan = switcher.value;
+          try {
+            await supa.from('profiles').update({ plan_type: newPlan }).eq('id', state.user.id);
+            state.profile.plan_type = newPlan;
+            // Also update all leagues to match
+            for (const lg of state.leagues) {
+              const limits = { amateur: 10, pro: 16, elite: 999, superadmin: 999 };
+              await supa.from('leagues').update({ plan_type: newPlan, max_teams: limits[newPlan] || 10 }).eq('id', lg.id);
+              lg.plan_type = newPlan;
+              lg.max_teams = limits[newPlan] || 10;
+            }
+            toast('✅ Plan cambiado a ' + newPlan.toUpperCase());
+          } catch(e) { toast('⚠️ ' + e.message, true); }
+        };
+      }
+    } else {
+      badgeEl.className = `text-[10px] uppercase tracking-wider px-2 py-1 rounded-full border font-semibold ${colors[plan] || colors.amateur}`;
+      badgeEl.textContent = plan;
+    }
   }
 
   // Render leagues
@@ -1073,10 +1101,10 @@ window._showResultForm = (homeId, awayId, round) => {
       </div>
     </div>
 
-    <div class="grid grid-cols-[1fr_auto_1fr] gap-3 items-center mb-5">
-      <input type="number" id="rf-hg" min="0" value="0" class="bg-pitch-900/60 border border-white/10 rounded-xl px-3 py-2.5 text-white text-center font-display text-2xl outline-none focus:border-lime-400/40">
-      <span class="text-gray-500 text-lg">–</span>
-      <input type="number" id="rf-ag" min="0" value="0" class="bg-pitch-900/60 border border-white/10 rounded-xl px-3 py-2.5 text-white text-center font-display text-2xl outline-none focus:border-lime-400/40">
+    <div style="display:grid;grid-template-columns:1fr 30px 1fr;gap:8px;align-items:center;margin-bottom:20px;">
+      <input type="number" id="rf-hg" min="0" value="0" style="width:100%;box-sizing:border-box;" class="bg-pitch-900/60 border border-white/10 rounded-xl px-3 py-2.5 text-white text-center font-display text-2xl outline-none focus:border-lime-400/40">
+      <span class="text-gray-500 text-lg text-center">–</span>
+      <input type="number" id="rf-ag" min="0" value="0" style="width:100%;box-sizing:border-box;" class="bg-pitch-900/60 border border-white/10 rounded-xl px-3 py-2.5 text-white text-center font-display text-2xl outline-none focus:border-lime-400/40">
     </div>
 
     <button id="btn-save-result" class="w-full bg-gradient-to-r from-lime-400 to-emerald-500 text-pitch-900 font-bold py-3 rounded-xl text-sm uppercase tracking-wider hover:from-lime-300 hover:to-emerald-400 transition-all shadow-lg shadow-lime-400/10 active:scale-[.98]">
