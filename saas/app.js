@@ -372,6 +372,14 @@ async function loadPlayers(teamId) {
 }
 
 async function initTeamsSection() {
+  try { await _initTeamsSectionInner(); } catch(e) { 
+    console.error('Teams section error:', e); 
+    const container = document.querySelector('[data-section="teams"]');
+    if (container) container.innerHTML = '<div class="bg-red-500/10 border border-red-500/20 rounded-2xl p-6 text-center"><p class="text-red-400">Error cargando equipos: ' + e.message + '</p><button onclick="initTeamsSection()" class="mt-3 bg-white/5 text-gray-400 px-4 py-2 rounded-xl text-sm hover:text-white transition-all">Reintentar</button></div>';
+  }
+}
+
+async function _initTeamsSectionInner() {
   const container = document.querySelector('[data-section="teams"]');
   if (!container) return;
 
@@ -387,14 +395,10 @@ async function initTeamsSection() {
     <!-- Create team form (hidden) -->
     <div id="team-create-form" class="hidden bg-pitch-800/60 border border-lime-400/20 rounded-2xl p-5 mb-4 glow">
       <h3 class="font-display text-lg text-white mb-4">🏟 Nuevo Equipo</h3>
-      <div class="grid gap-3 md:grid-cols-3 mb-4">
+      <div class="grid gap-3 md:grid-cols-2 mb-4">
         <div>
           <label class="block text-xs text-gray-500 uppercase tracking-wider mb-1 font-semibold">Nombre</label>
           <input id="new-team-name" type="text" placeholder="Ej: Peñarol" class="w-full bg-pitch-900/60 border border-white/10 rounded-xl px-4 py-2.5 text-white placeholder-gray-600 outline-none focus:border-lime-400/40 text-sm">
-        </div>
-        <div>
-          <label class="block text-xs text-gray-500 uppercase tracking-wider mb-1 font-semibold">Código DT</label>
-          <input id="new-team-code" type="text" placeholder="Ej: PEN2026" class="w-full bg-pitch-900/60 border border-white/10 rounded-xl px-4 py-2.5 text-white placeholder-gray-600 outline-none focus:border-lime-400/40 text-sm">
         </div>
         <div class="flex items-end gap-2">
           <button id="btn-confirm-team" class="flex-1 bg-gradient-to-r from-lime-400 to-emerald-500 text-pitch-900 font-bold py-2.5 rounded-xl text-sm uppercase tracking-wider">Crear</button>
@@ -427,7 +431,6 @@ async function initTeamsSection() {
 
   $('btn-confirm-team').onclick = async () => {
     const name = $('new-team-name').value.trim();
-    const code = $('new-team-code').value.trim();
     const errEl = $('team-create-error');
 
     if (!name) { errEl.textContent = 'El nombre es obligatorio'; errEl.classList.remove('hidden'); return; }
@@ -440,18 +443,22 @@ async function initTeamsSection() {
     $('btn-confirm-team').disabled = true;
     $('btn-confirm-team').textContent = 'Creando...';
 
+    // Auto-generate random 6-char code for DT login
+    const autoCode = Array.from(crypto.getRandomValues(new Uint8Array(4)))
+      .map(b => b.toString(36).toUpperCase().slice(-1)).join('') 
+      + Math.floor(Math.random() * 90 + 10);
+
     try {
       const { data, error } = await supa.from('teams').insert({
         league_id: state.activeLeague.id,
         name,
-        code: code || null,
+        code: autoCode,
       }).select().single();
 
       if (error) throw error;
       _teamsCache.push(data);
       $('team-create-form').classList.add('hidden');
       $('new-team-name').value = '';
-      $('new-team-code').value = '';
       errEl.classList.add('hidden');
       renderTeamsList();
       toast('✅ Equipo creado');
@@ -466,7 +473,7 @@ async function initTeamsSection() {
   // Load and render teams
   await loadTeams();
   renderTeamsList();
-}
+} // end _initTeamsSectionInner
 
 function renderTeamsList() {
   const el = $('teams-list');
@@ -701,13 +708,22 @@ window._deleteTeam = async (teamId) => {
   if (!confirm(`¿Eliminar ${team.name}? Se borrarán todos sus jugadores y partidos. No se puede deshacer.`)) return;
 
   try {
+    // Delete players first (FK constraint), then team
+    const { error: playersErr } = await supa.from('players').delete().eq('team_id', teamId);
+    if (playersErr) throw playersErr;
     const { error } = await supa.from('teams').delete().eq('id', teamId);
     if (error) throw error;
     _teamsCache = _teamsCache.filter(t => t.id !== teamId);
-    window._closeTeamDetail();
+    _playersCache = _playersCache.filter(p => p.team_id !== teamId);
+    _activeTeamId = null;
+    const detail = $('team-detail');
+    if (detail) { detail.classList.add('hidden'); detail.innerHTML = ''; }
     renderTeamsList();
     toast(`🗑 ${team.name} eliminado`);
-  } catch(e) { toast('⚠️ ' + e.message, true); }
+  } catch(e) { 
+    console.error('Delete error:', e);
+    toast('⚠️ Error al eliminar: ' + e.message, true); 
+  }
 };
 
 window._uploadShield = async (teamId, event) => {
