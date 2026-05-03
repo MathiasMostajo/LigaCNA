@@ -201,16 +201,11 @@ function initHubUI() {
         switcher.onchange = async () => {
           const newPlan = switcher.value;
           try {
+            // Only update profile plan — existing leagues keep their original plan
             await supa.from('profiles').update({ plan_type: newPlan }).eq('id', state.user.id);
             state.profile.plan_type = newPlan;
-            // Also update all leagues to match
-            for (const lg of state.leagues) {
-              const limits = { amateur: 10, pro: 16, elite: 999, superadmin: 999 };
-              await supa.from('leagues').update({ plan_type: newPlan, max_teams: limits[newPlan] || 10 }).eq('id', lg.id);
-              lg.plan_type = newPlan;
-              lg.max_teams = limits[newPlan] || 10;
-            }
-            toast('✅ Plan cambiado a ' + newPlan.toUpperCase());
+            renderHubLeagues(); // re-render to show updated badge
+            toast('✅ Plan cambiado a ' + newPlan.toUpperCase() + '. Las ligas nuevas usarán este plan.');
           } catch(e) { toast('⚠️ ' + e.message, true); }
         };
       }
@@ -314,6 +309,8 @@ function initDashboard() {
       // Lazy-load section content
       if (section === 'teams') initTeamsSection();
       if (section === 'fixture') initFixtureSection();
+      if (section === 'standings') initStandingsSection();
+      if (section === 'leaders') initLeadersSection();
     };
   });
 
@@ -1189,4 +1186,235 @@ window._viewMatchDetail = async (matchId) => {
     <p class="text-xs text-gray-600 mt-3 text-center">${match.date || ''}</p>
   `;
   $('result-form').classList.remove('hidden');
+};
+
+// ═══════════════════════════════════════════════════════════════
+// STANDINGS MODULE
+// ═══════════════════════════════════════════════════════════════
+function calculateStandings() {
+  const standings = {};
+  _teamsCache.filter(t => !t.is_bye && !t.replaced).forEach(t => {
+    standings[t.id] = { id: t.id, name: t.name, shield_url: t.shield_url, P:0, W:0, D:0, L:0, GF:0, GA:0, GD:0, Pts:0, form: [] };
+  });
+
+  _matchesCache.forEach(m => {
+    const h = standings[m.home_id], a = standings[m.away_id];
+    if (!h || !a) return;
+    h.P++; a.P++;
+    h.GF += m.home_goals; h.GA += m.away_goals;
+    a.GF += m.away_goals; a.GA += m.home_goals;
+    if (m.home_goals > m.away_goals) { h.W++; h.Pts += 3; a.L++; h.form.push('W'); a.form.push('L'); }
+    else if (m.home_goals < m.away_goals) { a.W++; a.Pts += 3; h.L++; h.form.push('L'); a.form.push('W'); }
+    else { h.D++; a.D++; h.Pts++; a.Pts++; h.form.push('D'); a.form.push('D'); }
+  });
+
+  Object.values(standings).forEach(s => { s.GD = s.GF - s.GA; });
+  return Object.values(standings).sort((a,b) => b.Pts - a.Pts || b.GD - a.GD || b.GF - a.GF);
+}
+
+async function initStandingsSection() {
+  try { await _initStandingsSectionInner(); } catch(e) {
+    console.error('Standings error:', e);
+    const container = document.querySelector('[data-section="standings"]');
+    if (container) container.innerHTML = `<div class="bg-red-500/10 border border-red-500/20 rounded-2xl p-6 text-center"><p class="text-red-400">Error: ${e.message}</p><button onclick="initStandingsSection()" class="mt-3 bg-white/5 text-gray-400 px-4 py-2 rounded-xl text-sm">Reintentar</button></div>`;
+  }
+}
+
+async function _initStandingsSectionInner() {
+  const container = document.querySelector('[data-section="standings"]');
+  if (!container) return;
+
+  if (!_teamsCache.length) await loadTeams();
+  if (!_matchesCache.length) await loadMatches();
+
+  const standings = calculateStandings();
+
+  const formPill = (f) => {
+    const colors = { W: 'bg-emerald-500', L: 'bg-red-500', D: 'bg-yellow-500' };
+    return `<span class="inline-block w-5 h-5 rounded text-[10px] font-bold text-white flex items-center justify-center ${colors[f] || 'bg-gray-600'}">${f}</span>`;
+  };
+
+  container.innerHTML = `
+    <div class="flex items-center gap-3 mb-6">
+      <span class="text-2xl">📊</span>
+      <h2 class="font-display text-3xl tracking-wide text-white">TABLA DE POSICIONES</h2>
+    </div>
+
+    ${standings.length ? `
+      <div class="bg-pitch-800/60 border border-white/5 rounded-2xl overflow-hidden">
+        <div class="overflow-x-auto">
+          <table class="w-full text-sm">
+            <thead>
+              <tr class="border-b border-white/10">
+                <th class="text-left py-3 px-3 text-gray-500 text-xs uppercase tracking-wider w-8">#</th>
+                <th class="text-left py-3 px-2 text-gray-500 text-xs uppercase tracking-wider">Equipo</th>
+                <th class="text-center py-3 px-1 text-gray-500 text-xs uppercase tracking-wider">PJ</th>
+                <th class="text-center py-3 px-1 text-gray-500 text-xs uppercase tracking-wider">G</th>
+                <th class="text-center py-3 px-1 text-gray-500 text-xs uppercase tracking-wider">E</th>
+                <th class="text-center py-3 px-1 text-gray-500 text-xs uppercase tracking-wider">P</th>
+                <th class="text-center py-3 px-1 text-gray-500 text-xs uppercase tracking-wider">GF</th>
+                <th class="text-center py-3 px-1 text-gray-500 text-xs uppercase tracking-wider">GC</th>
+                <th class="text-center py-3 px-1 text-gray-500 text-xs uppercase tracking-wider">DG</th>
+                <th class="text-center py-3 px-2 text-gray-500 text-xs uppercase tracking-wider">Pts</th>
+                <th class="text-center py-3 px-2 text-gray-500 text-xs uppercase tracking-wider hidden sm:table-cell">Forma</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${standings.map((s, i) => {
+                const posColors = i < 1 ? 'text-lime-400 font-bold' : i < 3 ? 'text-lime-400/70' : i >= standings.length - 2 ? 'text-red-400' : 'text-gray-500';
+                const streak = (() => {
+                  const rev = s.form.slice().reverse();
+                  if (!rev.length) return '';
+                  const type = rev[0];
+                  let count = 0;
+                  for (const r of rev) { if (r === type) count++; else break; }
+                  if (count < 3) return '';
+                  const emoji = type === 'W' ? '🔥' : '❄️';
+                  return `<span class="text-[10px]">${emoji}${count}</span>`;
+                })();
+                const shieldHtml = s.shield_url
+                  ? `<img src="${s.shield_url}" class="w-6 h-6 rounded-full object-cover border border-white/10 shrink-0">`
+                  : `<div class="w-6 h-6 rounded-full bg-pitch-700 border border-white/10 flex items-center justify-center text-[10px] font-display text-lime-400 shrink-0">${s.name.charAt(0)}</div>`;
+
+                return `<tr class="border-b border-white/5 hover:bg-white/[.02] transition-colors">
+                  <td class="py-2.5 px-3 ${posColors}">${i + 1}</td>
+                  <td class="py-2.5 px-2">
+                    <div class="flex items-center gap-2 cursor-pointer" onclick="window._viewTeam('${s.id}')">
+                      ${shieldHtml}
+                      <span class="font-medium text-white text-sm truncate hover:text-lime-400 transition-colors">${s.name}</span>
+                    </div>
+                  </td>
+                  <td class="text-center text-gray-400 py-2.5 px-1">${s.P}</td>
+                  <td class="text-center text-gray-400 py-2.5 px-1">${s.W}</td>
+                  <td class="text-center text-gray-400 py-2.5 px-1">${s.D}</td>
+                  <td class="text-center text-gray-400 py-2.5 px-1">${s.L}</td>
+                  <td class="text-center text-gray-400 py-2.5 px-1">${s.GF}</td>
+                  <td class="text-center text-gray-400 py-2.5 px-1">${s.GA}</td>
+                  <td class="text-center py-2.5 px-1 ${s.GD > 0 ? 'text-emerald-400' : s.GD < 0 ? 'text-red-400' : 'text-gray-500'}">${s.GD > 0 ? '+' : ''}${s.GD}</td>
+                  <td class="text-center py-2.5 px-2 font-display text-lg text-white">${s.Pts}</td>
+                  <td class="text-center py-2.5 px-2 hidden sm:table-cell">
+                    <div class="flex items-center justify-center gap-0.5">
+                      ${streak}${s.form.slice(-5).map(f => formPill(f)).join('')}
+                    </div>
+                  </td>
+                </tr>`;
+              }).join('')}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- Summary cards -->
+      <div class="grid grid-cols-2 md:grid-cols-4 gap-3 mt-4">
+        <div class="bg-pitch-800/60 border border-white/5 rounded-xl p-4 text-center">
+          <p class="font-display text-2xl text-lime-400">${_matchesCache.length}</p>
+          <p class="text-xs text-gray-500 uppercase">Partidos</p>
+        </div>
+        <div class="bg-pitch-800/60 border border-white/5 rounded-xl p-4 text-center">
+          <p class="font-display text-2xl text-white">${_matchesCache.reduce((t,m) => t + m.home_goals + m.away_goals, 0)}</p>
+          <p class="text-xs text-gray-500 uppercase">Goles</p>
+        </div>
+        <div class="bg-pitch-800/60 border border-white/5 rounded-xl p-4 text-center">
+          <p class="font-display text-2xl text-white">${standings.length ? standings[0].name : '—'}</p>
+          <p class="text-xs text-gray-500 uppercase">Líder</p>
+        </div>
+        <div class="bg-pitch-800/60 border border-white/5 rounded-xl p-4 text-center">
+          <p class="font-display text-2xl text-white">${_matchesCache.length ? (_matchesCache.reduce((t,m) => t + m.home_goals + m.away_goals, 0) / _matchesCache.length).toFixed(1) : '0'}</p>
+          <p class="text-xs text-gray-500 uppercase">Goles/Partido</p>
+        </div>
+      </div>
+    ` : `
+      <div class="bg-pitch-800/40 border border-dashed border-white/10 rounded-2xl p-12 text-center">
+        <span class="text-4xl mb-4 block">📊</span>
+        <p class="text-gray-500 mb-2">Sin datos para mostrar</p>
+        <p class="text-sm text-gray-600">Cargá resultados en el Fixture para ver la tabla</p>
+      </div>
+    `}
+  `;
+}
+
+// ═══════════════════════════════════════════════════════════════
+// LEADERS MODULE
+// ═══════════════════════════════════════════════════════════════
+let _leadersSort = 'goals';
+
+async function initLeadersSection() {
+  try { await _initLeadersSectionInner(); } catch(e) {
+    console.error('Leaders error:', e);
+    const container = document.querySelector('[data-section="leaders"]');
+    if (container) container.innerHTML = `<div class="bg-red-500/10 border border-red-500/20 rounded-2xl p-6 text-center"><p class="text-red-400">Error: ${e.message}</p></div>`;
+  }
+}
+
+async function _initLeadersSectionInner() {
+  const container = document.querySelector('[data-section="leaders"]');
+  if (!container) return;
+
+  if (!_teamsCache.length) await loadTeams();
+  if (!_playersCache.length) await loadPlayers();
+
+  container.innerHTML = `
+    <div class="flex items-center gap-3 mb-6">
+      <span class="text-2xl">⭐</span>
+      <h2 class="font-display text-3xl tracking-wide text-white">LÍDERES</h2>
+    </div>
+
+    <!-- Sort tabs -->
+    <div class="flex gap-2 mb-4 flex-wrap">
+      ${[['goals','⚽ Goleadores'],['assists','🎯 Asistidores'],['rating','⭐ Rendimiento'],['matches_played','🎮 Más partidos']].map(([col, lbl]) =>
+        `<button onclick="window._sortLeaders('${col}')" class="px-4 py-2 rounded-xl text-sm font-semibold transition-all ${_leadersSort === col ? 'bg-lime-400/10 text-lime-400 border border-lime-400/20' : 'bg-pitch-800/60 text-gray-500 border border-white/5 hover:text-white'}">${lbl}</button>`
+      ).join('')}
+    </div>
+
+    <div id="leaders-list" class="bg-pitch-800/60 border border-white/5 rounded-2xl overflow-hidden">
+      ${renderLeadersHTML()}
+    </div>
+  `;
+}
+
+function renderLeadersHTML() {
+  const sorted = [..._playersCache].sort((a, b) => {
+    if (_leadersSort === 'rating') {
+      const avgA = a.ratings?.length ? a.ratings.reduce((x,y) => x + Number(y), 0) / a.ratings.length : 0;
+      const avgB = b.ratings?.length ? b.ratings.reduce((x,y) => x + Number(y), 0) / b.ratings.length : 0;
+      return avgB - avgA;
+    }
+    return (b[_leadersSort] || 0) - (a[_leadersSort] || 0);
+  }).filter(p => {
+    if (_leadersSort === 'goals') return p.goals > 0;
+    if (_leadersSort === 'assists') return p.assists > 0;
+    if (_leadersSort === 'rating') return p.ratings?.length > 0;
+    return p.matches_played > 0;
+  }).slice(0, 20);
+
+  if (!sorted.length) return '<div class="p-8 text-center text-gray-600">Sin datos todavía</div>';
+
+  return sorted.map((p, i) => {
+    const avgRating = p.ratings?.length ? (p.ratings.reduce((x,y) => x + Number(y), 0) / p.ratings.length).toFixed(1) : '—';
+    const mainStat = _leadersSort === 'goals' ? `⚽ ${p.goals}`
+      : _leadersSort === 'assists' ? `🎯 ${p.assists}`
+      : _leadersSort === 'rating' ? `⭐ ${avgRating}`
+      : `🎮 ${p.matches_played}`;
+
+    const medal = i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : '';
+
+    return `<div class="flex items-center gap-3 py-3 px-4 border-b border-white/5 last:border-0 hover:bg-white/[.02] transition-colors">
+      <span class="w-6 text-center ${i < 3 ? 'text-lg' : 'text-gray-600 text-sm'}">${medal || (i + 1)}</span>
+      <div class="flex-1 min-w-0">
+        <p class="font-medium text-white text-sm truncate">${p.name}</p>
+        <p class="text-xs text-gray-500">${tn(p.team_id)}</p>
+      </div>
+      <div class="flex items-center gap-3 text-sm">
+        <span class="font-display text-lg text-lime-400">${mainStat}</span>
+        ${_leadersSort !== 'goals' ? `<span class="text-gray-600">⚽${p.goals}</span>` : ''}
+        ${_leadersSort !== 'assists' ? `<span class="text-gray-600">🎯${p.assists}</span>` : ''}
+        ${_leadersSort !== 'rating' ? `<span class="text-gray-600">⭐${avgRating}</span>` : ''}
+      </div>
+    </div>`;
+  }).join('');
+}
+
+window._sortLeaders = (col) => {
+  _leadersSort = col;
+  initLeadersSection();
 };
