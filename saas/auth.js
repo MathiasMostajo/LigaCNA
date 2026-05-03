@@ -1,39 +1,54 @@
 // ═══════════════════════════════════════════════════════════════
-// auth.js v5 — Auth + Profile + League resolution
+// auth.js v10 — BULLETPROOF auth with diagnostic logging
 // ═══════════════════════════════════════════════════════════════
 const SB_URL = 'https://wrgexwyjivfxijivdbqa.supabase.co';
 const SB_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6IndyZ2V4d3lqaXZmeGlqaXZkYnFhIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzM1NDI2NTgsImV4cCI6MjA4OTExODY1OH0.KGBX0-PQGiwrAHrWrZ1TS_rbHtDbQwNA0F2NRhlT830';
 
-// Cache bust: clear stale sessions from old app versions
-const APP_VERSION = 'v9';
-if (localStorage.getItem('lcna_version') !== APP_VERSION) {
-  localStorage.clear();
+// ─── Cache bust ──────────────────────────────────────────────
+const APP_VERSION = 'v10';
+const SAAS_KEY = 'lcna_saas_version';
+if (localStorage.getItem(SAAS_KEY) !== APP_VERSION) {
+  console.log('[AUTH] Version changed, clearing cache');
+  const keysToRemove = [];
+  for (let i = 0; i < localStorage.length; i++) {
+    const key = localStorage.key(i);
+    if (key && (key.startsWith('sb-') || key.startsWith('lcna_saas') || key === 'lcna_version' || key === 'lcna_api_key')) {
+      keysToRemove.push(key);
+    }
+  }
+  keysToRemove.forEach(k => localStorage.removeItem(k));
   sessionStorage.clear();
-  localStorage.setItem('lcna_version', APP_VERSION);
+  localStorage.setItem(SAAS_KEY, APP_VERSION);
 }
 
-function getSupabase() {
-  if (window.supabase?.createClient) return window.supabase.createClient(SB_URL, SB_KEY);
-  throw new Error('Supabase SDK not loaded');
-}
-
+// ─── Supabase client ─────────────────────────────────────────
 let supa;
-try { supa = getSupabase(); } catch(e) { console.error(e); }
+try {
+  supa = window.supabase.createClient(SB_URL, SB_KEY);
+  console.log('[AUTH] Supabase client created');
+} catch(e) {
+  console.error('[AUTH] Supabase init failed:', e);
+}
 
+// ─── State ───────────────────────────────────────────────────
 const state = {
   user: null,
   profile: null,
-  leagues: [],        // all leagues owned by user
-  activeLeague: null,  // currently selected league
+  leagues: [],
+  activeLeague: null,
   isSuperadmin: false,
   loading: true,
 };
 
+// ─── Events ──────────────────────────────────────────────────
 const listeners = {};
 function on(event, fn) { (listeners[event] ||= []).push(fn); }
-function emit(event, data) { (listeners[event] || []).forEach(fn => fn(data)); }
+function emit(event, data) {
+  console.log('[AUTH] emit:', event);
+  (listeners[event] || []).forEach(fn => fn(data));
+}
 
-// ─── Auth Actions ────────────────────────────────────────────
+// ─── Auth actions ────────────────────────────────────────────
 async function signUp(email, password) {
   const { data, error } = await supa.auth.signUp({ email, password });
   if (error) throw error;
@@ -47,31 +62,56 @@ async function signIn(email, password) {
 }
 
 async function signOut() {
-  try { await supa.auth.signOut(); } catch(e) { console.error(e); }
-  state.user = null; state.profile = null; state.leagues = []; state.activeLeague = null; state.isSuperadmin = false;
+  console.log('[AUTH] signing out');
+  try { await supa.auth.signOut(); } catch(e) { console.warn('[AUTH] signOut error:', e); }
+  state.user = null; state.profile = null; state.leagues = [];
+  state.activeLeague = null; state.isSuperadmin = false;
   emit('auth:logout');
 }
 
-// ─── Data Loaders ────────────────────────────────────────────
+// ─── Data loaders (each with timeout + fallback) ─────────────
+function withTimeout(promise, ms, fallback) {
+  return Promise.race([
+    promise,
+    new Promise(resolve => setTimeout(() => {
+      console.warn(`[AUTH] timeout after ${ms}ms, using fallback`);
+      resolve(fallback);
+    }, ms))
+  ]);
+}
+
 async function loadProfile(userId) {
-  const { data, error } = await supa.from('profiles').select('*').eq('id', userId).maybeSingle();
-  if (error) { console.warn('Profile load error (may not exist yet):', error.message); }
-  // Auto-create profile if missing (user created before trigger existed)
-  if (!data) {
+  console.log('[AUTH] loading profile for', userId);
+  try {
+    const { data, error } = await supa.from('profiles').select('*').eq('id', userId).maybeSingle();
+    if (error) console.warn('[AUTH] profile select error:', error.message);
+    if (data) { console.log('[AUTH] profile found:', data.role, data.plan_type); return data; }
+
+    // Auto-create if missing
+    console.log('[AUTH] profile not found, creating...');
     const email = state.user?.email || '';
     const { data: created, error: createErr } = await supa.from('profiles')
       .upsert({ id: userId, email, display_name: email.split('@')[0] }, { onConflict: 'id' })
       .select().maybeSingle();
-    if (createErr) console.warn('Profile auto-create failed:', createErr.message);
-    return created || { id: userId, email, role: 'user', plan_type: 'amateur', ai_trial_scans: 3 };
+    if (createErr) console.warn('[AUTH] profile create error:', createErr.message);
+    return created || null;
+  } catch(e) {
+    console.warn('[AUTH] loadProfile exception:', e.message);
+    return null;
   }
-  return data;
 }
 
 async function loadMyLeagues(userId) {
-  const { data, error } = await supa.from('leagues').select('*').eq('admin_id', userId).order('created_at', { ascending: false });
-  if (error) throw error;
-  return data || [];
+  console.log('[AUTH] loading leagues for', userId);
+  try {
+    const { data, error } = await supa.from('leagues').select('*').eq('admin_id', userId).order('created_at', { ascending: false });
+    if (error) console.warn('[AUTH] leagues error:', error.message);
+    console.log('[AUTH] found', data?.length || 0, 'leagues');
+    return data || [];
+  } catch(e) {
+    console.warn('[AUTH] loadMyLeagues exception:', e.message);
+    return [];
+  }
 }
 
 async function createLeague(name, maxPlayers) {
@@ -92,7 +132,7 @@ function setActiveLeague(league) {
   emit('league:selected', state);
 }
 
-// ─── Public League Search ────────────────────────────────────
+// ─── Public league search ────────────────────────────────────
 async function searchPublicLeagues(query) {
   const { data, error } = await supa.from('leagues').select('id, name, slug, max_teams, created_at')
     .eq('is_public', true).ilike('name', `%${query}%`).limit(20);
@@ -106,43 +146,76 @@ async function loadPublicLeague(slug) {
   return data;
 }
 
-// ─── Session Handler ─────────────────────────────────────────
+// ─── Session handler (BULLETPROOF) ───────────────────────────
 async function handleSession(session) {
-  if (session?.user) {
-    state.user = session.user;
-    try {
-      // Load profile and leagues — if either fails, still proceed with defaults
-      let profile = null, leagues = [];
-      try { profile = await loadProfile(session.user.id); } catch(e) { console.warn('Profile load failed, using defaults:', e); }
-      try { leagues = await loadMyLeagues(session.user.id); } catch(e) { console.warn('Leagues load failed:', e); leagues = []; }
-      state.profile = profile || { id: session.user.id, role: 'user', plan_type: 'amateur', ai_trial_scans: 3 };
-      state.leagues = leagues || [];
-      state.isSuperadmin = state.profile?.role === 'superadmin';
-      state.loading = false;
-      emit('auth:ready', state);
-    } catch(e) {
-      console.error('Session load failed:', e);
-      state.loading = false;
-      emit('auth:error', e);
-    }
-  } else {
-    state.user = null; state.profile = null; state.leagues = []; state.activeLeague = null;
-    state.loading = false;
+  console.log('[AUTH] handleSession, user:', session?.user?.email || 'none');
+
+  if (!session?.user) {
+    console.log('[AUTH] no user in session');
+    state.user = null; state.profile = null; state.leagues = [];
+    state.activeLeague = null; state.loading = false;
     emit('auth:logout');
+    return;
   }
+
+  state.user = session.user;
+
+  // Load profile and leagues with 8-second timeout each
+  const defaultProfile = { id: session.user.id, email: session.user.email, role: 'user', plan_type: 'amateur', ai_trial_scans: 3 };
+
+  const profile = await withTimeout(loadProfile(session.user.id), 8000, null);
+  const leagues = await withTimeout(loadMyLeagues(session.user.id), 8000, []);
+
+  state.profile = profile || defaultProfile;
+  state.leagues = leagues || [];
+  state.isSuperadmin = state.profile.role === 'superadmin';
+  state.loading = false;
+
+  console.log('[AUTH] ready — superadmin:', state.isSuperadmin, ', leagues:', state.leagues.length);
+  emit('auth:ready', state);
 }
 
+// ─── Init ────────────────────────────────────────────────────
 function initAuth() {
-  if (!supa) { try { supa = getSupabase(); } catch(e) { setTimeout(initAuth, 500); return; } }
+  if (!supa) {
+    console.error('[AUTH] no Supabase client, retrying...');
+    setTimeout(() => {
+      try { supa = window.supabase.createClient(SB_URL, SB_KEY); initAuth(); }
+      catch(e) { console.error('[AUTH] retry failed'); emit('auth:logout'); }
+    }, 500);
+    return;
+  }
 
-  supa.auth.getSession()
-    .then(({ data: { session } }) => handleSession(session))
-    .catch(e => { console.error(e); state.loading = false; emit('auth:logout'); });
+  console.log('[AUTH] initializing...');
 
+  // Get initial session with timeout
+  withTimeout(
+    supa.auth.getSession().then(({ data: { session } }) => handleSession(session)),
+    10000,
+    null
+  ).catch(e => {
+    console.error('[AUTH] getSession failed:', e);
+    state.loading = false;
+    emit('auth:logout');
+  }).then(result => {
+    // If timeout returned null (handleSession never completed), force logout
+    if (result === null && state.loading) {
+      console.warn('[AUTH] session load timed out, forcing logout');
+      state.loading = false;
+      emit('auth:logout');
+    }
+  });
+
+  // Listen for future changes
   supa.auth.onAuthStateChange(async (event, session) => {
+    console.log('[AUTH] onAuthStateChange:', event);
     if (event === 'INITIAL_SESSION') return;
     if (event === 'SIGNED_IN') await handleSession(session);
-    else if (event === 'SIGNED_OUT') { state.user = null; state.loading = false; emit('auth:logout'); }
+    else if (event === 'SIGNED_OUT') {
+      state.user = null; state.profile = null; state.leagues = [];
+      state.loading = false;
+      emit('auth:logout');
+    }
   });
 }
 
