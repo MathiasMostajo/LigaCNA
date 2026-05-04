@@ -265,7 +265,7 @@ function renderHubLeagues() {
           </div>
           <div class="flex items-center gap-4 text-xs text-gray-500">
             <span>📝 ${l.slug}</span>
-            <span>🏟 Máx ${l.max_teams} equipos</span>
+            <span>🏟 ${l.max_teams} equipos · 👤 ${l.max_players_per_team} jug/eq</span>
             <span>${l.is_public ? '🌐 Pública' : '🔒 Privada'}</span>
           </div>
         </div>
@@ -284,8 +284,50 @@ window._manageLeague = (leagueId) => {
   _matchesCache = [];
   _scheduleCache = [];
   _activeTeamId = null;
-  setActiveLeague(league);
+
+  // Show interstitial ad for Amateur plan (non-superadmin)
+  if (league.plan_type === 'amateur' && !state.isSuperadmin) {
+    showAdInterstitial(() => setActiveLeague(league));
+  } else {
+    setActiveLeague(league);
+  }
 };
+
+function showAdInterstitial(onComplete) {
+  // Create fullscreen interstitial
+  const overlay = document.createElement('div');
+  overlay.id = 'ad-interstitial';
+  overlay.style.cssText = 'position:fixed;inset:0;z-index:9999;background:#0a0f0a;display:flex;flex-direction:column;align-items:center;justify-content:center;';
+
+  let seconds = 5;
+  overlay.innerHTML = `
+    <div style="max-width:400px;text-align:center;padding:20px;">
+      <div style="border:2px dashed rgba(255,255,255,.1);border-radius:16px;padding:40px 20px;margin-bottom:24px;background:rgba(255,255,255,.02);">
+        <p style="color:rgba(255,255,255,.3);font-size:14px;font-family:'Barlow Condensed',sans-serif;letter-spacing:2px;text-transform:uppercase;">Espacio publicitario</p>
+        <p style="color:rgba(255,255,255,.15);font-size:12px;margin-top:8px;">Tu anuncio aquí — contacta a LigaCNA</p>
+      </div>
+      <p style="color:rgba(255,255,255,.4);font-size:13px;font-family:'Barlow Condensed',sans-serif;">
+        Cargando liga en <span id="ad-countdown" style="color:#00ff87;font-weight:700;font-size:18px;">${seconds}</span> segundos
+      </p>
+      <p style="color:rgba(255,255,255,.2);font-size:11px;margin-top:12px;">
+        ✨ <a href="#" onclick="event.preventDefault()" style="color:#00ff87;text-decoration:underline;">Actualizá a Pro</a> para eliminar anuncios
+      </p>
+    </div>
+  `;
+
+  document.body.appendChild(overlay);
+
+  const timer = setInterval(() => {
+    seconds--;
+    const el = document.getElementById('ad-countdown');
+    if (el) el.textContent = seconds;
+    if (seconds <= 0) {
+      clearInterval(timer);
+      overlay.remove();
+      onComplete();
+    }
+  }, 1000);
+}
 
 // ═══════════════════════════════════════════════════════════════
 // STATE 4: LEAGUE DASHBOARD
@@ -487,6 +529,15 @@ async function _initTeamsSectionInner() {
     // Check duplicate name
     if (_teamsCache.some(t => t.name.toLowerCase() === name.toLowerCase())) {
       errEl.textContent = 'Ya existe un equipo con ese nombre'; errEl.classList.remove('hidden'); return;
+    }
+
+    // Double-check team limit right before insert
+    const currentActiveTeams = _teamsCache.filter(t => !t.is_bye && !t.replaced).length;
+    const leagueMax = state.activeLeague.max_teams || 12;
+    if (currentActiveTeams >= leagueMax && !state.isSuperadmin) {
+      errEl.textContent = `Límite de ${leagueMax} equipos (plan ${state.activeLeague.plan_type.toUpperCase()})`;
+      errEl.classList.remove('hidden');
+      return;
     }
 
     $('btn-confirm-team').disabled = true;
