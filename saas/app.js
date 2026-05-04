@@ -489,6 +489,7 @@ async function _initTeamsSectionInner() {
       <div class="flex items-center gap-3">
         <span class="text-2xl">🏟</span>
         <h2 class="font-display text-3xl tracking-wide text-white">EQUIPOS</h2>
+        <span class="text-xs text-gray-500 bg-pitch-800 px-2 py-1 rounded-lg">${_teamsCache.filter(t=>!t.is_bye&&!t.replaced).length}/${getPlanLimits(state.activeLeague.plan_type).maxTeams === 999 ? '∞' : getPlanLimits(state.activeLeague.plan_type).maxTeams}</span>
       </div>
       <button id="btn-add-team" class="bg-gradient-to-r from-lime-400 to-emerald-500 text-pitch-900 font-bold py-2 px-5 rounded-xl text-sm uppercase tracking-wider hover:from-lime-300 hover:to-emerald-400 transition-all shadow-lg shadow-lime-400/10 active:scale-[.98]">+ Nuevo Equipo</button>
     </div>
@@ -522,7 +523,7 @@ async function _initTeamsSectionInner() {
   $('btn-add-team').onclick = () => {
     const limits = getPlanLimits(state.activeLeague.plan_type);
     const activeTeams = _teamsCache.filter(t => !t.is_bye && !t.replaced).length;
-    if (activeTeams >= limits.maxTeams && !state.isSuperadmin) {
+    if (activeTeams >= limits.maxTeams && state.activeLeague.plan_type !== 'superadmin') {
       toast(`⚠️ Límite de ${limits.maxTeams} equipos en plan ${state.activeLeague.plan_type.toUpperCase()}. Actualizá tu plan.`, true);
       return;
     }
@@ -545,7 +546,7 @@ async function _initTeamsSectionInner() {
     // Double-check team limit right before insert
     const currentActiveTeams = _teamsCache.filter(t => !t.is_bye && !t.replaced).length;
     const insertLimits = getPlanLimits(state.activeLeague.plan_type);
-    if (currentActiveTeams >= insertLimits.maxTeams && !state.isSuperadmin) {
+    if (currentActiveTeams >= insertLimits.maxTeams && state.activeLeague.plan_type !== 'superadmin') {
       errEl.textContent = `Límite de ${insertLimits.maxTeams} equipos (plan ${state.activeLeague.plan_type.toUpperCase()})`;
       errEl.classList.remove('hidden');
       return;
@@ -738,10 +739,10 @@ window._addPlayer = async (teamId) => {
 
   // Check max players
   const playerLimits = getPlanLimits(state.activeLeague.plan_type);
-  const maxP = Math.min(state.activeLeague.max_players_per_team || 15, playerLimits.maxPlayers);
+  const maxP = state.activeLeague.plan_type === 'superadmin' ? 999 : Math.min(state.activeLeague.max_players_per_team || 15, playerLimits.maxPlayers);
   const currentPlayers = _playersCache.filter(p => p.team_id === teamId);
-  if (currentPlayers.length >= maxP && !state.isSuperadmin) {
-    toast(`⚠️ Límite de ${maxP} jugadores por equipo`, true); return;
+  if (currentPlayers.length >= maxP && state.activeLeague.plan_type !== 'superadmin') {
+    toast(`⚠️ Límite de ${maxP} jugadores por equipo (plan ${state.activeLeague.plan_type.toUpperCase()})`, true); return;
   }
 
   // Check duplicate
