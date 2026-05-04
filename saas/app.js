@@ -26,6 +26,7 @@ function initPublicUI() {
   if (_bound.public) return; _bound.public = true;
 
   $('btn-goto-login').onclick = () => { showScreen('auth'); _bound.login = false; initLoginUI(); };
+  initPublicDTButton();
 
   let searchTimeout;
   $('public-search').oninput = (e) => {
@@ -1702,3 +1703,431 @@ function renderTeamCodes() {
 }
 
 window._settingsToast = (msg) => toast(msg);
+
+// ═══════════════════════════════════════════════════════════════
+// DT (CAPTAIN) MODULE — Single progressive form
+// ═══════════════════════════════════════════════════════════════
+let _dtTeam = null;
+let _dtLeague = null;
+let _dtPlayers = [];
+let _dtPhotos = [];
+
+function initPublicDTButton() {
+  const btn = $('btn-goto-dt');
+  if (btn) btn.onclick = () => showDTCodeEntry();
+}
+
+function showDTCodeEntry() {
+  showScreen('dt');
+  const content = $('dt-content');
+  content.innerHTML = `
+    <div class="max-w-sm mx-auto pt-12 text-center">
+      <div class="text-5xl mb-4">🎮</div>
+      <h2 class="font-display text-3xl text-white mb-2">ACCESO DT</h2>
+      <p class="text-sm text-gray-500 mb-8">Ingresá el código que te dio el admin de tu liga</p>
+      <input id="dt-code-input" type="text" placeholder="Ej: HK3T47" maxlength="10"
+        class="w-full bg-pitch-900/60 border border-white/10 rounded-xl px-4 py-3.5 text-white text-center font-mono text-xl tracking-[.3em] uppercase placeholder-gray-600 outline-none focus:border-lime-400/40 mb-4">
+      <button id="btn-dt-enter" class="w-full bg-gradient-to-r from-lime-400 to-emerald-500 text-pitch-900 font-bold py-3 rounded-xl text-sm uppercase tracking-wider hover:from-lime-300 hover:to-emerald-400 transition-all shadow-lg shadow-lime-400/10 active:scale-[.98]">
+        Entrar
+      </button>
+      <div id="dt-code-error" class="hidden mt-4 text-sm text-center py-2 px-4 rounded-lg bg-red-500/10 text-red-400 border border-red-500/20"></div>
+    </div>
+  `;
+
+  $('dt-code-input').onkeydown = e => { if (e.key === 'Enter') $('btn-dt-enter').click(); };
+
+  $('btn-dt-enter').onclick = async () => {
+    const code = $('dt-code-input').value.trim().toUpperCase();
+    const errEl = $('dt-code-error');
+    if (!code) { errEl.textContent = 'Ingresá un código'; errEl.classList.remove('hidden'); return; }
+
+    $('btn-dt-enter').disabled = true;
+    $('btn-dt-enter').textContent = 'Verificando...';
+
+    try {
+      // Search for team with this code across ALL public leagues
+      const { data: teams, error } = await supa.from('teams').select('*, leagues!inner(id, name, plan_type, max_players_per_team, settings, is_public)')
+        .eq('code', code).limit(1);
+
+      if (error) throw error;
+      if (!teams?.length) { errEl.textContent = 'Código no encontrado'; errEl.classList.remove('hidden'); throw new Error('skip'); }
+
+      const team = teams[0];
+      _dtTeam = team;
+      _dtLeague = team.leagues;
+
+      // Load players for this team
+      const { data: players } = await supa.from('players').select('*').eq('team_id', team.id).order('name');
+      _dtPlayers = players || [];
+
+      // Show league name
+      const leagueNameEl = $('dt-league-name');
+      if (leagueNameEl) leagueNameEl.textContent = _dtLeague.name;
+
+      // Show submission form
+      showDTSubmissionForm();
+
+    } catch(e) {
+      if (e.message !== 'skip') { errEl.textContent = 'Error: ' + e.message; errEl.classList.remove('hidden'); }
+    }
+
+    $('btn-dt-enter').disabled = false;
+    $('btn-dt-enter').textContent = 'Entrar';
+  };
+
+  $('btn-dt-back').onclick = () => { _dtTeam = null; _dtLeague = null; _dtPlayers = []; _dtPhotos = []; showScreen('public'); };
+}
+
+function showDTSubmissionForm() {
+  const content = $('dt-content');
+  const team = _dtTeam;
+  const league = _dtLeague;
+  const canScan = ['pro', 'elite', 'superadmin'].includes(league.plan_type);
+  _dtPhotos = [];
+
+  const shieldHtml = team.shield_url
+    ? `<img src="${team.shield_url}" class="w-12 h-12 rounded-full object-cover border-2 border-lime-400/20">`
+    : `<div class="w-12 h-12 rounded-full bg-pitch-700 border-2 border-lime-400/20 flex items-center justify-center text-xl font-display text-lime-400">${team.name.charAt(0)}</div>`;
+
+  content.innerHTML = `
+    <!-- Team header -->
+    <div class="flex items-center gap-4 mb-6">
+      ${shieldHtml}
+      <div>
+        <h2 class="font-display text-2xl text-white">${team.name}</h2>
+        <p class="text-xs text-gray-500">${league.name} · ${_dtPlayers.length} jugadores</p>
+      </div>
+    </div>
+
+    <!-- STEP 1: Score (always visible) -->
+    <div class="bg-pitch-800/60 border border-white/5 rounded-2xl p-5 mb-4">
+      <h3 class="text-xs text-gray-500 uppercase tracking-wider font-semibold mb-4">📊 Resultado del partido</h3>
+      <div class="grid grid-cols-2 gap-3 mb-4">
+        <div>
+          <label class="block text-xs text-gray-500 mb-1">🏠 Local</label>
+          <select id="dt-home-team" class="w-full bg-pitch-900/60 border border-white/10 rounded-xl px-3 py-2.5 text-white text-sm outline-none focus:border-lime-400/40">
+            <option value="">— Elegí —</option>
+          </select>
+        </div>
+        <div>
+          <label class="block text-xs text-gray-500 mb-1">✈️ Visitante</label>
+          <select id="dt-away-team" class="w-full bg-pitch-900/60 border border-white/10 rounded-xl px-3 py-2.5 text-white text-sm outline-none focus:border-lime-400/40">
+            <option value="">— Elegí —</option>
+          </select>
+        </div>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 30px 1fr;gap:8px;align-items:center;">
+        <input type="number" id="dt-hg" min="0" value="0" style="width:100%;box-sizing:border-box;" class="bg-pitch-900/60 border border-white/10 rounded-xl px-3 py-3 text-white text-center font-display text-3xl outline-none focus:border-lime-400/40">
+        <span class="text-gray-500 text-xl text-center">–</span>
+        <input type="number" id="dt-ag" min="0" value="0" style="width:100%;box-sizing:border-box;" class="bg-pitch-900/60 border border-white/10 rounded-xl px-3 py-3 text-white text-center font-display text-3xl outline-none focus:border-lime-400/40">
+      </div>
+    </div>
+
+    <!-- STEP 2: Photo proof (always visible) -->
+    <div class="bg-pitch-800/60 border border-white/5 rounded-2xl p-5 mb-4">
+      <h3 class="text-xs text-gray-500 uppercase tracking-wider font-semibold mb-3">📸 Fotos de prueba</h3>
+      <p class="text-xs text-gray-600 mb-3">Subí 1-3 capturas como comprobante (marcador, stats, jugadores)</p>
+      <div class="grid grid-cols-3 gap-2 mb-3">
+        ${[0,1,2].map(i => `<div class="relative">
+          <input type="file" accept="image/*" id="dt-photo-${i}" class="hidden" onchange="window._dtPhotoChange(${i}, event)">
+          <label for="dt-photo-${i}" id="dt-photo-zone-${i}" class="block bg-pitch-900/40 border-2 border-dashed border-white/10 rounded-xl p-3 text-center cursor-pointer hover:border-lime-400/30 transition-all min-h-[80px] flex flex-col items-center justify-center gap-1">
+            <span class="text-lg">📷</span>
+            <span class="text-[10px] text-gray-600">Foto ${i+1}</span>
+          </label>
+          <img id="dt-photo-preview-${i}" class="hidden absolute inset-0 w-full h-full object-cover rounded-xl">
+        </div>`).join('')}
+      </div>
+    </div>
+
+    <!-- STEP 3: Player details (expandable) -->
+    <div class="bg-pitch-800/60 border border-white/5 rounded-2xl overflow-hidden mb-4">
+      <button id="btn-dt-expand-detail" class="w-full p-4 flex items-center justify-between text-left hover:bg-white/[.02] transition-all" onclick="window._dtToggleDetail()">
+        <div>
+          <h3 class="text-sm text-white font-semibold">📋 Agregar detalle de jugadores</h3>
+          <p class="text-xs text-gray-500">Goles, asistencias y más por jugador</p>
+        </div>
+        <span id="dt-detail-chevron" class="text-gray-500 transition-transform rotate-[-90deg]">▼</span>
+      </button>
+      <div id="dt-detail-section" class="hidden border-t border-white/5">
+        <!-- Detail level selector -->
+        <div class="p-4 border-b border-white/5 flex gap-2">
+          <button onclick="window._dtSetDetailLevel('medio')" id="dt-level-medio" class="flex-1 px-3 py-2 rounded-xl text-xs font-semibold transition-all bg-lime-400/10 text-lime-400 border border-lime-400/20">📊 Goles + Asistencias</button>
+          <button onclick="window._dtSetDetailLevel('completo')" id="dt-level-completo" class="flex-1 px-3 py-2 rounded-xl text-xs font-semibold transition-all bg-pitch-800 text-gray-500 border border-white/5">🏟 Todo (Rating + Posición)</button>
+        </div>
+        <!-- Player list -->
+        <div class="p-4" id="dt-players-form">
+          ${renderDTPlayerFields('medio')}
+        </div>
+      </div>
+    </div>
+
+    <!-- AI Auto-fill button -->
+    <div class="bg-pitch-800/60 border ${canScan ? 'border-purple-400/20' : 'border-white/5'} rounded-2xl p-5 mb-4">
+      <div class="flex items-center justify-between">
+        <div>
+          <h3 class="text-sm font-semibold ${canScan ? 'text-purple-400' : 'text-gray-600'}">🤖 Auto-llenar con IA</h3>
+          <p class="text-xs ${canScan ? 'text-gray-500' : 'text-gray-700'}">${canScan ? 'La IA lee tus fotos y rellena todo automáticamente' : 'Función disponible en plan Pro — contactá a tu admin'}</p>
+        </div>
+        <button id="btn-dt-ai" ${canScan ? '' : 'disabled'} onclick="window._dtRunAI()"
+          class="px-5 py-2.5 rounded-xl text-sm font-bold transition-all ${canScan
+            ? 'bg-gradient-to-r from-purple-500 to-indigo-500 text-white hover:from-purple-400 hover:to-indigo-400 shadow-lg shadow-purple-500/10'
+            : 'bg-pitch-700 text-gray-600 cursor-not-allowed'}">
+          🤖 Escanear
+        </button>
+      </div>
+    </div>
+
+    <!-- Submit button -->
+    <button id="btn-dt-submit" onclick="window._dtSubmit()" class="w-full bg-gradient-to-r from-lime-400 to-emerald-500 text-pitch-900 font-bold py-4 rounded-xl text-sm uppercase tracking-wider hover:from-lime-300 hover:to-emerald-400 transition-all shadow-lg shadow-lime-400/10 active:scale-[.98] mb-4">
+      📤 Enviar al Admin
+    </button>
+
+    <p class="text-xs text-gray-600 text-center">El admin revisará y aprobará tu resultado</p>
+  `;
+
+  // Load teams for dropdowns
+  loadDTTeamDropdowns();
+
+  // Bind back button
+  $('btn-dt-back').onclick = () => {
+    _dtTeam = null; _dtLeague = null; _dtPlayers = []; _dtPhotos = [];
+    showScreen('public');
+  };
+}
+
+function renderDTPlayerFields(level) {
+  if (!_dtPlayers.length) return '<p class="text-gray-600 text-sm text-center py-4">Sin jugadores registrados</p>';
+
+  const showRating = level === 'completo';
+  return _dtPlayers.map((p, i) => `
+    <div class="flex items-center gap-2 py-2 border-b border-white/5 last:border-0 flex-wrap">
+      <span class="text-xs text-gray-500 w-7 shrink-0">${p.pos || '?'}</span>
+      <span class="text-sm text-white font-medium flex-1 min-w-[100px]">${p.name}</span>
+      <div class="flex items-center gap-1">
+        <span class="text-xs text-gray-600">⚽</span>
+        <input type="number" id="dt-pg-${i}" min="0" value="0" class="w-10 bg-pitch-900/60 border border-white/10 rounded-lg px-1 py-1 text-white text-center text-xs outline-none focus:border-lime-400/40">
+      </div>
+      <div class="flex items-center gap-1">
+        <span class="text-xs text-gray-600">🎯</span>
+        <input type="number" id="dt-pa-${i}" min="0" value="0" class="w-10 bg-pitch-900/60 border border-white/10 rounded-lg px-1 py-1 text-white text-center text-xs outline-none focus:border-lime-400/40">
+      </div>
+      ${showRating ? `
+        <div class="flex items-center gap-1">
+          <span class="text-xs text-gray-600">⭐</span>
+          <input type="number" id="dt-pr-${i}" min="0" max="10" step="0.1" value="0" class="w-12 bg-pitch-900/60 border border-white/10 rounded-lg px-1 py-1 text-white text-center text-xs outline-none focus:border-lime-400/40">
+        </div>
+        <select id="dt-pp-${i}" class="bg-pitch-900/60 border border-white/10 rounded-lg px-1 py-1 text-white text-xs outline-none w-14">
+          <option value="">POS</option>
+          <option value="POR">POR</option><option value="DFC">DFC</option><option value="LI">LI</option><option value="LD">LD</option>
+          <option value="MCD">MCD</option><option value="MC">MC</option><option value="MCO">MCO</option><option value="MI">MI</option><option value="MD">MD</option>
+          <option value="EI">EI</option><option value="ED">ED</option><option value="DC">DC</option><option value="MP">MP</option>
+        </select>
+      ` : ''}
+    </div>
+  `).join('');
+}
+
+async function loadDTTeamDropdowns() {
+  // Load all teams in this league
+  const { data: teams } = await supa.from('teams').select('id, name')
+    .eq('league_id', _dtLeague.id).eq('is_bye', false).eq('replaced', false);
+  if (!teams) return;
+
+  const opts = teams.map(t => `<option value="${t.id}" ${t.id === _dtTeam.id ? 'selected' : ''}>${t.name}</option>`).join('');
+  const homeEl = $('dt-home-team');
+  const awayEl = $('dt-away-team');
+  if (homeEl) homeEl.innerHTML = `<option value="">— Elegí —</option>${opts}`;
+  if (awayEl) awayEl.innerHTML = `<option value="">— Elegí —</option>${opts}`;
+}
+
+// ─── DT UI handlers ──────────────────────────────────────────
+window._dtPhotoChange = (index, event) => {
+  const file = event.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = (ev) => {
+    _dtPhotos[index] = ev.target.result;
+    const preview = $(`dt-photo-preview-${index}`);
+    if (preview) { preview.src = ev.target.result; preview.classList.remove('hidden'); }
+    const zone = $(`dt-photo-zone-${index}`);
+    if (zone) zone.style.borderColor = 'rgba(0,255,135,.4)';
+  };
+  reader.readAsDataURL(file);
+};
+
+window._dtToggleDetail = () => {
+  const section = $('dt-detail-section');
+  const chev = $('dt-detail-chevron');
+  if (!section) return;
+  section.classList.toggle('hidden');
+  if (chev) chev.style.transform = section.classList.contains('hidden') ? 'rotate(-90deg)' : '';
+};
+
+let _dtDetailLevel = 'medio';
+window._dtSetDetailLevel = (level) => {
+  _dtDetailLevel = level;
+  const form = $('dt-players-form');
+  if (form) form.innerHTML = renderDTPlayerFields(level);
+  // Update button styles
+  const medioBtn = $('dt-level-medio');
+  const compBtn = $('dt-level-completo');
+  if (level === 'medio') {
+    if (medioBtn) medioBtn.className = 'flex-1 px-3 py-2 rounded-xl text-xs font-semibold transition-all bg-lime-400/10 text-lime-400 border border-lime-400/20';
+    if (compBtn) compBtn.className = 'flex-1 px-3 py-2 rounded-xl text-xs font-semibold transition-all bg-pitch-800 text-gray-500 border border-white/5';
+  } else {
+    if (compBtn) compBtn.className = 'flex-1 px-3 py-2 rounded-xl text-xs font-semibold transition-all bg-lime-400/10 text-lime-400 border border-lime-400/20';
+    if (medioBtn) medioBtn.className = 'flex-1 px-3 py-2 rounded-xl text-xs font-semibold transition-all bg-pitch-800 text-gray-500 border border-white/5';
+  }
+};
+
+// ─── AI Auto-fill ────────────────────────────────────────────
+window._dtRunAI = async () => {
+  const photos = _dtPhotos.filter(Boolean);
+  if (!photos.length) { toast('⚠️ Subí al menos una foto primero', true); return; }
+
+  const btn = $('btn-dt-ai');
+  btn.disabled = true;
+  btn.innerHTML = '<svg class="animate-spin h-4 w-4 inline mr-1" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" fill="none"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg> Escaneando...';
+
+  try {
+    // Get session token for Edge Function auth
+    const { data: { session } } = await supa.auth.getSession();
+    let authHeader = '';
+    if (session) {
+      authHeader = `Bearer ${session.access_token}`;
+    }
+
+    // Call Edge Function
+    const res = await fetch(`${supa.supabaseUrl}/functions/v1/scan-ai`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(authHeader ? { 'Authorization': authHeader } : {}),
+      },
+      body: JSON.stringify({
+        images: photos,
+        registered_players: _dtPlayers.map(p => ({ id: p.id, name: p.name, pos: p.pos })),
+        league_id: _dtLeague.id,
+      }),
+    });
+
+    const data = await res.json();
+    if (!res.ok || data.error) throw new Error(data.message || data.error || 'Error del servidor');
+
+    const result = data.result;
+
+    // Fill in score
+    if (result.score) {
+      if ($('dt-hg')) $('dt-hg').value = result.score.homeGoals ?? 0;
+      if ($('dt-ag')) $('dt-ag').value = result.score.awayGoals ?? 0;
+    }
+
+    // Expand detail section and switch to completo
+    const section = $('dt-detail-section');
+    if (section) section.classList.remove('hidden');
+    window._dtSetDetailLevel('completo');
+
+    // Fill in player stats
+    if (result.stats) {
+      const norm = s => (s || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+      result.stats.forEach(sp => {
+        const idx = _dtPlayers.findIndex(p => {
+          const pn = norm(p.name), sn = norm(sp.name);
+          return pn === sn || pn.includes(sn) || sn.includes(pn);
+        });
+        if (idx < 0) return;
+        const gEl = $(`dt-pg-${idx}`), aEl = $(`dt-pa-${idx}`), rEl = $(`dt-pr-${idx}`), pEl = $(`dt-pp-${idx}`);
+        if (gEl) gEl.value = sp.goals || 0;
+        if (aEl) aEl.value = sp.assists || 0;
+        if (rEl) rEl.value = sp.rating || 0;
+        if (pEl) pEl.value = (sp.pos || sp.position || '').toUpperCase();
+      });
+    }
+
+    toast('✅ IA completó los datos — revisá antes de enviar');
+  } catch(e) {
+    console.error('AI scan error:', e);
+    toast('⚠️ ' + e.message, true);
+  }
+
+  btn.disabled = false;
+  btn.innerHTML = '🤖 Escanear';
+};
+
+// ─── Submit to admin ─────────────────────────────────────────
+window._dtSubmit = async () => {
+  const homeId = $('dt-home-team')?.value;
+  const awayId = $('dt-away-team')?.value;
+  const hg = parseInt($('dt-hg')?.value ?? 0);
+  const ag = parseInt($('dt-ag')?.value ?? 0);
+  const photos = _dtPhotos.filter(Boolean);
+
+  if (!homeId || !awayId) { toast('⚠️ Seleccioná ambos equipos', true); return; }
+  if (homeId === awayId) { toast('⚠️ Los equipos no pueden ser iguales', true); return; }
+  if (!photos.length) { toast('⚠️ Subí al menos una foto como comprobante', true); return; }
+
+  const btn = $('btn-dt-submit');
+  btn.disabled = true;
+  btn.textContent = 'Enviando...';
+
+  try {
+    // Gather player stats
+    const playerStats = {};
+    _dtPlayers.forEach((p, i) => {
+      const goals = parseInt($(`dt-pg-${i}`)?.value ?? 0);
+      const assists = parseInt($(`dt-pa-${i}`)?.value ?? 0);
+      const rating = parseFloat($(`dt-pr-${i}`)?.value ?? 0);
+      const pos = $(`dt-pp-${i}`)?.value || p.pos || '';
+      if (goals || assists || rating) {
+        playerStats[p.id] = { goals, assists, rating, position: pos.toUpperCase(), played: true };
+      }
+    });
+
+    // Build scan_result object
+    const scanResult = {
+      score: { home: $('dt-home-team')?.selectedOptions[0]?.text || '', away: $('dt-away-team')?.selectedOptions[0]?.text || '', homeGoals: hg, awayGoals: ag },
+      homeId, awayId, playerStats,
+      submittedBy: _dtTeam.name,
+      submissionType: _dtDetailLevel,
+    };
+
+    // Insert submission
+    const { error } = await supa.from('submissions').insert({
+      league_id: _dtLeague.id,
+      team_code: _dtTeam.code,
+      team_name: _dtTeam.name,
+      scan_result: scanResult,
+      status: 'pending',
+    });
+
+    if (error) throw error;
+
+    toast('✅ Resultado enviado — el admin lo revisará');
+
+    // Reset form
+    $('dt-hg').value = 0;
+    $('dt-ag').value = 0;
+    _dtPhotos = [];
+    [0,1,2].forEach(i => {
+      const p = $(`dt-photo-preview-${i}`);
+      const z = $(`dt-photo-zone-${i}`);
+      if (p) { p.classList.add('hidden'); p.src = ''; }
+      if (z) z.style.borderColor = '';
+      const inp = $(`dt-photo-${i}`);
+      if (inp) inp.value = '';
+    });
+    // Reset player fields
+    _dtPlayers.forEach((_, i) => {
+      [$(`dt-pg-${i}`), $(`dt-pa-${i}`), $(`dt-pr-${i}`)].forEach(el => { if (el) el.value = 0; });
+      const posEl = $(`dt-pp-${i}`);
+      if (posEl) posEl.value = '';
+    });
+
+  } catch(e) {
+    console.error('Submit error:', e);
+    toast('⚠️ Error al enviar: ' + e.message, true);
+  }
+
+  btn.disabled = false;
+  btn.textContent = '📤 Enviar al Admin';
+};
