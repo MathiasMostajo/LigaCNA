@@ -224,13 +224,12 @@ function initHubUI() {
 
   $('btn-confirm-create').onclick = async () => {
     const name = $('new-league-name').value.trim();
-    const maxP = parseInt($('new-league-max').value) || 11;
     const errEl = $('hub-create-error');
     if (!name || name.length < 3) { errEl.textContent = 'Mínimo 3 caracteres'; errEl.classList.remove('hidden'); return; }
 
     $('btn-confirm-create').disabled = true; $('btn-confirm-create').textContent = 'Creando...';
     try {
-      await createLeague(name, maxP);
+      await createLeague(name);
       $('hub-create-form').classList.add('hidden');
       $('new-league-name').value = '';
       renderHubLeagues();
