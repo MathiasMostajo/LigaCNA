@@ -1041,7 +1041,7 @@ async function _initFixtureSectionInner() {
       <div class="bg-pitch-800 border border-white/10 rounded-2xl p-6 w-full max-w-md">
         <div class="flex items-center justify-between mb-4">
           <h3 class="font-display text-xl text-white">✏️ Cargar Resultado</h3>
-          <button onclick="$('result-form').classList.add('hidden')" class="text-gray-500 hover:text-white">✕</button>
+          <button onclick="window._closeModal()" class="text-gray-500 hover:text-white">✕</button>
         </div>
         <div id="result-form-body"></div>
       </div>
@@ -1139,6 +1139,11 @@ function renderFixtureRounds() {
     </div>`;
   }).join('');
 }
+
+window._closeModal = () => {
+  const el = document.getElementById('result-form');
+  if (el) el.classList.add('hidden');
+};
 
 window._toggleRound = (ri) => {
   const el = $('round-' + ri);
