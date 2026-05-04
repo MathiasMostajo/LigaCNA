@@ -5,7 +5,7 @@ const SB_URL = 'https://wrgexwyjivfxijivdbqa.supabase.co';
 const SB_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6IndyZ2V4d3lqaXZmeGlqaXZkYnFhIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzM1NDI2NTgsImV4cCI6MjA4OTExODY1OH0.KGBX0-PQGiwrAHrWrZ1TS_rbHtDbQwNA0F2NRhlT830';
 
 // ─── Cache bust ──────────────────────────────────────────────
-const APP_VERSION = 'v17';
+const APP_VERSION = 'v18';
 const SAAS_KEY = 'lcna_saas_version';
 if (localStorage.getItem(SAAS_KEY) !== APP_VERSION) {
   console.log('[AUTH] Version changed to', APP_VERSION);
@@ -107,10 +107,12 @@ async function loadMyLeagues(userId) {
   }
 }
 
-async function createLeague(name, maxPlayers) {
-  const planLimits = { amateur: 10, pro: 16, elite: 999, superadmin: 999 };
+async function createLeague(name) {
   const plan = state.profile?.plan_type || 'amateur';
-  const maxTeams = planLimits[plan] || 10;
+  const teamLimits = { amateur: 12, pro: 18, elite: 999, superadmin: 999 };
+  const playerCaps = { amateur: 15, pro: 20, elite: 999, superadmin: 999 };
+  const maxTeams = teamLimits[plan] || 12;
+  const maxPlayers = playerCaps[plan] || 15;
 
   const { data, error } = await supa.from('leagues')
     .insert({ admin_id: state.user.id, name, max_teams: maxTeams, max_players_per_team: maxPlayers, plan_type: plan })
