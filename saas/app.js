@@ -439,6 +439,17 @@ setTimeout(() => {
 // TEAMS MODULE
 // ═══════════════════════════════════════════════════════════════
 let _teamsCache = [];
+
+// Centralized plan limits — always use these, never trust stored max_teams
+function getPlanLimits(planType) {
+  const plans = {
+    amateur:    { maxTeams: 12, maxPlayers: 15, hasAds: true,  hasScan: false },
+    pro:        { maxTeams: 18, maxPlayers: 20, hasAds: false, hasScan: true  },
+    elite:      { maxTeams: 999, maxPlayers: 999, hasAds: false, hasScan: true },
+    superadmin: { maxTeams: 999, maxPlayers: 999, hasAds: false, hasScan: true },
+  };
+  return plans[planType] || plans.amateur;
+}
 let _playersCache = [];
 let _activeTeamId = null;
 
@@ -509,10 +520,10 @@ async function _initTeamsSectionInner() {
 
   // Bind events
   $('btn-add-team').onclick = () => {
-    const maxTeams = state.activeLeague.max_teams || 10;
+    const limits = getPlanLimits(state.activeLeague.plan_type);
     const activeTeams = _teamsCache.filter(t => !t.is_bye && !t.replaced).length;
-    if (activeTeams >= maxTeams && !state.isSuperadmin) {
-      toast(`⚠️ Límite de ${maxTeams} equipos alcanzado para el plan ${state.activeLeague.plan_type.toUpperCase()}`, true);
+    if (activeTeams >= limits.maxTeams && !state.isSuperadmin) {
+      toast(`⚠️ Límite de ${limits.maxTeams} equipos en plan ${state.activeLeague.plan_type.toUpperCase()}. Actualizá tu plan.`, true);
       return;
     }
     $('team-create-form').classList.toggle('hidden');
@@ -533,9 +544,9 @@ async function _initTeamsSectionInner() {
 
     // Double-check team limit right before insert
     const currentActiveTeams = _teamsCache.filter(t => !t.is_bye && !t.replaced).length;
-    const leagueMax = state.activeLeague.max_teams || 12;
-    if (currentActiveTeams >= leagueMax && !state.isSuperadmin) {
-      errEl.textContent = `Límite de ${leagueMax} equipos (plan ${state.activeLeague.plan_type.toUpperCase()})`;
+    const insertLimits = getPlanLimits(state.activeLeague.plan_type);
+    if (currentActiveTeams >= insertLimits.maxTeams && !state.isSuperadmin) {
+      errEl.textContent = `Límite de ${insertLimits.maxTeams} equipos (plan ${state.activeLeague.plan_type.toUpperCase()})`;
       errEl.classList.remove('hidden');
       return;
     }
@@ -726,7 +737,8 @@ window._addPlayer = async (teamId) => {
   if (!name) { toast('⚠️ Nombre vacío', true); return; }
 
   // Check max players
-  const maxP = state.activeLeague.max_players_per_team || 11;
+  const playerLimits = getPlanLimits(state.activeLeague.plan_type);
+  const maxP = Math.min(state.activeLeague.max_players_per_team || 15, playerLimits.maxPlayers);
   const currentPlayers = _playersCache.filter(p => p.team_id === teamId);
   if (currentPlayers.length >= maxP && !state.isSuperadmin) {
     toast(`⚠️ Límite de ${maxP} jugadores por equipo`, true); return;
@@ -1532,12 +1544,15 @@ async function _initSettingsSectionInner() {
         </div>
         <div>
           <label class="block text-xs text-gray-500 uppercase tracking-wider mb-1 font-semibold">Máx equipos</label>
-          <input id="set-max-teams" type="number" value="${league.max_teams}" min="2" max="999" class="w-full bg-pitch-900/60 border border-white/10 rounded-xl px-4 py-2.5 text-white outline-none focus:border-lime-400/40 text-sm" ${!state.isSuperadmin ? 'disabled' : ''}>
-          ${!state.isSuperadmin ? '<p class="text-xs text-gray-600 mt-1">Determinado por tu plan</p>' : ''}
+          <div class="flex items-center gap-2">
+            <span class="w-full bg-pitch-900/30 border border-white/5 rounded-xl px-4 py-2.5 text-gray-400 text-sm">${getPlanLimits(league.plan_type).maxTeams === 999 ? 'Ilimitado' : getPlanLimits(league.plan_type).maxTeams}</span>
+          </div>
+          <p class="text-xs text-gray-600 mt-1">Determinado por tu plan (${league.plan_type.toUpperCase()})</p>
         </div>
         <div>
           <label class="block text-xs text-gray-500 uppercase tracking-wider mb-1 font-semibold">Máx jugadores / equipo</label>
-          <input id="set-max-players" type="number" value="${league.max_players_per_team}" min="5" max="30" class="w-full bg-pitch-900/60 border border-white/10 rounded-xl px-4 py-2.5 text-white outline-none focus:border-lime-400/40 text-sm">
+          <input id="set-max-players" type="number" value="${league.max_players_per_team}" min="5" max="${getPlanLimits(league.plan_type).maxPlayers}" class="w-full bg-pitch-900/60 border border-white/10 rounded-xl px-4 py-2.5 text-white outline-none focus:border-lime-400/40 text-sm">
+          <p class="text-xs text-gray-600 mt-1">Máximo permitido: ${getPlanLimits(league.plan_type).maxPlayers === 999 ? 'Ilimitado' : getPlanLimits(league.plan_type).maxPlayers}</p>
         </div>
       </div>
       <div class="flex items-center gap-4 mt-4">
@@ -1584,9 +1599,13 @@ async function _initSettingsSectionInner() {
         max_players_per_team: parseInt($('set-max-players').value) || 11,
         is_public: $('set-is-public').checked,
       };
-      if (state.isSuperadmin) {
-        updates.max_teams = parseInt($('set-max-teams').value) || 10;
+      // Enforce player limit by plan
+      const saveLimits = getPlanLimits(league.plan_type);
+      if (updates.max_players_per_team > saveLimits.maxPlayers) {
+        updates.max_players_per_team = saveLimits.maxPlayers;
       }
+      // max_teams is always determined by plan, never editable
+      updates.max_teams = saveLimits.maxTeams;
 
       const { error } = await supa.from('leagues').update(updates).eq('id', league.id);
       if (error) throw error;
