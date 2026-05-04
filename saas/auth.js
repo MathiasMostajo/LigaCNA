@@ -5,7 +5,7 @@ const SB_URL = 'https://wrgexwyjivfxijivdbqa.supabase.co';
 const SB_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6IndyZ2V4d3lqaXZmeGlqaXZkYnFhIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzM1NDI2NTgsImV4cCI6MjA4OTExODY1OH0.KGBX0-PQGiwrAHrWrZ1TS_rbHtDbQwNA0F2NRhlT830';
 
 // ─── Cache bust ──────────────────────────────────────────────
-const APP_VERSION = 'v15';
+const APP_VERSION = 'v16';
 const SAAS_KEY = 'lcna_saas_version';
 if (localStorage.getItem(SAAS_KEY) !== APP_VERSION) {
   console.log('[AUTH] Version changed to', APP_VERSION);
