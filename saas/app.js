@@ -278,6 +278,12 @@ function renderHubLeagues() {
 window._manageLeague = (leagueId) => {
   const league = state.leagues.find(l => l.id === leagueId);
   if (!league) return;
+  // Clear all caches when switching leagues
+  _teamsCache = [];
+  _playersCache = [];
+  _matchesCache = [];
+  _scheduleCache = [];
+  _activeTeamId = null;
   setActiveLeague(league);
 };
 
@@ -311,12 +317,18 @@ function initDashboard() {
       if (section === 'fixture') initFixtureSection();
       if (section === 'standings') initStandingsSection();
       if (section === 'leaders') initLeadersSection();
+      if (section === 'settings') initSettingsSection();
     };
   });
 
-  // Back to hub
+  // Back to hub — clear all caches
   $('btn-back-hub').onclick = () => {
     state.activeLeague = null;
+    _teamsCache = [];
+    _playersCache = [];
+    _matchesCache = [];
+    _scheduleCache = [];
+    _activeTeamId = null;
     _bound.dash = false;
     showScreen('hub');
   };
@@ -456,8 +468,9 @@ async function _initTeamsSectionInner() {
   // Bind events
   $('btn-add-team').onclick = () => {
     const maxTeams = state.activeLeague.max_teams || 10;
-    if (_teamsCache.length >= maxTeams && !state.isSuperadmin) {
-      toast(`⚠️ Límite de ${maxTeams} equipos alcanzado para tu plan`, true);
+    const activeTeams = _teamsCache.filter(t => !t.is_bye && !t.replaced).length;
+    if (activeTeams >= maxTeams && !state.isSuperadmin) {
+      toast(`⚠️ Límite de ${maxTeams} equipos alcanzado para el plan ${state.activeLeague.plan_type.toUpperCase()}`, true);
       return;
     }
     $('team-create-form').classList.toggle('hidden');
@@ -1418,3 +1431,199 @@ window._sortLeaders = (col) => {
   _leadersSort = col;
   initLeadersSection();
 };
+
+// ═══════════════════════════════════════════════════════════════
+// SETTINGS MODULE
+// ═══════════════════════════════════════════════════════════════
+async function initSettingsSection() {
+  try { await _initSettingsSectionInner(); } catch(e) {
+    console.error('Settings error:', e);
+    const container = document.querySelector('[data-section="settings"]');
+    if (container) container.innerHTML = `<div class="bg-red-500/10 border border-red-500/20 rounded-2xl p-6 text-center"><p class="text-red-400">Error: ${e.message}</p></div>`;
+  }
+}
+
+async function _initSettingsSectionInner() {
+  const container = document.querySelector('[data-section="settings"]');
+  if (!container) return;
+
+  const league = state.activeLeague;
+  if (!league) return;
+
+  if (!_teamsCache.length) await loadTeams();
+
+  const planColors = { superadmin: 'text-yellow-400 border-yellow-400/20 bg-yellow-400/5', elite: 'text-purple-400 border-purple-400/20 bg-purple-400/5', pro: 'text-lime-400 border-lime-400/20 bg-lime-400/5', amateur: 'text-gray-400 border-gray-600 bg-white/5' };
+  const planClass = planColors[league.plan_type] || planColors.amateur;
+
+  container.innerHTML = `
+    <div class="flex items-center gap-3 mb-6">
+      <span class="text-2xl">⚙️</span>
+      <h2 class="font-display text-3xl tracking-wide text-white">AJUSTES</h2>
+    </div>
+
+    <!-- League info -->
+    <div class="bg-pitch-800/60 border border-white/5 rounded-2xl p-5 mb-4">
+      <div class="flex items-center justify-between mb-4">
+        <h3 class="font-display text-lg text-white">🏆 Información de la Liga</h3>
+        <span class="text-[10px] uppercase px-3 py-1 rounded-full border font-semibold ${planClass}">${league.plan_type}</span>
+      </div>
+      <div class="grid gap-4 md:grid-cols-2">
+        <div>
+          <label class="block text-xs text-gray-500 uppercase tracking-wider mb-1 font-semibold">Nombre</label>
+          <input id="set-league-name" type="text" value="${league.name}" class="w-full bg-pitch-900/60 border border-white/10 rounded-xl px-4 py-2.5 text-white outline-none focus:border-lime-400/40 text-sm">
+        </div>
+        <div>
+          <label class="block text-xs text-gray-500 uppercase tracking-wider mb-1 font-semibold">Slug (URL pública)</label>
+          <div class="flex items-center gap-2">
+            <span class="text-xs text-gray-600">/liga/</span>
+            <input id="set-league-slug" type="text" value="${league.slug || ''}" class="flex-1 bg-pitch-900/60 border border-white/10 rounded-xl px-4 py-2.5 text-white outline-none focus:border-lime-400/40 text-sm">
+          </div>
+        </div>
+        <div>
+          <label class="block text-xs text-gray-500 uppercase tracking-wider mb-1 font-semibold">Máx equipos</label>
+          <input id="set-max-teams" type="number" value="${league.max_teams}" min="2" max="999" class="w-full bg-pitch-900/60 border border-white/10 rounded-xl px-4 py-2.5 text-white outline-none focus:border-lime-400/40 text-sm" ${!state.isSuperadmin ? 'disabled' : ''}>
+          ${!state.isSuperadmin ? '<p class="text-xs text-gray-600 mt-1">Determinado por tu plan</p>' : ''}
+        </div>
+        <div>
+          <label class="block text-xs text-gray-500 uppercase tracking-wider mb-1 font-semibold">Máx jugadores / equipo</label>
+          <input id="set-max-players" type="number" value="${league.max_players_per_team}" min="5" max="30" class="w-full bg-pitch-900/60 border border-white/10 rounded-xl px-4 py-2.5 text-white outline-none focus:border-lime-400/40 text-sm">
+        </div>
+      </div>
+      <div class="flex items-center gap-4 mt-4">
+        <label class="flex items-center gap-2 cursor-pointer">
+          <input type="checkbox" id="set-is-public" ${league.is_public ? 'checked' : ''} class="w-4 h-4 accent-lime-400">
+          <span class="text-sm text-gray-400">🌐 Liga pública (visible en el buscador)</span>
+        </label>
+      </div>
+      <button id="btn-save-settings" class="mt-4 bg-gradient-to-r from-lime-400 to-emerald-500 text-pitch-900 font-bold py-2.5 px-6 rounded-xl text-sm uppercase tracking-wider hover:from-lime-300 hover:to-emerald-400 transition-all shadow-lg shadow-lime-400/10 active:scale-[.98]">
+        💾 Guardar Cambios
+      </button>
+      <div id="settings-msg" class="hidden mt-3 text-sm text-center py-2 px-4 rounded-lg"></div>
+    </div>
+
+    <!-- Team codes -->
+    <div class="bg-pitch-800/60 border border-white/5 rounded-2xl p-5 mb-4">
+      <h3 class="font-display text-lg text-white mb-3">🔑 Códigos de DT</h3>
+      <p class="text-xs text-gray-500 mb-3">Compartí estos códigos con los DTs para que puedan subir capturas</p>
+      <div class="space-y-2" id="team-codes-list">
+        ${renderTeamCodes()}
+      </div>
+    </div>
+
+    <!-- Danger zone -->
+    <div class="bg-pitch-800/60 border border-red-500/20 rounded-2xl p-5">
+      <h3 class="font-display text-lg text-red-400 mb-3">⚠️ Zona Peligrosa</h3>
+      <div class="flex gap-3 flex-wrap">
+        <button id="btn-reset-stats" class="bg-red-500/10 text-red-400 border border-red-500/20 px-4 py-2 rounded-xl text-sm font-semibold hover:bg-red-500/20 transition-all">🔄 Resetear Stats</button>
+        <button id="btn-delete-league" class="bg-red-500/10 text-red-400 border border-red-500/20 px-4 py-2 rounded-xl text-sm font-semibold hover:bg-red-500/20 transition-all">🗑 Eliminar Liga</button>
+      </div>
+    </div>
+  `;
+
+  // Save settings
+  $('btn-save-settings').onclick = async () => {
+    const btn = $('btn-save-settings');
+    const msgEl = $('settings-msg');
+    btn.disabled = true; btn.textContent = 'Guardando...';
+
+    try {
+      const updates = {
+        name: $('set-league-name').value.trim() || league.name,
+        slug: $('set-league-slug').value.trim().toLowerCase().replace(/[^a-z0-9-]/g, '-') || league.slug,
+        max_players_per_team: parseInt($('set-max-players').value) || 11,
+        is_public: $('set-is-public').checked,
+      };
+      if (state.isSuperadmin) {
+        updates.max_teams = parseInt($('set-max-teams').value) || 10;
+      }
+
+      const { error } = await supa.from('leagues').update(updates).eq('id', league.id);
+      if (error) throw error;
+
+      Object.assign(league, updates);
+      // Update in leagues list too
+      const idx = state.leagues.findIndex(l => l.id === league.id);
+      if (idx >= 0) Object.assign(state.leagues[idx], updates);
+
+      msgEl.textContent = '✅ Cambios guardados';
+      msgEl.className = 'mt-3 text-sm text-center py-2 px-4 rounded-lg bg-emerald-500/10 text-emerald-400 border border-emerald-500/20';
+      msgEl.classList.remove('hidden');
+      
+      // Update dashboard header
+      const ln = $('dash-league-name');
+      const lnm = $('dash-league-name-mobile');
+      if (ln) ln.textContent = updates.name;
+      if (lnm) lnm.textContent = updates.name;
+    } catch(e) {
+      msgEl.textContent = '⚠️ ' + e.message;
+      msgEl.className = 'mt-3 text-sm text-center py-2 px-4 rounded-lg bg-red-500/10 text-red-400 border border-red-500/20';
+      msgEl.classList.remove('hidden');
+    }
+
+    btn.disabled = false; btn.textContent = '💾 Guardar Cambios';
+  };
+
+  // Reset stats
+  $('btn-reset-stats').onclick = async () => {
+    if (!confirm('¿Resetear TODAS las estadísticas? Se borran partidos, goles, asistencias, ratings. Los equipos y jugadores se mantienen. No se puede deshacer.')) return;
+    if (!confirm('¿Estás SEGURO? Esta acción es irreversible.')) return;
+
+    try {
+      // Delete all matches
+      const { error: matchErr } = await supa.from('matches').delete().eq('league_id', league.id);
+      if (matchErr) throw matchErr;
+
+      // Reset all player stats
+      const { error: playerErr } = await supa.from('players').update({
+        goals: 0, assists: 0, cs: 0, matches_played: 0, ratings: []
+      }).eq('league_id', league.id);
+      if (playerErr) throw playerErr;
+
+      // Clear schedule
+      const settings = { ...(league.settings || {}), schedule: [] };
+      await supa.from('leagues').update({ settings }).eq('id', league.id);
+      league.settings = settings;
+
+      _matchesCache = [];
+      _scheduleCache = [];
+      toast('🔄 Estadísticas reseteadas');
+    } catch(e) { toast('⚠️ ' + e.message, true); }
+  };
+
+  // Delete league
+  $('btn-delete-league').onclick = async () => {
+    if (!confirm(`¿Eliminar "${league.name}" completamente? Se borran todos los equipos, jugadores, partidos y datos. No se puede deshacer.`)) return;
+    const confirmName = prompt(`Escribí "${league.name}" para confirmar:`);
+    if (confirmName !== league.name) { toast('Nombre incorrecto, cancelado', true); return; }
+
+    try {
+      const { error } = await supa.from('leagues').delete().eq('id', league.id);
+      if (error) throw error;
+
+      state.leagues = state.leagues.filter(l => l.id !== league.id);
+      state.activeLeague = null;
+      _teamsCache = []; _playersCache = []; _matchesCache = []; _scheduleCache = [];
+      _bound.dash = false;
+      _bound.hub = false;
+      showScreen('hub');
+      initHubUI();
+      toast('🗑 Liga eliminada');
+    } catch(e) { toast('⚠️ ' + e.message, true); }
+  };
+}
+
+function renderTeamCodes() {
+  if (!_teamsCache.length) return '<p class="text-gray-600 text-sm">Sin equipos</p>';
+
+  return _teamsCache.filter(t => !t.is_bye && !t.replaced).map(t => {
+    return `<div class="flex items-center justify-between py-2 px-3 bg-pitch-900/30 rounded-lg">
+      <span class="text-sm text-white font-medium">${t.name}</span>
+      <div class="flex items-center gap-2">
+        <code class="text-xs text-lime-400 bg-lime-400/10 px-2 py-1 rounded font-mono">${t.code || '—'}</code>
+        ${t.code ? `<button onclick="navigator.clipboard.writeText('${t.code}');window._settingsToast('📋 Copiado')" class="text-xs text-gray-500 hover:text-white transition-colors">📋</button>` : ''}
+      </div>
+    </div>`;
+  }).join('');
+}
+
+window._settingsToast = (msg) => toast(msg);
