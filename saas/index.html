@@ -55,7 +55,10 @@
         <div class="w-8 h-8 rounded-lg bg-gradient-to-br from-lime-400 to-emerald-600 flex items-center justify-center text-pitch-900 text-sm font-display font-bold">L</div>
         <span class="font-display text-xl tracking-wide text-white">LIGA CNA</span>
       </div>
-      <button id="btn-goto-login" class="text-sm text-lime-400 hover:text-lime-300 font-semibold transition-colors">Iniciar Sesión →</button>
+      <div class="flex items-center gap-3">
+        <button id="btn-goto-dt" class="text-sm text-gray-400 hover:text-lime-400 font-semibold transition-colors border border-white/10 px-3 py-1.5 rounded-lg">🎮 Soy DT</button>
+        <button id="btn-goto-login" class="text-sm text-lime-400 hover:text-lime-300 font-semibold transition-colors">Admin →</button>
+      </div>
     </div>
   </nav>
   <!-- Hero + search -->
@@ -95,6 +98,20 @@
       <div class="mt-4 text-center"><button id="btn-back-public" class="text-xs text-gray-600 hover:text-gray-400 transition-colors">← Volver al inicio</button></div>
     </div>
   </div>
+</div>
+
+<!-- ════ DT VIEW (captain login + submission) ════ -->
+<div id="screen-dt" data-screen class="hidden min-h-screen field-bg">
+  <nav class="border-b border-white/5 bg-pitch-800/50 backdrop-blur-sm sticky top-0 z-30">
+    <div class="max-w-2xl mx-auto flex items-center justify-between px-4 py-3">
+      <div class="flex items-center gap-2">
+        <div class="w-8 h-8 rounded-lg bg-gradient-to-br from-lime-400 to-emerald-600 flex items-center justify-center text-pitch-900 text-sm font-display font-bold">L</div>
+        <span class="font-display text-xl tracking-wide text-white" id="dt-league-name">Liga</span>
+      </div>
+      <button id="btn-dt-back" class="text-sm text-gray-500 hover:text-white transition-colors">← Salir</button>
+    </div>
+  </nav>
+  <div class="max-w-2xl mx-auto px-4 pt-6 pb-16" id="dt-content"></div>
 </div>
 
 <!-- ════ ADMIN HUB (my leagues) ════ -->
