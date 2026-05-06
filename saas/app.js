@@ -1561,10 +1561,14 @@ async function _initSettingsSectionInner() {
           <p class="text-xs text-gray-600 mt-1">Máximo permitido: ${getPlanLimits(league.plan_type).maxPlayers === 999 ? 'Ilimitado' : getPlanLimits(league.plan_type).maxPlayers}</p>
         </div>
       </div>
-      <div class="flex items-center gap-4 mt-4">
+      <div class="flex flex-col gap-3 mt-4">
         <label class="flex items-center gap-2 cursor-pointer">
           <input type="checkbox" id="set-is-public" ${league.is_public ? 'checked' : ''} class="w-4 h-4 accent-lime-400">
           <span class="text-sm text-gray-400">🌐 Liga pública (visible en el buscador)</span>
+        </label>
+        <label class="flex items-center gap-2 cursor-pointer">
+          <input type="checkbox" id="set-require-photos" ${league.settings?.requirePhotos ? 'checked' : ''} class="w-4 h-4 accent-lime-400">
+          <span class="text-sm text-gray-400">📸 Fotos obligatorias para DTs (deben subir al menos 1 foto)</span>
         </label>
       </div>
       <button id="btn-save-settings" class="mt-4 bg-gradient-to-r from-lime-400 to-emerald-500 text-pitch-900 font-bold py-2.5 px-6 rounded-xl text-sm uppercase tracking-wider hover:from-lime-300 hover:to-emerald-400 transition-all shadow-lg shadow-lime-400/10 active:scale-[.98]">
@@ -1599,11 +1603,13 @@ async function _initSettingsSectionInner() {
     btn.disabled = true; btn.textContent = 'Guardando...';
 
     try {
+      const requirePhotos = $('set-require-photos')?.checked || false;
       const updates = {
         name: $('set-league-name').value.trim() || league.name,
         slug: $('set-league-slug').value.trim().toLowerCase().replace(/[^a-z0-9-]/g, '-') || league.slug,
         max_players_per_team: parseInt($('set-max-players').value) || 11,
         is_public: $('set-is-public').checked,
+        settings: { ...(league.settings || {}), requirePhotos },
       };
       // Enforce player limit by plan
       const saveLimits = getPlanLimits(league.plan_type);
@@ -1823,18 +1829,23 @@ function showDTSubmissionForm() {
       </div>
     </div>
 
-    <!-- STEP 2: Photo proof (always visible) -->
+    <!-- STEP 2: Photo proof (optional by default) -->
     <div class="bg-pitch-800/60 border border-white/5 rounded-2xl p-5 mb-4">
-      <h3 class="text-xs text-gray-500 uppercase tracking-wider font-semibold mb-3">📸 Fotos de prueba</h3>
-      <p class="text-xs text-gray-600 mb-3">Subí 1-3 capturas como comprobante (marcador, stats, jugadores)</p>
-      <div class="grid grid-cols-3 gap-2 mb-3">
-        ${[0,1,2].map(i => `<div class="relative">
-          <input type="file" accept="image/*" id="dt-photo-${i}" class="hidden" onchange="window._dtPhotoChange(${i}, event)">
-          <label for="dt-photo-${i}" id="dt-photo-zone-${i}" class="block bg-pitch-900/40 border-2 border-dashed border-white/10 rounded-xl p-3 text-center cursor-pointer hover:border-lime-400/30 transition-all min-h-[80px] flex flex-col items-center justify-center gap-1">
-            <span class="text-lg">📷</span>
-            <span class="text-[10px] text-gray-600">Foto ${i+1}</span>
+      <h3 class="text-xs text-gray-500 uppercase tracking-wider font-semibold mb-2">📸 Fotos de prueba <span class="text-gray-700">(opcional)</span></h3>
+      <p class="text-xs text-gray-600 mb-3">Subí capturas como comprobante para que el admin verifique</p>
+      <div class="grid grid-cols-2 gap-2 mb-3">
+        ${[
+          { idx: 0, icon: '📊', label: 'Marcador' },
+          { idx: 1, icon: '👥', label: 'Jugadores' },
+          { idx: 2, icon: '📈', label: 'Stats Local' },
+          { idx: 3, icon: '📈', label: 'Stats Visitante' },
+        ].map(p => `<div class="relative">
+          <input type="file" accept="image/*,image/heic,image/heif" capture="environment" id="dt-photo-${p.idx}" class="hidden" onchange="window._dtPhotoChange(${p.idx}, event)">
+          <label for="dt-photo-${p.idx}" id="dt-photo-zone-${p.idx}" class="block bg-pitch-900/40 border-2 border-dashed border-white/10 rounded-xl p-3 text-center cursor-pointer hover:border-lime-400/30 transition-all min-h-[70px] flex flex-col items-center justify-center gap-1">
+            <span class="text-lg">${p.icon}</span>
+            <span class="text-[10px] text-gray-600">${p.label}</span>
           </label>
-          <img id="dt-photo-preview-${i}" class="hidden absolute inset-0 w-full h-full object-cover rounded-xl">
+          <img id="dt-photo-preview-${p.idx}" class="hidden absolute inset-0 w-full h-full object-cover rounded-xl">
         </div>`).join('')}
       </div>
     </div>
@@ -1997,6 +2008,13 @@ window._dtRunAI = async () => {
       authHeader = `Bearer ${session.access_token}`;
     }
 
+    // Label photos for AI context
+    const labeledPhotos = [];
+    const labels = ['score', 'players', 'stats_home', 'stats_away'];
+    _dtPhotos.forEach((photo, i) => {
+      if (photo) labeledPhotos.push({ image: photo, type: labels[i] || 'unknown' });
+    });
+
     // Call Edge Function
     const res = await fetch(`${supa.supabaseUrl}/functions/v1/scan-ai`, {
       method: 'POST',
@@ -2005,7 +2023,8 @@ window._dtRunAI = async () => {
         ...(authHeader ? { 'Authorization': authHeader } : {}),
       },
       body: JSON.stringify({
-        images: photos,
+        images: labeledPhotos.map(p => p.image),
+        image_labels: labeledPhotos.map(p => p.type),
         registered_players: _dtPlayers.map(p => ({ id: p.id, name: p.name, pos: p.pos })),
         league_id: _dtLeague.id,
       }),
@@ -2064,7 +2083,10 @@ window._dtSubmit = async () => {
 
   if (!homeId || !awayId) { toast('⚠️ Seleccioná ambos equipos', true); return; }
   if (homeId === awayId) { toast('⚠️ Los equipos no pueden ser iguales', true); return; }
-  if (!photos.length) { toast('⚠️ Subí al menos una foto como comprobante', true); return; }
+  // Check if league requires photos
+  if (_dtLeague.settings?.requirePhotos && !photos.length) {
+    toast('⚠️ Tu admin requiere al menos 1 foto como comprobante', true); return;
+  }
 
   const btn = $('btn-dt-submit');
   btn.disabled = true;
@@ -2091,7 +2113,7 @@ window._dtSubmit = async () => {
       submissionType: _dtDetailLevel,
     };
 
-    // Insert submission
+    // Insert submission (DT is NOT logged in — uses public_insert RLS policy)
     const { error } = await supa.from('submissions').insert({
       league_id: _dtLeague.id,
       team_code: _dtTeam.code,
@@ -2100,7 +2122,10 @@ window._dtSubmit = async () => {
       status: 'pending',
     });
 
-    if (error) throw error;
+    if (error) {
+      console.error('Submission insert error:', error);
+      throw new Error(error.message || 'Error al enviar');
+    }
 
     toast('✅ Resultado enviado — el admin lo revisará');
 
@@ -2108,7 +2133,7 @@ window._dtSubmit = async () => {
     $('dt-hg').value = 0;
     $('dt-ag').value = 0;
     _dtPhotos = [];
-    [0,1,2].forEach(i => {
+    [0,1,2,3].forEach(i => {
       const p = $(`dt-photo-preview-${i}`);
       const z = $(`dt-photo-zone-${i}`);
       if (p) { p.classList.add('hidden'); p.src = ''; }
