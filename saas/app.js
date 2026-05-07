@@ -355,6 +355,7 @@ function initDashboard() {
       const target = document.querySelector(`[data-section="${section}"]`);
       if (target) target.classList.remove('hidden');
       // Lazy-load section content
+      if (section === 'scanner') initScannerSection();
       if (section === 'teams') initTeamsSection();
       if (section === 'fixture') initFixtureSection();
       if (section === 'standings') initStandingsSection();
@@ -518,6 +519,9 @@ async function _initTeamsSectionInner() {
     <!-- Team detail (hidden, shown when clicking a team) -->
     <div id="team-detail" class="hidden mt-6"></div>
   `;
+
+  // Load submissions inbox
+  loadAdminSubmissions();
 
   // Bind events
   $('btn-add-team').onclick = () => {
@@ -1035,6 +1039,18 @@ async function _initFixtureSectionInner() {
           <p class="text-sm text-gray-600">Necesitás al menos 2 equipos para generar el calendario</p>
         </div>
       `}
+    </div>
+
+    <!-- Submissions inbox -->
+    <div class="mt-6">
+      <div class="flex items-center gap-3 mb-4">
+        <span class="text-xl">📥</span>
+        <h3 class="font-display text-xl text-white">SUBMISSIONS DE DTs</h3>
+        <span id="sub-count-badge" class="text-[10px] bg-lime-400/10 text-lime-400 px-2 py-0.5 rounded-full font-mono"></span>
+      </div>
+      <div id="admin-submissions-list">
+        <div class="text-center py-6 text-gray-600 text-sm">Cargando...</div>
+      </div>
     </div>
 
     <!-- Result form (hidden) -->
@@ -1711,6 +1727,160 @@ function renderTeamCodes() {
 window._settingsToast = (msg) => toast(msg);
 
 // ═══════════════════════════════════════════════════════════════
+// ADMIN SUBMISSIONS INBOX
+// ═══════════════════════════════════════════════════════════════
+async function loadAdminSubmissions() {
+  const list = $('admin-submissions-list');
+  if (!list) return;
+
+  try {
+    const { data: pending } = await supa.from('submissions').select('*')
+      .eq('league_id', state.activeLeague.id)
+      .eq('status', 'pending')
+      .order('created_at', { ascending: false });
+
+    const { data: recent } = await supa.from('submissions').select('*')
+      .eq('league_id', state.activeLeague.id)
+      .neq('status', 'pending')
+      .gte('created_at', new Date(Date.now() - 24*60*60*1000).toISOString())
+      .order('created_at', { ascending: false });
+
+    const badge = $('sub-count-badge');
+    if (badge) badge.textContent = pending?.length ? pending.length + ' pendientes' : '';
+
+    let html = '';
+
+    if (pending?.length) {
+      html += pending.map(sub => {
+        const sc = sub.scan_result?.score || {};
+        const ps = sub.scan_result?.playerStats || {};
+        const playerCount = Object.keys(ps).length;
+        const hasDetail = playerCount > 0;
+        const subType = sub.scan_result?.submissionType || 'rápido';
+
+        return `<div class="bg-pitch-800/60 border border-lime-400/20 rounded-2xl p-4 mb-3 glow">
+          <div class="flex items-center justify-between mb-3">
+            <div>
+              <span class="text-xs text-lime-400 font-semibold uppercase tracking-wider">⏳ Pendiente</span>
+              <span class="text-xs text-gray-600 ml-2">${new Date(sub.created_at).toLocaleString()}</span>
+            </div>
+            <span class="text-[10px] text-gray-500 bg-pitch-900/40 px-2 py-0.5 rounded">${subType}</span>
+          </div>
+
+          <!-- Score -->
+          <div class="flex items-center justify-center gap-4 py-3 bg-pitch-900/40 rounded-xl mb-3">
+            <span class="text-sm text-white font-medium">${sc.home || '?'}</span>
+            <span class="font-display text-2xl text-lime-400">${sc.homeGoals ?? '?'} – ${sc.awayGoals ?? '?'}</span>
+            <span class="text-sm text-white font-medium">${sc.away || '?'}</span>
+          </div>
+
+          ${sub.team_name ? `<p class="text-xs text-gray-500 mb-2">Enviado por: <span class="text-white">${sub.team_name}</span></p>` : ''}
+          ${hasDetail ? `<p class="text-xs text-gray-600 mb-2">📋 ${playerCount} jugadores con stats</p>` : ''}
+
+          <!-- Actions -->
+          <div class="flex gap-2 mt-3">
+            <button onclick="window._adminApproveSub('${sub.id}')" class="flex-1 bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 py-2.5 rounded-xl text-sm font-semibold hover:bg-emerald-500/20 transition-all">✅ Aprobar</button>
+            <button onclick="window._adminRejectSub('${sub.id}')" class="flex-1 bg-red-500/10 text-red-400 border border-red-500/20 py-2.5 rounded-xl text-sm font-semibold hover:bg-red-500/20 transition-all">✕ Rechazar</button>
+          </div>
+        </div>`;
+      }).join('');
+    } else {
+      html += '<div class="bg-pitch-800/40 border border-white/5 rounded-xl p-6 text-center text-gray-600 text-sm">Sin submissions pendientes</div>';
+    }
+
+    // Recent history
+    if (recent?.length) {
+      html += `<div class="mt-4 opacity-60">
+        <p class="text-xs text-gray-500 uppercase tracking-wider font-semibold mb-2">📋 Historial (24h)</p>
+        ${recent.map(sub => {
+          const sc = sub.scan_result?.score || {};
+          const icon = sub.status === 'approved' ? '✅' : '✕';
+          const color = sub.status === 'approved' ? 'text-emerald-400' : 'text-red-400';
+          return `<div class="flex items-center justify-between py-2 border-b border-white/5 text-sm">
+            <span class="${color} font-semibold">${icon} ${sc.home || '?'} ${sc.homeGoals ?? '?'}–${sc.awayGoals ?? '?'} ${sc.away || '?'}</span>
+            <span class="text-xs text-gray-600">${sub.status} · ${new Date(sub.created_at).toLocaleString()}</span>
+          </div>`;
+        }).join('')}
+      </div>`;
+    }
+
+    list.innerHTML = html;
+  } catch(e) {
+    console.error('Load submissions error:', e);
+    list.innerHTML = '<div class="text-red-400 text-sm text-center py-4">Error cargando submissions</div>';
+  }
+}
+
+window._adminApproveSub = async (subId) => {
+  try {
+    // Get the submission data
+    const { data: sub, error: fetchErr } = await supa.from('submissions').select('*').eq('id', subId).single();
+    if (fetchErr) throw fetchErr;
+
+    const sc = sub.scan_result;
+    const homeId = sc.homeId || sc.score?.homeId;
+    const awayId = sc.awayId || sc.score?.awayId;
+    const hg = sc.score?.homeGoals ?? 0;
+    const ag = sc.score?.awayGoals ?? 0;
+    const ps = sc.playerStats || {};
+
+    if (homeId && awayId) {
+      // Save match
+      const { error: matchErr } = await supa.from('matches').insert({
+        league_id: state.activeLeague.id,
+        home_id: homeId,
+        away_id: awayId,
+        home_goals: hg,
+        away_goals: ag,
+        player_stats: ps,
+        date: new Date().toISOString().split('T')[0],
+      });
+      if (matchErr) throw matchErr;
+
+      // Update player aggregate stats
+      for (const [playerId, st] of Object.entries(ps)) {
+        if (!st.played) continue;
+        const { data: player } = await supa.from('players').select('goals, assists, cs, matches_played, ratings').eq('id', playerId).single();
+        if (!player) continue;
+        const newRatings = [...(player.ratings || [])];
+        if (st.rating > 0) newRatings.push(st.rating);
+        const isGK = ['GK','POR','PO'].includes((st.position || '').toUpperCase());
+        const isHome = (await supa.from('players').select('team_id').eq('id', playerId).single()).data?.team_id === homeId;
+        const autoCS = isGK && (isHome ? ag === 0 : hg === 0);
+        await supa.from('players').update({
+          goals: (player.goals || 0) + (st.goals || 0),
+          assists: (player.assists || 0) + (st.assists || 0),
+          cs: (player.cs || 0) + (autoCS || st.cs ? 1 : 0),
+          matches_played: (player.matches_played || 0) + 1,
+          ratings: newRatings,
+        }).eq('id', playerId);
+      }
+    }
+
+    // Mark as approved
+    await supa.from('submissions').update({ status: 'approved', reviewed_at: new Date().toISOString() }).eq('id', subId);
+    toast('✅ Submission aprobada y partido guardado');
+    loadAdminSubmissions();
+    // Refresh matches cache
+    await loadMatches();
+  } catch(e) {
+    console.error('Approve error:', e);
+    toast('⚠️ Error: ' + e.message, true);
+  }
+};
+
+window._adminRejectSub = async (subId) => {
+  if (!confirm('¿Rechazar esta submission? El DT tendrá que reenviar.')) return;
+  try {
+    await supa.from('submissions').update({ status: 'rejected', reviewed_at: new Date().toISOString() }).eq('id', subId);
+    toast('✕ Submission rechazada');
+    loadAdminSubmissions();
+  } catch(e) {
+    toast('⚠️ Error: ' + e.message, true);
+  }
+};
+
+// ═══════════════════════════════════════════════════════════════
 // DT (CAPTAIN) MODULE — Single progressive form
 // ═══════════════════════════════════════════════════════════════
 let _dtTeam = null;
@@ -2155,4 +2325,203 @@ window._dtSubmit = async () => {
 
   btn.disabled = false;
   btn.textContent = '📤 Enviar al Admin';
+};
+
+// ═══════════════════════════════════════════════════════════════
+// SUBMISSIONS INBOX (Admin)
+// ═══════════════════════════════════════════════════════════════
+async function initScannerSection() {
+  try { await _initScannerSectionInner(); } catch(e) {
+    console.error('Scanner section error:', e);
+    const container = document.querySelector('[data-section="scanner"]');
+    if (container) container.innerHTML = `<div class="bg-red-500/10 border border-red-500/20 rounded-2xl p-6 text-center"><p class="text-red-400">Error: ${e.message}</p></div>`;
+  }
+}
+
+async function _initScannerSectionInner() {
+  const container = document.querySelector('[data-section="scanner"]');
+  if (!container) return;
+
+  if (!_teamsCache.length) await loadTeams();
+  if (!_playersCache.length) await loadPlayers();
+  await loadMatches();
+
+  // Load pending submissions
+  const { data: pending } = await supa.from('submissions').select('*')
+    .eq('league_id', state.activeLeague.id).eq('status', 'pending')
+    .order('created_at', { ascending: false });
+
+  // Load recent reviewed (24h)
+  const yesterday = new Date(Date.now() - 24*60*60*1000).toISOString();
+  const { data: reviewed } = await supa.from('submissions').select('*')
+    .eq('league_id', state.activeLeague.id).neq('status', 'pending')
+    .gte('created_at', yesterday).order('created_at', { ascending: false });
+
+  const pendingSubs = pending || [];
+  const reviewedSubs = reviewed || [];
+
+  container.innerHTML = `
+    <div class="flex items-center justify-between mb-6">
+      <div class="flex items-center gap-3">
+        <span class="text-2xl">📥</span>
+        <h2 class="font-display text-3xl tracking-wide text-white">BANDEJA</h2>
+        ${pendingSubs.length ? `<span class="bg-red-500 text-white text-xs font-bold px-2 py-0.5 rounded-full">${pendingSubs.length}</span>` : ''}
+      </div>
+      <button onclick="initScannerSection()" class="text-xs text-gray-500 hover:text-lime-400 transition-colors">🔄 Refrescar</button>
+    </div>
+
+    <!-- Pending submissions -->
+    ${pendingSubs.length ? `
+      <div class="space-y-3 mb-6">
+        ${pendingSubs.map(sub => {
+          const sc = sub.scan_result?.score || {};
+          const ps = sub.scan_result?.playerStats || {};
+          const playerCount = Object.keys(ps).length;
+          const subType = sub.scan_result?.submissionType || 'rápido';
+          const hasStats = playerCount > 0;
+
+          return `<div class="bg-pitch-800/60 border border-white/5 rounded-2xl overflow-hidden">
+            <!-- Header -->
+            <div class="p-4 border-b border-white/5">
+              <div class="flex items-center justify-between mb-2">
+                <div class="flex items-center gap-2">
+                  <span class="text-xs bg-yellow-500/10 text-yellow-400 px-2 py-0.5 rounded-full font-semibold">⏳ Pendiente</span>
+                  <span class="text-xs text-gray-600">${new Date(sub.created_at).toLocaleString()}</span>
+                </div>
+                <span class="text-xs text-gray-500">📋 ${subType}</span>
+              </div>
+              <div class="flex items-center justify-between">
+                <div>
+                  <p class="text-white font-semibold">${sc.home || '?'} <span class="font-display text-xl text-lime-400">${sc.homeGoals ?? '?'} – ${sc.awayGoals ?? '?'}</span> ${sc.away || '?'}</p>
+                  <p class="text-xs text-gray-500">Enviado por: ${sub.team_name || sub.team_code || '?'}</p>
+                </div>
+              </div>
+            </div>
+
+            <!-- Player stats preview (if any) -->
+            ${hasStats ? `
+              <div class="p-3 border-b border-white/5 bg-pitch-900/20">
+                <p class="text-xs text-gray-500 mb-2">${playerCount} jugadores con stats:</p>
+                <div class="space-y-1 max-h-32 overflow-y-auto">
+                  ${Object.entries(ps).map(([pid, st]) => {
+                    const player = _playersCache.find(p => p.id === pid);
+                    return `<div class="flex items-center justify-between text-xs py-1">
+                      <span class="text-white">${player?.name || pid}</span>
+                      <span class="text-gray-500">${st.goals ? '⚽'+st.goals : ''} ${st.assists ? '🎯'+st.assists : ''} ${st.rating ? '⭐'+st.rating : ''} ${st.position || ''}</span>
+                    </div>`;
+                  }).join('')}
+                </div>
+              </div>
+            ` : ''}
+
+            <!-- Actions -->
+            <div class="p-3 flex gap-2">
+              <button onclick="window._approveSubmission('${sub.id}')" class="flex-1 bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 py-2.5 rounded-xl text-sm font-semibold hover:bg-emerald-500/20 transition-all">✅ Aprobar y guardar</button>
+              <button onclick="window._rejectSubmission('${sub.id}')" class="bg-red-500/10 text-red-400 border border-red-500/20 py-2.5 px-4 rounded-xl text-sm font-semibold hover:bg-red-500/20 transition-all">✕</button>
+            </div>
+          </div>`;
+        }).join('')}
+      </div>
+    ` : `
+      <div class="bg-pitch-800/40 border border-dashed border-white/10 rounded-2xl p-10 text-center mb-6">
+        <span class="text-3xl mb-3 block">📥</span>
+        <p class="text-gray-500">No hay submissions pendientes</p>
+        <p class="text-xs text-gray-600 mt-1">Los DTs envían resultados desde la pantalla de acceso con código</p>
+      </div>
+    `}
+
+    <!-- Reviewed history -->
+    ${reviewedSubs.length ? `
+      <div class="bg-pitch-800/40 border border-white/5 rounded-2xl p-4" style="opacity:.7;">
+        <h3 class="text-xs text-gray-500 uppercase tracking-wider font-semibold mb-3">📋 Historial (últimas 24h) — ${reviewedSubs.length} procesadas</h3>
+        <div class="space-y-1">
+          ${reviewedSubs.map(sub => {
+            const sc = sub.scan_result?.score || {};
+            const icon = sub.status === 'approved' ? '✅' : '✕';
+            const color = sub.status === 'approved' ? 'text-emerald-400' : 'text-red-400';
+            return `<div class="flex items-center justify-between py-1.5 border-b border-white/5 last:border-0 text-xs">
+              <span class="${color} font-semibold">${icon} ${sc.home||'?'} ${sc.homeGoals??'?'}–${sc.awayGoals??'?'} ${sc.away||'?'}</span>
+              <span class="text-gray-600">${sub.status} · ${new Date(sub.created_at).toLocaleString()}</span>
+            </div>`;
+          }).join('')}
+        </div>
+      </div>
+    ` : ''}
+  `;
+}
+
+// ─── Approve submission → save match + update player stats ───
+window._approveSubmission = async (subId) => {
+  try {
+    // Get the submission
+    const { data: sub, error: fetchErr } = await supa.from('submissions').select('*').eq('id', subId).single();
+    if (fetchErr || !sub) throw new Error('Submission no encontrada');
+
+    const sc = sub.scan_result;
+    const homeId = sc.homeId || sc.score?.homeId;
+    const awayId = sc.awayId || sc.score?.awayId;
+    const hg = sc.score?.homeGoals ?? 0;
+    const ag = sc.score?.awayGoals ?? 0;
+
+    if (!homeId || !awayId) {
+      toast('⚠️ Submission sin equipos definidos — aprobada pero sin guardar partido', true);
+      await supa.from('submissions').update({ status: 'approved', reviewed_at: new Date().toISOString() }).eq('id', subId);
+      initScannerSection();
+      return;
+    }
+
+    // Save match
+    const { data: match, error: matchErr } = await supa.from('matches').insert({
+      league_id: state.activeLeague.id,
+      home_id: homeId,
+      away_id: awayId,
+      home_goals: hg,
+      away_goals: ag,
+      player_stats: sc.playerStats || {},
+      date: new Date().toISOString().split('T')[0],
+    }).select().single();
+
+    if (matchErr) throw matchErr;
+    _matchesCache.push(match);
+
+    // Update player aggregate stats
+    const ps = sc.playerStats || {};
+    for (const [playerId, st] of Object.entries(ps)) {
+      if (!st.played && !st.goals && !st.assists && !st.rating) continue;
+      const { data: player } = await supa.from('players').select('goals, assists, cs, matches_played, ratings').eq('id', playerId).single();
+      if (!player) continue;
+
+      const isGK = ['GK','POR','PO'].includes((st.position || '').toUpperCase());
+      const isHome = _playersCache.find(p => p.id === playerId)?.team_id === homeId;
+      const autoCS = isGK && (isHome ? ag === 0 : hg === 0);
+      const newRatings = [...(player.ratings || [])];
+      if (st.rating > 0) newRatings.push(st.rating);
+
+      await supa.from('players').update({
+        goals: (player.goals || 0) + (st.goals || 0),
+        assists: (player.assists || 0) + (st.assists || 0),
+        cs: (player.cs || 0) + (autoCS || st.cs ? 1 : 0),
+        matches_played: (player.matches_played || 0) + 1,
+        ratings: newRatings,
+      }).eq('id', playerId);
+    }
+
+    // Mark as approved
+    await supa.from('submissions').update({ status: 'approved', reviewed_at: new Date().toISOString() }).eq('id', subId);
+
+    toast(`✅ ${sc.score?.home || '?'} ${hg}–${ag} ${sc.score?.away || '?'} guardado`);
+    initScannerSection();
+  } catch(e) {
+    console.error('Approve error:', e);
+    toast('⚠️ Error: ' + e.message, true);
+  }
+};
+
+window._rejectSubmission = async (subId) => {
+  if (!confirm('¿Rechazar esta submission? El DT tendrá que reenviar.')) return;
+  try {
+    await supa.from('submissions').update({ status: 'rejected', reviewed_at: new Date().toISOString() }).eq('id', subId);
+    toast('✕ Submission rechazada');
+    initScannerSection();
+  } catch(e) { toast('⚠️ ' + e.message, true); }
 };
