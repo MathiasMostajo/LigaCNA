@@ -2587,10 +2587,10 @@ async function pollSubmissions() {
   if (_pollTimer) clearTimeout(_pollTimer);
   try {
     // Fetch pending submissions
-    const { data: pending } = await supa.from('submissions').select('*').eq('status', 'pending').order('created_at', { ascending: false });
+    const { data: pending } = await supa.from('submissions').select('*').eq('status', 'pending').is('league_id', null).order('created_at', { ascending: false });
     // Fetch recently reviewed submissions (last 24h) for audit trail
     const yesterday = new Date(Date.now() - 24*60*60*1000).toISOString();
-    const { data: reviewed } = await supa.from('submissions').select('*').neq('status', 'pending').gte('created_at', yesterday).order('created_at', { ascending: false });
+    const { data: reviewed } = await supa.from('submissions').select('*').neq('status', 'pending').is('league_id', null).gte('created_at', yesterday).order('created_at', { ascending: false });
     const cnt = pending?.length || 0;
     const sb = $('subBtn'), pc = $('pCount');
     if (cnt > 0 && mode === 'admin') { if (sb) sb.style.display = 'inline-flex'; if (pc) pc.textContent = cnt; }
