@@ -355,11 +355,13 @@ function initDashboard() {
       const target = document.querySelector(`[data-section="${section}"]`);
       if (target) target.classList.remove('hidden');
       // Lazy-load section content
-      if (section === 'scanner') initScannerSection();
+      if (section === 'inbox') initInboxSection();
+      if (section === 'scanner') initAdminScannerSection();
       if (section === 'teams') initTeamsSection();
       if (section === 'fixture') initFixtureSection();
       if (section === 'standings') initStandingsSection();
       if (section === 'leaders') initLeadersSection();
+      if (section === 'transfers') initTransfersSection();
       if (section === 'settings') initSettingsSection();
     };
   });
@@ -390,6 +392,14 @@ function initDashboard() {
   const sidebar = $('sidebar'), overlay = $('sidebar-overlay');
   $('btn-menu').onclick = () => { sidebar.classList.remove('-translate-x-full'); overlay.classList.remove('hidden'); };
   overlay.onclick = () => { sidebar.classList.add('-translate-x-full'); overlay.classList.add('hidden'); };
+
+  // Load inbox badge count
+  supa.from('submissions').select('*', { count: 'exact', head: true })
+    .eq('league_id', state.activeLeague.id).eq('status', 'pending')
+    .then(({ count }) => {
+      const badge = $('inbox-badge');
+      if (badge && count > 0) { badge.textContent = count; badge.classList.remove('hidden'); }
+    }).catch(() => {});
 }
 
 // ═══════════════════════════════════════════════════════════════
@@ -519,9 +529,6 @@ async function _initTeamsSectionInner() {
     <!-- Team detail (hidden, shown when clicking a team) -->
     <div id="team-detail" class="hidden mt-6"></div>
   `;
-
-  // Load submissions inbox
-  loadAdminSubmissions();
 
   // Bind events
   $('btn-add-team').onclick = () => {
@@ -1039,18 +1046,6 @@ async function _initFixtureSectionInner() {
           <p class="text-sm text-gray-600">Necesitás al menos 2 equipos para generar el calendario</p>
         </div>
       `}
-    </div>
-
-    <!-- Submissions inbox -->
-    <div class="mt-6">
-      <div class="flex items-center gap-3 mb-4">
-        <span class="text-xl">📥</span>
-        <h3 class="font-display text-xl text-white">SUBMISSIONS DE DTs</h3>
-        <span id="sub-count-badge" class="text-[10px] bg-lime-400/10 text-lime-400 px-2 py-0.5 rounded-full font-mono"></span>
-      </div>
-      <div id="admin-submissions-list">
-        <div class="text-center py-6 text-gray-600 text-sm">Cargando...</div>
-      </div>
     </div>
 
     <!-- Result form (hidden) -->
@@ -2330,198 +2325,451 @@ window._dtSubmit = async () => {
 // ═══════════════════════════════════════════════════════════════
 // SUBMISSIONS INBOX (Admin)
 // ═══════════════════════════════════════════════════════════════
-async function initScannerSection() {
-  try { await _initScannerSectionInner(); } catch(e) {
-    console.error('Scanner section error:', e);
-    const container = document.querySelector('[data-section="scanner"]');
-    if (container) container.innerHTML = `<div class="bg-red-500/10 border border-red-500/20 rounded-2xl p-6 text-center"><p class="text-red-400">Error: ${e.message}</p></div>`;
-  }
-}
-
-async function _initScannerSectionInner() {
-  const container = document.querySelector('[data-section="scanner"]');
+// ═══════════════════════════════════════════════════════════════
+// INBOX SECTION (dedicated tab)
+// ═══════════════════════════════════════════════════════════════
+async function initInboxSection() {
+  const container = document.querySelector('[data-section="inbox"]');
   if (!container) return;
-
-  if (!_teamsCache.length) await loadTeams();
-  if (!_playersCache.length) await loadPlayers();
-  await loadMatches();
-
-  // Load pending submissions
-  const { data: pending } = await supa.from('submissions').select('*')
-    .eq('league_id', state.activeLeague.id).eq('status', 'pending')
-    .order('created_at', { ascending: false });
-
-  // Load recent reviewed (24h)
-  const yesterday = new Date(Date.now() - 24*60*60*1000).toISOString();
-  const { data: reviewed } = await supa.from('submissions').select('*')
-    .eq('league_id', state.activeLeague.id).neq('status', 'pending')
-    .gte('created_at', yesterday).order('created_at', { ascending: false });
-
-  const pendingSubs = pending || [];
-  const reviewedSubs = reviewed || [];
 
   container.innerHTML = `
     <div class="flex items-center justify-between mb-6">
       <div class="flex items-center gap-3">
         <span class="text-2xl">📥</span>
         <h2 class="font-display text-3xl tracking-wide text-white">BANDEJA</h2>
-        ${pendingSubs.length ? `<span class="bg-red-500 text-white text-xs font-bold px-2 py-0.5 rounded-full">${pendingSubs.length}</span>` : ''}
+        <span id="inbox-count" class="text-xs text-gray-500"></span>
       </div>
-      <button onclick="initScannerSection()" class="text-xs text-gray-500 hover:text-lime-400 transition-colors">🔄 Refrescar</button>
+      <button onclick="initInboxSection()" class="text-xs text-gray-500 hover:text-lime-400 transition-colors">🔄 Actualizar</button>
+    </div>
+    <div id="admin-submissions-list"><div class="text-center py-8 text-gray-600 text-sm">Cargando submissions...</div></div>
+  `;
+
+  await loadAdminSubmissions();
+
+  // Update sidebar badge
+  setTimeout(async () => {
+    try {
+      const { count } = await supa.from('submissions').select('*', { count: 'exact', head: true })
+        .eq('league_id', state.activeLeague.id).eq('status', 'pending');
+      const badge = $('inbox-badge');
+      if (badge && count > 0) { badge.textContent = count; badge.classList.remove('hidden'); }
+      else if (badge) badge.classList.add('hidden');
+    } catch(e) {}
+  }, 100);
+}
+
+// ═══════════════════════════════════════════════════════════════
+// ADMIN SCANNER SECTION (admin scans their own matches)
+// ═══════════════════════════════════════════════════════════════
+let _adminScanPhotos = { score: null, players: null, stats_home: null, stats_away: null };
+
+async function initAdminScannerSection() {
+  const container = document.querySelector('[data-section="scanner"]');
+  if (!container) return;
+
+  if (!_teamsCache.length) await loadTeams();
+  if (!_playersCache.length) await loadPlayers();
+
+  const canScan = ['pro', 'elite', 'superadmin'].includes(state.activeLeague.plan_type);
+
+  container.innerHTML = `
+    <div class="flex items-center gap-3 mb-6">
+      <span class="text-2xl">🤖</span>
+      <h2 class="font-display text-3xl tracking-wide text-white">ESCÁNER IA</h2>
     </div>
 
-    <!-- Pending submissions -->
-    ${pendingSubs.length ? `
-      <div class="space-y-3 mb-6">
-        ${pendingSubs.map(sub => {
-          const sc = sub.scan_result?.score || {};
-          const ps = sub.scan_result?.playerStats || {};
-          const playerCount = Object.keys(ps).length;
-          const subType = sub.scan_result?.submissionType || 'rápido';
-          const hasStats = playerCount > 0;
-
-          return `<div class="bg-pitch-800/60 border border-white/5 rounded-2xl overflow-hidden">
-            <!-- Header -->
-            <div class="p-4 border-b border-white/5">
-              <div class="flex items-center justify-between mb-2">
-                <div class="flex items-center gap-2">
-                  <span class="text-xs bg-yellow-500/10 text-yellow-400 px-2 py-0.5 rounded-full font-semibold">⏳ Pendiente</span>
-                  <span class="text-xs text-gray-600">${new Date(sub.created_at).toLocaleString()}</span>
-                </div>
-                <span class="text-xs text-gray-500">📋 ${subType}</span>
-              </div>
-              <div class="flex items-center justify-between">
-                <div>
-                  <p class="text-white font-semibold">${sc.home || '?'} <span class="font-display text-xl text-lime-400">${sc.homeGoals ?? '?'} – ${sc.awayGoals ?? '?'}</span> ${sc.away || '?'}</p>
-                  <p class="text-xs text-gray-500">Enviado por: ${sub.team_name || sub.team_code || '?'}</p>
-                </div>
-              </div>
-            </div>
-
-            <!-- Player stats preview (if any) -->
-            ${hasStats ? `
-              <div class="p-3 border-b border-white/5 bg-pitch-900/20">
-                <p class="text-xs text-gray-500 mb-2">${playerCount} jugadores con stats:</p>
-                <div class="space-y-1 max-h-32 overflow-y-auto">
-                  ${Object.entries(ps).map(([pid, st]) => {
-                    const player = _playersCache.find(p => p.id === pid);
-                    return `<div class="flex items-center justify-between text-xs py-1">
-                      <span class="text-white">${player?.name || pid}</span>
-                      <span class="text-gray-500">${st.goals ? '⚽'+st.goals : ''} ${st.assists ? '🎯'+st.assists : ''} ${st.rating ? '⭐'+st.rating : ''} ${st.position || ''}</span>
-                    </div>`;
-                  }).join('')}
-                </div>
-              </div>
-            ` : ''}
-
-            <!-- Actions -->
-            <div class="p-3 flex gap-2">
-              <button onclick="window._approveSubmission('${sub.id}')" class="flex-1 bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 py-2.5 rounded-xl text-sm font-semibold hover:bg-emerald-500/20 transition-all">✅ Aprobar y guardar</button>
-              <button onclick="window._rejectSubmission('${sub.id}')" class="bg-red-500/10 text-red-400 border border-red-500/20 py-2.5 px-4 rounded-xl text-sm font-semibold hover:bg-red-500/20 transition-all">✕</button>
-            </div>
-          </div>`;
-        }).join('')}
-      </div>
-    ` : `
-      <div class="bg-pitch-800/40 border border-dashed border-white/10 rounded-2xl p-10 text-center mb-6">
-        <span class="text-3xl mb-3 block">📥</span>
-        <p class="text-gray-500">No hay submissions pendientes</p>
-        <p class="text-xs text-gray-600 mt-1">Los DTs envían resultados desde la pantalla de acceso con código</p>
-      </div>
-    `}
-
-    <!-- Reviewed history -->
-    ${reviewedSubs.length ? `
-      <div class="bg-pitch-800/40 border border-white/5 rounded-2xl p-4" style="opacity:.7;">
-        <h3 class="text-xs text-gray-500 uppercase tracking-wider font-semibold mb-3">📋 Historial (últimas 24h) — ${reviewedSubs.length} procesadas</h3>
-        <div class="space-y-1">
-          ${reviewedSubs.map(sub => {
-            const sc = sub.scan_result?.score || {};
-            const icon = sub.status === 'approved' ? '✅' : '✕';
-            const color = sub.status === 'approved' ? 'text-emerald-400' : 'text-red-400';
-            return `<div class="flex items-center justify-between py-1.5 border-b border-white/5 last:border-0 text-xs">
-              <span class="${color} font-semibold">${icon} ${sc.home||'?'} ${sc.homeGoals??'?'}–${sc.awayGoals??'?'} ${sc.away||'?'}</span>
-              <span class="text-gray-600">${sub.status} · ${new Date(sub.created_at).toLocaleString()}</span>
-            </div>`;
-          }).join('')}
+    <!-- Teams selection -->
+    <div class="bg-pitch-800/60 border border-white/5 rounded-2xl p-5 mb-4">
+      <h3 class="text-xs text-gray-500 uppercase tracking-wider font-semibold mb-3">📊 Partido a escanear</h3>
+      <div class="grid grid-cols-2 gap-3 mb-4">
+        <div>
+          <label class="block text-xs text-gray-500 mb-1">🏠 Local</label>
+          <select id="as-home" class="w-full bg-pitch-900/60 border border-white/10 rounded-xl px-3 py-2.5 text-white text-sm outline-none focus:border-lime-400/40">
+            <option value="">— Elegí —</option>
+            ${_teamsCache.filter(t => !t.is_bye && !t.replaced).map(t => `<option value="${t.id}">${t.name}</option>`).join('')}
+          </select>
+        </div>
+        <div>
+          <label class="block text-xs text-gray-500 mb-1">✈️ Visitante</label>
+          <select id="as-away" class="w-full bg-pitch-900/60 border border-white/10 rounded-xl px-3 py-2.5 text-white text-sm outline-none focus:border-lime-400/40">
+            <option value="">— Elegí —</option>
+            ${_teamsCache.filter(t => !t.is_bye && !t.replaced).map(t => `<option value="${t.id}">${t.name}</option>`).join('')}
+          </select>
         </div>
       </div>
-    ` : ''}
+    </div>
+
+    <!-- Photo upload -->
+    <div class="bg-pitch-800/60 border border-white/5 rounded-2xl p-5 mb-4">
+      <h3 class="text-xs text-gray-500 uppercase tracking-wider font-semibold mb-3">📸 Capturas del partido</h3>
+      <div class="grid grid-cols-2 gap-2">
+        ${[
+          { key: 'score', icon: '📊', label: 'Marcador' },
+          { key: 'players', icon: '👥', label: 'Jugadores' },
+          { key: 'stats_home', icon: '📈', label: 'Stats Local' },
+          { key: 'stats_away', icon: '📈', label: 'Stats Visitante' },
+        ].map(p => `<div class="relative">
+          <input type="file" accept="image/*,image/heic,image/heif" id="as-photo-${p.key}" class="hidden" onchange="window._asPhotoChange('${p.key}', event)">
+          <label for="as-photo-${p.key}" id="as-zone-${p.key}" class="block bg-pitch-900/40 border-2 border-dashed border-white/10 rounded-xl p-3 text-center cursor-pointer hover:border-lime-400/30 transition-all min-h-[70px] flex flex-col items-center justify-center gap-1">
+            <span class="text-lg">${p.icon}</span>
+            <span class="text-[10px] text-gray-600">${p.label}</span>
+          </label>
+          <img id="as-preview-${p.key}" class="hidden absolute inset-0 w-full h-full object-cover rounded-xl">
+        </div>`).join('')}
+      </div>
+    </div>
+
+    <!-- Scan button -->
+    <button id="btn-admin-scan" onclick="window._adminRunScan()" ${canScan ? '' : 'disabled'}
+      class="w-full py-4 rounded-xl text-sm font-bold uppercase tracking-wider transition-all mb-4 ${canScan
+        ? 'bg-gradient-to-r from-purple-500 to-indigo-500 text-white hover:from-purple-400 hover:to-indigo-400 shadow-lg shadow-purple-500/10 active:scale-[.98]'
+        : 'bg-pitch-700 text-gray-600 cursor-not-allowed'}">
+      ${canScan ? '🤖 Escanear con IA' : '🔒 Scanner disponible en plan Pro'}
+    </button>
+
+    <!-- Manual result entry -->
+    <div class="bg-pitch-800/60 border border-white/5 rounded-2xl p-5 mb-4">
+      <h3 class="text-xs text-gray-500 uppercase tracking-wider font-semibold mb-3">✏️ O cargá el resultado manualmente</h3>
+      <div style="display:grid;grid-template-columns:1fr 30px 1fr;gap:8px;align-items:center;margin-bottom:16px;">
+        <input type="number" id="as-hg" min="0" value="0" style="width:100%;box-sizing:border-box;" class="bg-pitch-900/60 border border-white/10 rounded-xl px-3 py-3 text-white text-center font-display text-3xl outline-none focus:border-lime-400/40">
+        <span class="text-gray-500 text-xl text-center">–</span>
+        <input type="number" id="as-ag" min="0" value="0" style="width:100%;box-sizing:border-box;" class="bg-pitch-900/60 border border-white/10 rounded-xl px-3 py-3 text-white text-center font-display text-3xl outline-none focus:border-lime-400/40">
+      </div>
+      <button id="btn-admin-save" onclick="window._adminSaveManual()" class="w-full bg-gradient-to-r from-lime-400 to-emerald-500 text-pitch-900 font-bold py-3 rounded-xl text-sm uppercase tracking-wider hover:from-lime-300 hover:to-emerald-400 transition-all shadow-lg shadow-lime-400/10 active:scale-[.98]">
+        ✅ Guardar Resultado
+      </button>
+    </div>
+
+    <!-- Scan results (hidden, shown after AI scan) -->
+    <div id="as-scan-results" class="hidden"></div>
   `;
 }
 
-// ─── Approve submission → save match + update player stats ───
-window._approveSubmission = async (subId) => {
+window._asPhotoChange = (key, event) => {
+  const file = event.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = (ev) => {
+    _adminScanPhotos[key] = ev.target.result;
+    const preview = $('as-preview-' + key);
+    if (preview) { preview.src = ev.target.result; preview.classList.remove('hidden'); }
+    const zone = $('as-zone-' + key);
+    if (zone) zone.style.borderColor = 'rgba(0,255,135,.4)';
+  };
+  reader.readAsDataURL(file);
+};
+
+window._adminRunScan = async () => {
+  const photos = Object.values(_adminScanPhotos).filter(Boolean);
+  if (!photos.length) { toast('⚠️ Subí al menos una foto', true); return; }
+
+  const btn = $('btn-admin-scan');
+  btn.disabled = true;
+  btn.innerHTML = '<svg class="animate-spin h-5 w-5 inline mr-2" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" fill="none"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg> Escaneando...';
+
   try {
-    // Get the submission
-    const { data: sub, error: fetchErr } = await supa.from('submissions').select('*').eq('id', subId).single();
-    if (fetchErr || !sub) throw new Error('Submission no encontrada');
+    const { data: { session } } = await supa.auth.getSession();
+    if (!session) throw new Error('No hay sesión activa');
 
-    const sc = sub.scan_result;
-    const homeId = sc.homeId || sc.score?.homeId;
-    const awayId = sc.awayId || sc.score?.awayId;
-    const hg = sc.score?.homeGoals ?? 0;
-    const ag = sc.score?.awayGoals ?? 0;
+    const res = await fetch(supa.supabaseUrl + '/functions/v1/scan-ai', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + session.access_token },
+      body: JSON.stringify({
+        images: photos,
+        registered_players: _playersCache.map(p => ({ id: p.id, name: p.name, pos: p.pos })),
+        league_id: state.activeLeague.id,
+      }),
+    });
 
-    if (!homeId || !awayId) {
-      toast('⚠️ Submission sin equipos definidos — aprobada pero sin guardar partido', true);
-      await supa.from('submissions').update({ status: 'approved', reviewed_at: new Date().toISOString() }).eq('id', subId);
-      initScannerSection();
-      return;
+    const data = await res.json();
+    if (!res.ok || data.error) throw new Error(data.message || data.error);
+
+    const result = data.result;
+
+    // Fill in score
+    if (result.score) {
+      if ($('as-hg')) $('as-hg').value = result.score.homeGoals ?? 0;
+      if ($('as-ag')) $('as-ag').value = result.score.awayGoals ?? 0;
     }
 
-    // Save match
-    const { data: match, error: matchErr } = await supa.from('matches').insert({
+    // Try to auto-select teams
+    if (result.score) {
+      const norm = s => (s || '').toLowerCase().trim();
+      _teamsCache.forEach(t => {
+        if (norm(t.name).includes(norm(result.score.home)) || norm(result.score.home).includes(norm(t.name))) {
+          if ($('as-home')) $('as-home').value = t.id;
+        }
+        if (norm(t.name).includes(norm(result.score.away)) || norm(result.score.away).includes(norm(t.name))) {
+          if ($('as-away')) $('as-away').value = t.id;
+        }
+      });
+    }
+
+    // Show scan details
+    const resultsDiv = $('as-scan-results');
+    if (resultsDiv && result.stats) {
+      resultsDiv.innerHTML = `<div class="bg-pitch-800/60 border border-lime-400/20 rounded-2xl p-5 glow">
+        <h3 class="font-display text-lg text-lime-400 mb-3">✅ Resultado del escaneo</h3>
+        <div class="space-y-1">
+          ${result.stats.map(sp => `<div class="flex items-center gap-2 py-1.5 border-b border-white/5 text-sm">
+            <span class="text-xs text-gray-500 w-8">${sp.pos || sp.position || '?'}</span>
+            <span class="flex-1 text-white">${sp.name}</span>
+            ${sp.goals ? '<span>⚽' + sp.goals + '</span>' : ''}
+            ${sp.assists ? '<span>🎯' + sp.assists + '</span>' : ''}
+            ${sp.rating ? '<span class="text-yellow-400">⭐' + sp.rating + '</span>' : ''}
+          </div>`).join('')}
+        </div>
+      </div>`;
+      resultsDiv.classList.remove('hidden');
+      // Store result for saving
+      window._lastScanResult = result;
+    }
+
+    toast('✅ Escaneo completado — verificá y guardá');
+  } catch(e) {
+    console.error('Admin scan error:', e);
+    toast('⚠️ ' + e.message, true);
+  }
+
+  btn.disabled = false;
+  btn.innerHTML = '🤖 Escanear con IA';
+};
+
+window._adminSaveManual = async () => {
+  const homeId = $('as-home')?.value;
+  const awayId = $('as-away')?.value;
+  const hg = parseInt($('as-hg')?.value ?? 0);
+  const ag = parseInt($('as-ag')?.value ?? 0);
+
+  if (!homeId || !awayId) { toast('⚠️ Seleccioná ambos equipos', true); return; }
+  if (homeId === awayId) { toast('⚠️ Los equipos no pueden ser iguales', true); return; }
+
+  const btn = $('btn-admin-save');
+  btn.disabled = true; btn.textContent = 'Guardando...';
+
+  try {
+    // Build player stats from scan result if available
+    const ps = {};
+    const scanResult = window._lastScanResult;
+    if (scanResult?.stats) {
+      const norm = s => (s || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+      scanResult.stats.forEach(sp => {
+        const player = _playersCache.find(p => {
+          const pn = norm(p.name), sn = norm(sp.name);
+          return pn === sn || pn.includes(sn) || sn.includes(pn);
+        });
+        if (player) {
+          const isGK = ['GK','POR','PO'].includes((sp.pos || sp.position || '').toUpperCase());
+          const isHome = player.team_id === homeId;
+          const autoCS = isGK && (isHome ? ag === 0 : hg === 0);
+          ps[player.id] = { goals: sp.goals || 0, assists: sp.assists || 0, rating: sp.rating || 0, position: (sp.pos || sp.position || '').toUpperCase(), played: true, cs: autoCS };
+        }
+      });
+    }
+
+    const { error } = await supa.from('matches').insert({
       league_id: state.activeLeague.id,
-      home_id: homeId,
-      away_id: awayId,
-      home_goals: hg,
-      away_goals: ag,
-      player_stats: sc.playerStats || {},
+      home_id: homeId, away_id: awayId,
+      home_goals: hg, away_goals: ag,
+      player_stats: ps,
       date: new Date().toISOString().split('T')[0],
-    }).select().single();
+    });
+    if (error) throw error;
 
-    if (matchErr) throw matchErr;
-    _matchesCache.push(match);
-
-    // Update player aggregate stats
-    const ps = sc.playerStats || {};
-    for (const [playerId, st] of Object.entries(ps)) {
-      if (!st.played && !st.goals && !st.assists && !st.rating) continue;
-      const { data: player } = await supa.from('players').select('goals, assists, cs, matches_played, ratings').eq('id', playerId).single();
+    // Update player aggregates
+    for (const [pid, st] of Object.entries(ps)) {
+      const { data: player } = await supa.from('players').select('goals,assists,cs,matches_played,ratings').eq('id', pid).single();
       if (!player) continue;
-
-      const isGK = ['GK','POR','PO'].includes((st.position || '').toUpperCase());
-      const isHome = _playersCache.find(p => p.id === playerId)?.team_id === homeId;
-      const autoCS = isGK && (isHome ? ag === 0 : hg === 0);
       const newRatings = [...(player.ratings || [])];
       if (st.rating > 0) newRatings.push(st.rating);
-
       await supa.from('players').update({
         goals: (player.goals || 0) + (st.goals || 0),
         assists: (player.assists || 0) + (st.assists || 0),
-        cs: (player.cs || 0) + (autoCS || st.cs ? 1 : 0),
+        cs: (player.cs || 0) + (st.cs ? 1 : 0),
         matches_played: (player.matches_played || 0) + 1,
         ratings: newRatings,
-      }).eq('id', playerId);
+      }).eq('id', pid);
     }
 
-    // Mark as approved
-    await supa.from('submissions').update({ status: 'approved', reviewed_at: new Date().toISOString() }).eq('id', subId);
+    window._lastScanResult = null;
+    $('as-scan-results')?.classList.add('hidden');
+    $('as-hg').value = 0; $('as-ag').value = 0;
+    $('as-home').value = ''; $('as-away').value = '';
+    _adminScanPhotos = { score: null, players: null, stats_home: null, stats_away: null };
+    ['score','players','stats_home','stats_away'].forEach(k => {
+      const p = $('as-preview-' + k); if (p) { p.classList.add('hidden'); p.src = ''; }
+      const z = $('as-zone-' + k); if (z) z.style.borderColor = '';
+      const inp = $('as-photo-' + k); if (inp) inp.value = '';
+    });
 
-    toast(`✅ ${sc.score?.home || '?'} ${hg}–${ag} ${sc.score?.away || '?'} guardado`);
-    initScannerSection();
+    await loadMatches();
+    const homeName = _teamsCache.find(t => t.id === homeId)?.name || '?';
+    const awayName = _teamsCache.find(t => t.id === awayId)?.name || '?';
+    toast('✅ ' + homeName + ' ' + hg + '–' + ag + ' ' + awayName);
   } catch(e) {
-    console.error('Approve error:', e);
-    toast('⚠️ Error: ' + e.message, true);
+    toast('⚠️ ' + e.message, true);
   }
+
+  btn.disabled = false; btn.textContent = '✅ Guardar Resultado';
 };
 
-window._rejectSubmission = async (subId) => {
-  if (!confirm('¿Rechazar esta submission? El DT tendrá que reenviar.')) return;
+// ═══════════════════════════════════════════════════════════════
+// TRANSFERS (FICHAJES) MODULE
+// ═══════════════════════════════════════════════════════════════
+async function initTransfersSection() {
+  try { await _initTransfersSectionInner(); } catch(e) {
+    console.error('Transfers error:', e);
+    const container = document.querySelector('[data-section="transfers"]');
+    if (container) container.innerHTML = '<div class="bg-red-500/10 border border-red-500/20 rounded-2xl p-6 text-center"><p class="text-red-400">Error: ' + e.message + '</p></div>';
+  }
+}
+
+async function _initTransfersSectionInner() {
+  const container = document.querySelector('[data-section="transfers"]');
+  if (!container) return;
+
+  if (!_teamsCache.length) await loadTeams();
+
+  // Load pending fichaje requests
+  const { data: fichajes } = await supa.from('fichaje_requests').select('*')
+    .eq('league_id', state.activeLeague.id).order('created_at', { ascending: false });
+
+  const pending = (fichajes || []).filter(f => f.status === 'pending');
+  const recent = (fichajes || []).filter(f => f.status !== 'pending');
+
+  container.innerHTML = `
+    <div class="flex items-center justify-between mb-6">
+      <div class="flex items-center gap-3">
+        <span class="text-2xl">📋</span>
+        <h2 class="font-display text-3xl tracking-wide text-white">FICHAJES</h2>
+      </div>
+      <button id="btn-new-fichaje" class="bg-gradient-to-r from-lime-400 to-emerald-500 text-pitch-900 font-bold py-2 px-5 rounded-xl text-sm uppercase tracking-wider hover:from-lime-300 hover:to-emerald-400 transition-all shadow-lg shadow-lime-400/10 active:scale-[.98]">+ Nuevo Fichaje</button>
+    </div>
+
+    <!-- New fichaje form (hidden) -->
+    <div id="fichaje-form" class="hidden bg-pitch-800/60 border border-lime-400/20 rounded-2xl p-5 mb-4 glow">
+      <h3 class="font-display text-lg text-white mb-4">📋 Registrar Fichaje</h3>
+      <div class="grid gap-3 md:grid-cols-3 mb-4">
+        <div>
+          <label class="block text-xs text-gray-500 uppercase tracking-wider mb-1 font-semibold">Equipo</label>
+          <select id="fj-team" class="w-full bg-pitch-900/60 border border-white/10 rounded-xl px-3 py-2.5 text-white text-sm outline-none focus:border-lime-400/40">
+            <option value="">— Elegí —</option>
+            ${_teamsCache.filter(t => !t.is_bye && !t.replaced).map(t => `<option value="${t.id}">${t.name}</option>`).join('')}
+          </select>
+        </div>
+        <div>
+          <label class="block text-xs text-gray-500 uppercase tracking-wider mb-1 font-semibold">Jugador</label>
+          <input id="fj-player" type="text" placeholder="Gamertag" class="w-full bg-pitch-900/60 border border-white/10 rounded-xl px-3 py-2.5 text-white placeholder-gray-600 outline-none focus:border-lime-400/40 text-sm">
+        </div>
+        <div>
+          <label class="block text-xs text-gray-500 uppercase tracking-wider mb-1 font-semibold">Posición</label>
+          <select id="fj-pos" class="w-full bg-pitch-900/60 border border-white/10 rounded-xl px-3 py-2.5 text-white text-sm outline-none focus:border-lime-400/40">
+            <option value="">POS</option>
+            <option value="POR">POR</option><option value="DFC">DFC</option><option value="LI">LI</option><option value="LD">LD</option>
+            <option value="MCD">MCD</option><option value="MC">MC</option><option value="MCO">MCO</option><option value="MI">MI</option><option value="MD">MD</option>
+            <option value="EI">EI</option><option value="ED">ED</option><option value="DC">DC</option><option value="MP">MP</option>
+          </select>
+        </div>
+      </div>
+      <div class="flex gap-2">
+        <button id="btn-confirm-fichaje" class="flex-1 bg-gradient-to-r from-lime-400 to-emerald-500 text-pitch-900 font-bold py-2.5 rounded-xl text-sm uppercase tracking-wider">Registrar</button>
+        <button onclick="document.getElementById('fichaje-form').classList.add('hidden')" class="bg-pitch-700 text-gray-400 py-2.5 px-4 rounded-xl text-sm hover:bg-pitch-600 transition-all">Cancelar</button>
+      </div>
+    </div>
+
+    <!-- Pending requests -->
+    <div id="fichajes-list">
+      ${pending.length ? pending.map(f => {
+        const teamName = _teamsCache.find(t => t.id === f.team_id)?.name || f.team_name || '?';
+        return `<div class="bg-pitch-800/60 border border-white/5 rounded-xl p-4 mb-2 flex items-center justify-between">
+          <div>
+            <span class="text-sm text-white font-medium">${f.player_name}</span>
+            <span class="text-xs text-gray-500 ml-2">${f.pos || ''}</span>
+            <span class="text-xs text-gray-600 ml-2">→ ${teamName}</span>
+          </div>
+          <div class="flex gap-2">
+            <button onclick="window._approveFichaje('${f.id}','${f.team_id}','${f.player_name.replace(/'/g,"\\'")}','${f.pos}')" class="bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 px-3 py-1.5 rounded-lg text-xs font-semibold hover:bg-emerald-500/20 transition-all">✅</button>
+            <button onclick="window._rejectFichaje('${f.id}')" class="bg-red-500/10 text-red-400 border border-red-500/20 px-3 py-1.5 rounded-lg text-xs font-semibold hover:bg-red-500/20 transition-all">✕</button>
+          </div>
+        </div>`;
+      }).join('') : '<div class="bg-pitch-800/40 border border-white/5 rounded-xl p-6 text-center text-gray-600 text-sm">Sin fichajes pendientes</div>'}
+    </div>
+
+    ${recent.length ? `
+      <div class="mt-4 opacity-60">
+        <p class="text-xs text-gray-500 uppercase tracking-wider font-semibold mb-2">📋 Historial reciente</p>
+        ${recent.slice(0, 10).map(f => {
+          const icon = f.status === 'approved' ? '✅' : '✕';
+          const color = f.status === 'approved' ? 'text-emerald-400' : 'text-red-400';
+          return `<div class="flex items-center justify-between py-2 border-b border-white/5 text-sm">
+            <span class="${color}">${icon} ${f.player_name} ${f.pos ? '(' + f.pos + ')' : ''}</span>
+            <span class="text-xs text-gray-600">${f.status} · ${new Date(f.created_at).toLocaleString()}</span>
+          </div>`;
+        }).join('')}
+      </div>
+    ` : ''}
+  `;
+
+  // Bind events
+  $('btn-new-fichaje').onclick = () => $('fichaje-form').classList.toggle('hidden');
+
+  $('btn-confirm-fichaje').onclick = async () => {
+    const teamId = $('fj-team')?.value;
+    const playerName = $('fj-player')?.value.trim();
+    const pos = $('fj-pos')?.value || '';
+    if (!teamId || !playerName) { toast('⚠️ Completá equipo y jugador', true); return; }
+
+    // Check player limit
+    const limits = getPlanLimits(state.activeLeague.plan_type);
+    const currentCount = _playersCache.filter(p => p.team_id === teamId).length;
+    const pendingCount = (pending || []).filter(f => f.team_id === teamId && f.status === 'pending').length;
+    if ((currentCount + pendingCount) >= limits.maxPlayers && state.activeLeague.plan_type !== 'superadmin') {
+      toast('⚠️ Equipo al límite de jugadores', true); return;
+    }
+
+    try {
+      const teamName = _teamsCache.find(t => t.id === teamId)?.name || '';
+      const { error } = await supa.from('fichaje_requests').insert({
+        league_id: state.activeLeague.id,
+        team_id: teamId,
+        team_name: teamName,
+        player_name: playerName,
+        pos: pos.toUpperCase(),
+        status: 'pending',
+      });
+      if (error) throw error;
+      $('fj-player').value = '';
+      $('fichaje-form').classList.add('hidden');
+      toast('✅ Fichaje registrado');
+      initTransfersSection();
+    } catch(e) { toast('⚠️ ' + e.message, true); }
+  };
+}
+
+window._approveFichaje = async (fichajeId, teamId, playerName, pos) => {
   try {
-    await supa.from('submissions').update({ status: 'rejected', reviewed_at: new Date().toISOString() }).eq('id', subId);
-    toast('✕ Submission rechazada');
-    initScannerSection();
+    // Create the player
+    const { error: playerErr } = await supa.from('players').insert({
+      league_id: state.activeLeague.id,
+      team_id: teamId,
+      name: playerName,
+      pos: pos || '',
+    });
+    if (playerErr) throw playerErr;
+
+    // Mark fichaje as approved
+    await supa.from('fichaje_requests').update({ status: 'approved' }).eq('id', fichajeId);
+    toast('✅ ' + playerName + ' fichado');
+    _playersCache = []; // clear cache
+    initTransfersSection();
+  } catch(e) { toast('⚠️ ' + e.message, true); }
+};
+
+window._rejectFichaje = async (fichajeId) => {
+  if (!confirm('¿Rechazar este fichaje?')) return;
+  try {
+    await supa.from('fichaje_requests').update({ status: 'rejected' }).eq('id', fichajeId);
+    toast('✕ Fichaje rechazado');
+    initTransfersSection();
   } catch(e) { toast('⚠️ ' + e.message, true); }
 };
