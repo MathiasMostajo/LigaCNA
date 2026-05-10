@@ -724,7 +724,7 @@ function renderPlayersHTML(players) {
 
     return `<div class="flex items-center gap-3 py-2.5 border-b border-white/5 last:border-0 group text-sm">
       <span class="${posColor} text-[10px] font-bold text-white px-1.5 py-0.5 rounded min-w-[28px] text-center">${p.pos || '?'}</span>
-      <span class="flex-1 font-medium text-white truncate">${p.name}</span>
+      <span class="flex-1 font-medium text-white truncate cursor-pointer hover:text-lime-400 transition-colors" onclick="event.stopPropagation();window._viewPlayerProfile('${p.id}')">${p.name}</span>
       <span class="text-gray-500">⚽${p.goals}</span>
       <span class="text-gray-500">🎯${p.assists}</span>
       <span class="text-yellow-400/80">⭐${avgRating}</span>
@@ -1048,16 +1048,7 @@ async function _initFixtureSectionInner() {
       `}
     </div>
 
-    <!-- Result form (hidden) -->
-    <div id="result-form" class="hidden fixed inset-0 bg-black/70 z-50 flex items-center justify-center p-4">
-      <div class="bg-pitch-800 border border-white/10 rounded-2xl p-6 w-full max-w-md">
-        <div class="flex items-center justify-between mb-4">
-          <h3 class="font-display text-xl text-white">✏️ Cargar Resultado</h3>
-          <button onclick="window._closeModal()" class="text-gray-500 hover:text-white">✕</button>
-        </div>
-        <div id="result-form-body"></div>
-      </div>
-    </div>
+    <!-- Modal is global (in index.html) -->
   `;
 
   // Bind events
@@ -1134,7 +1125,8 @@ function renderFixtureRounds() {
                 <span class="font-display text-lg text-lime-400 px-2">${hg} – ${ag}</span>
                 <span class="text-sm text-white truncate flex-1">${awayName}</span>
               </div>
-              <button onclick="window._viewMatchDetail('${res.id}')" class="text-xs text-blue-400 hover:text-blue-300 ml-2 shrink-0">📊 Detalle</button>
+              <button onclick="window._viewMatchDetail('${res.id}')" class="text-xs text-blue-400 hover:text-blue-300 ml-1 shrink-0">📊</button>
+              <button onclick="window._showH2H('${f.home}','${f.away}')" class="text-xs text-purple-400 hover:text-purple-300 ml-1 shrink-0">⚔️</button>
             </div>`;
           } else {
             return `<div class="bg-pitch-800/40 border border-white/5 rounded-lg p-3 flex items-center justify-between">
@@ -1143,7 +1135,8 @@ function renderFixtureRounds() {
                 <span class="font-display text-lg text-gray-600 px-2">vs</span>
                 <span class="text-sm text-white truncate flex-1">${awayName}</span>
               </div>
-              <button onclick="window._showResultForm('${f.home}','${f.away}',${round.round})" class="text-xs bg-lime-400/10 text-lime-400 border border-lime-400/20 px-3 py-1 rounded-lg hover:bg-lime-400/20 transition-all ml-2 shrink-0">✏️ Resultado</button>
+              <button onclick="window._showH2H('${f.home}','${f.away}')" class="text-xs text-purple-400 hover:text-purple-300 ml-1 shrink-0">⚔️</button>
+              <button onclick="window._showResultForm('${f.home}','${f.away}',${round.round})" class="text-xs bg-lime-400/10 text-lime-400 border border-lime-400/20 px-3 py-1 rounded-lg hover:bg-lime-400/20 transition-all ml-1 shrink-0">✏️</button>
             </div>`;
           }
         }).join('')}
@@ -1372,7 +1365,7 @@ async function _initStandingsSectionInner() {
                 return `<tr class="border-b border-white/5 hover:bg-white/[.02] transition-colors">
                   <td class="py-2.5 px-3 ${posColors}">${i + 1}</td>
                   <td class="py-2.5 px-2">
-                    <div class="flex items-center gap-2 cursor-pointer" onclick="window._viewTeam('${s.id}')">
+                    <div class="flex items-center gap-2 cursor-pointer" onclick="window._viewTeamProfile('${s.id}')">
                       ${shieldHtml}
                       <span class="font-medium text-white text-sm truncate hover:text-lime-400 transition-colors">${s.name}</span>
                     </div>
@@ -1447,9 +1440,12 @@ async function _initLeadersSectionInner() {
   if (!_playersCache.length) await loadPlayers();
 
   container.innerHTML = `
-    <div class="flex items-center gap-3 mb-6">
-      <span class="text-2xl">⭐</span>
-      <h2 class="font-display text-3xl tracking-wide text-white">LÍDERES</h2>
+    <div class="flex items-center justify-between mb-6">
+      <div class="flex items-center gap-3">
+        <span class="text-2xl">⭐</span>
+        <h2 class="font-display text-3xl tracking-wide text-white">LÍDERES</h2>
+      </div>
+      <button onclick="window._comparePlayersUI()" class="bg-white/5 border border-white/10 text-gray-400 hover:text-white hover:border-white/20 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all">⚖️ Comparar</button>
     </div>
 
     <!-- Sort tabs -->
@@ -1494,7 +1490,7 @@ function renderLeadersHTML() {
     return `<div class="flex items-center gap-3 py-3 px-4 border-b border-white/5 last:border-0 hover:bg-white/[.02] transition-colors">
       <span class="w-6 text-center ${i < 3 ? 'text-lg' : 'text-gray-600 text-sm'}">${medal || (i + 1)}</span>
       <div class="flex-1 min-w-0">
-        <p class="font-medium text-white text-sm truncate">${p.name}</p>
+        <p class="font-medium text-white text-sm truncate cursor-pointer hover:text-lime-400 transition-colors" onclick="window._viewPlayerProfile('${p.id}')">${p.name}</p>
         <p class="text-xs text-gray-500">${tn(p.team_id)}</p>
       </div>
       <div class="flex items-center gap-3 text-sm">
@@ -2271,11 +2267,34 @@ window._dtSubmit = async () => {
     });
 
     // Build scan_result object
+    // Compress photos to small thumbnails for admin preview (keeps submission size manageable)
+    const photoThumbs = [];
+    for (const photo of photos) {
+      try {
+        const thumb = await new Promise((resolve) => {
+          const img = new Image();
+          img.onload = () => {
+            const canvas = document.createElement('canvas');
+            canvas.width = 120; canvas.height = 90;
+            const ctx = canvas.getContext('2d');
+            const scale = Math.min(120 / img.width, 90 / img.height);
+            const w = img.width * scale, h = img.height * scale;
+            ctx.drawImage(img, (120 - w) / 2, (90 - h) / 2, w, h);
+            resolve(canvas.toDataURL('image/jpeg', 0.5));
+          };
+          img.onerror = () => resolve(null);
+          img.src = photo;
+        });
+        if (thumb) photoThumbs.push(thumb);
+      } catch(e) {}
+    }
+
     const scanResult = {
       score: { home: $('dt-home-team')?.selectedOptions[0]?.text || '', away: $('dt-away-team')?.selectedOptions[0]?.text || '', homeGoals: hg, awayGoals: ag },
       homeId, awayId, playerStats,
       submittedBy: _dtTeam.name,
       submissionType: _dtDetailLevel,
+      photos: photoThumbs,
     };
 
     // Insert submission (DT is NOT logged in — uses public_insert RLS policy)
@@ -2772,4 +2791,339 @@ window._rejectFichaje = async (fichajeId) => {
     toast('✕ Fichaje rechazado');
     initTransfersSection();
   } catch(e) { toast('⚠️ ' + e.message, true); }
+};
+
+// ═══════════════════════════════════════════════════════════════
+// PLAYER PROFILES + POSITION STATS
+// ═══════════════════════════════════════════════════════════════
+window._viewPlayerProfile = async (playerId) => {
+  const player = _playersCache.find(p => p.id === playerId);
+  if (!player) { await loadPlayers(); }
+  const p = _playersCache.find(pl => pl.id === playerId);
+  if (!p) { toast('Jugador no encontrado', true); return; }
+
+  if (!_matchesCache.length) await loadMatches();
+
+  // Aggregate position stats from matches
+  const posStats = {};
+  let matchHistory = [];
+  _matchesCache.forEach(m => {
+    const st = m.player_stats?.[playerId];
+    if (!st || !st.played) return;
+    const pos = (st.position || p.pos || '?').toUpperCase();
+    if (!posStats[pos]) posStats[pos] = { count: 0, goals: 0, assists: 0, ratings: [], cs: 0 };
+    posStats[pos].count++;
+    posStats[pos].goals += st.goals || 0;
+    posStats[pos].assists += st.assists || 0;
+    if (st.rating > 0) posStats[pos].ratings.push(st.rating);
+    if (st.cs) posStats[pos].cs++;
+
+    const homeName = tn(m.home_id), awayName = tn(m.away_id);
+    matchHistory.push({
+      date: m.date || '', home: homeName, away: awayName,
+      score: m.home_goals + '–' + m.away_goals,
+      goals: st.goals || 0, assists: st.assists || 0,
+      rating: st.rating || 0, position: pos,
+    });
+  });
+
+  const avgRating = p.ratings?.length ? (p.ratings.reduce((a,b) => a + Number(b), 0) / p.ratings.length).toFixed(1) : '—';
+  const teamName = tn(p.team_id);
+
+  const body = $('result-form-body');
+  body.innerHTML = `
+    <div class="flex items-center gap-3 mb-4">
+      <div class="w-12 h-12 rounded-full bg-pitch-700 border-2 border-lime-400/20 flex items-center justify-center font-display text-xl text-lime-400">${(p.pos || '?').slice(0,3)}</div>
+      <div>
+        <h3 class="font-display text-xl text-white">${p.name}</h3>
+        <p class="text-xs text-gray-500">${teamName} · ${p.pos || '?'}</p>
+      </div>
+    </div>
+
+    <!-- Main stats -->
+    <div class="grid grid-cols-5 gap-2 mb-4 text-center">
+      <div class="bg-pitch-900/40 rounded-lg p-2"><p class="font-display text-lg text-white">${p.matches_played}</p><p class="text-[10px] text-gray-600">PJ</p></div>
+      <div class="bg-pitch-900/40 rounded-lg p-2"><p class="font-display text-lg text-white">${p.goals}</p><p class="text-[10px] text-gray-600">Goles</p></div>
+      <div class="bg-pitch-900/40 rounded-lg p-2"><p class="font-display text-lg text-white">${p.assists}</p><p class="text-[10px] text-gray-600">Asist</p></div>
+      <div class="bg-pitch-900/40 rounded-lg p-2"><p class="font-display text-lg text-yellow-400">${avgRating}</p><p class="text-[10px] text-gray-600">Rating</p></div>
+      <div class="bg-pitch-900/40 rounded-lg p-2"><p class="font-display text-lg text-white">${p.cs}</p><p class="text-[10px] text-gray-600">CS</p></div>
+    </div>
+
+    <!-- Position stats -->
+    ${Object.keys(posStats).length ? `
+      <div class="mb-4">
+        <p class="text-xs text-gray-500 uppercase tracking-wider font-semibold mb-2">📊 Stats por Posición</p>
+        <div class="space-y-1">
+          ${Object.entries(posStats).sort((a,b) => b[1].count - a[1].count).map(([pos, s]) => {
+            const avg = s.ratings.length ? (s.ratings.reduce((a,b) => a+b, 0) / s.ratings.length).toFixed(1) : '—';
+            const pct = p.matches_played ? Math.round(s.count / p.matches_played * 100) : 0;
+            return `<div class="flex items-center gap-2 py-1.5 bg-pitch-900/30 rounded-lg px-2 text-xs">
+              <span class="font-bold text-lime-400 w-8">${pos}</span>
+              <div class="flex-1 bg-pitch-700 rounded-full h-1.5"><div class="bg-lime-400 h-1.5 rounded-full" style="width:${pct}%"></div></div>
+              <span class="text-gray-500">${s.count}x</span>
+              <span class="text-gray-400">⚽${s.goals}</span>
+              <span class="text-gray-400">🎯${s.assists}</span>
+              <span class="text-yellow-400">⭐${avg}</span>
+            </div>`;
+          }).join('')}
+        </div>
+      </div>
+    ` : ''}
+
+    <!-- Rating chart -->
+    ${buildRatingChart(p.ratings)}
+
+    <!-- Match history -->
+    ${matchHistory.length ? `
+      <div>
+        <p class="text-xs text-gray-500 uppercase tracking-wider font-semibold mb-2">🕹 Últimos Partidos</p>
+        <div class="max-h-40 overflow-y-auto space-y-1">
+          ${matchHistory.reverse().slice(0, 10).map(m => `<div class="flex items-center justify-between py-1.5 border-b border-white/5 text-xs">
+            <span class="text-gray-500 w-8">${m.position}</span>
+            <span class="text-white flex-1">${m.home} ${m.score} ${m.away}</span>
+            ${m.goals ? '<span>⚽' + m.goals + '</span>' : ''}
+            ${m.assists ? '<span>🎯' + m.assists + '</span>' : ''}
+            ${m.rating ? '<span class="text-yellow-400">⭐' + m.rating + '</span>' : ''}
+          </div>`).join('')}
+        </div>
+      </div>
+    ` : '<p class="text-xs text-gray-600">Sin historial de partidos</p>'}
+  `;
+  $('result-form').classList.remove('hidden');
+};
+
+// ═══════════════════════════════════════════════════════════════
+// TEAM PROFILES
+// ═══════════════════════════════════════════════════════════════
+window._viewTeamProfile = async (teamId) => {
+  const team = _teamsCache.find(t => t.id === teamId);
+  if (!team) return;
+
+  if (!_matchesCache.length) await loadMatches();
+  const players = _playersCache.filter(p => p.team_id === teamId);
+
+  // Calculate team stats
+  let w = 0, d = 0, l = 0, gf = 0, ga = 0;
+  const teamMatches = [];
+  _matchesCache.forEach(m => {
+    const isHome = m.home_id === teamId, isAway = m.away_id === teamId;
+    if (!isHome && !isAway) return;
+    const scored = isHome ? m.home_goals : m.away_goals;
+    const conceded = isHome ? m.away_goals : m.home_goals;
+    gf += scored; ga += conceded;
+    if (scored > conceded) w++; else if (scored < conceded) l++; else d++;
+    teamMatches.push({ ...m, scored, conceded, opponent: isHome ? tn(m.away_id) : tn(m.home_id), isHome });
+  });
+
+  const shieldHtml = team.shield_url
+    ? `<img src="${team.shield_url}" class="w-16 h-16 rounded-full object-cover border-2 border-lime-400/20">`
+    : `<div class="w-16 h-16 rounded-full bg-pitch-700 border-2 border-lime-400/20 flex items-center justify-center text-2xl font-display text-lime-400">${team.name.charAt(0)}</div>`;
+
+  const body = $('result-form-body');
+  body.innerHTML = `
+    <div class="flex items-center gap-4 mb-4">
+      ${shieldHtml}
+      <div>
+        <h3 class="font-display text-2xl text-white">${team.name}</h3>
+        <p class="text-xs text-gray-500">${players.length} jugadores · ${w+d+l} partidos</p>
+      </div>
+    </div>
+
+    <div class="grid grid-cols-4 gap-2 mb-4 text-center">
+      <div class="bg-pitch-900/40 rounded-lg p-2"><p class="font-display text-lg text-emerald-400">${w}</p><p class="text-[10px] text-gray-600">Victorias</p></div>
+      <div class="bg-pitch-900/40 rounded-lg p-2"><p class="font-display text-lg text-yellow-400">${d}</p><p class="text-[10px] text-gray-600">Empates</p></div>
+      <div class="bg-pitch-900/40 rounded-lg p-2"><p class="font-display text-lg text-red-400">${l}</p><p class="text-[10px] text-gray-600">Derrotas</p></div>
+      <div class="bg-pitch-900/40 rounded-lg p-2"><p class="font-display text-lg text-white">${gf}:${ga}</p><p class="text-[10px] text-gray-600">GF:GC</p></div>
+    </div>
+
+    <!-- Roster -->
+    <p class="text-xs text-gray-500 uppercase tracking-wider font-semibold mb-2">👤 Plantel</p>
+    <div class="max-h-32 overflow-y-auto space-y-1 mb-4">
+      ${players.sort((a,b) => (b.goals||0) - (a.goals||0)).map(p => {
+        const avg = p.ratings?.length ? (p.ratings.reduce((a,b) => a + Number(b), 0) / p.ratings.length).toFixed(1) : '—';
+        return `<div class="flex items-center gap-2 py-1 text-xs cursor-pointer hover:bg-white/5 rounded px-1 transition-all" onclick="window._viewPlayerProfile('${p.id}')">
+          <span class="text-gray-500 w-7">${p.pos || '?'}</span>
+          <span class="flex-1 text-white">${p.name}</span>
+          <span>⚽${p.goals}</span><span>🎯${p.assists}</span><span class="text-yellow-400">⭐${avg}</span>
+        </div>`;
+      }).join('')}
+    </div>
+
+    <!-- Recent matches -->
+    <p class="text-xs text-gray-500 uppercase tracking-wider font-semibold mb-2">🕹 Últimos Partidos</p>
+    <div class="max-h-32 overflow-y-auto space-y-1">
+      ${teamMatches.reverse().slice(0, 8).map(m => {
+        const result = m.scored > m.conceded ? 'W' : m.scored < m.conceded ? 'L' : 'D';
+        const rc = { W: 'text-emerald-400', L: 'text-red-400', D: 'text-yellow-400' };
+        return `<div class="flex items-center gap-2 py-1.5 border-b border-white/5 text-xs">
+          <span class="font-bold ${rc[result]} w-4">${result}</span>
+          <span class="flex-1 text-white">${m.isHome ? 'vs' : '@'} ${m.opponent}</span>
+          <span class="text-lime-400 font-display">${m.scored}–${m.conceded}</span>
+        </div>`;
+      }).join('') || '<p class="text-gray-600 text-xs">Sin partidos</p>'}
+    </div>
+  `;
+  $('result-form').classList.remove('hidden');
+};
+
+// ═══════════════════════════════════════════════════════════════
+// H2H (Head to Head)
+// ═══════════════════════════════════════════════════════════════
+window._showH2H = async (teamAId, teamBId) => {
+  if (!teamAId || !teamBId || teamAId === teamBId) return;
+  if (!_matchesCache.length) await loadMatches();
+
+  const nameA = tn(teamAId), nameB = tn(teamBId);
+  let wA = 0, wB = 0, draws = 0, gfA = 0, gfB = 0;
+  const h2hMatches = [];
+
+  _matchesCache.forEach(m => {
+    const aHome = m.home_id === teamAId && m.away_id === teamBId;
+    const bHome = m.home_id === teamBId && m.away_id === teamAId;
+    if (!aHome && !bHome) return;
+    const goalsA = aHome ? m.home_goals : m.away_goals;
+    const goalsB = aHome ? m.away_goals : m.home_goals;
+    gfA += goalsA; gfB += goalsB;
+    if (goalsA > goalsB) wA++; else if (goalsB > goalsA) wB++; else draws++;
+    h2hMatches.push({ goalsA, goalsB, date: m.date || '' });
+  });
+
+  const total = wA + wB + draws;
+  const body = $('result-form-body');
+  body.innerHTML = `
+    <h3 class="font-display text-lg text-white text-center mb-4">⚔️ H2H</h3>
+    <div class="grid grid-cols-3 gap-3 items-center text-center mb-4">
+      <div><p class="font-display text-xl text-white">${nameA}</p></div>
+      <div><span class="text-gray-600 text-sm">vs</span></div>
+      <div><p class="font-display text-xl text-white">${nameB}</p></div>
+    </div>
+    <div class="grid grid-cols-3 gap-3 items-center text-center mb-4 py-3 bg-pitch-900/40 rounded-xl">
+      <div><p class="font-display text-2xl text-emerald-400">${wA}</p><p class="text-[10px] text-gray-600">Victorias</p></div>
+      <div><p class="font-display text-2xl text-yellow-400">${draws}</p><p class="text-[10px] text-gray-600">Empates</p></div>
+      <div><p class="font-display text-2xl text-emerald-400">${wB}</p><p class="text-[10px] text-gray-600">Victorias</p></div>
+    </div>
+    <div class="grid grid-cols-3 gap-3 text-center mb-4">
+      <div><span class="text-sm text-white">${gfA}</span><p class="text-[10px] text-gray-600">Goles</p></div>
+      <div><span class="text-sm text-gray-500">${total} partidos</span></div>
+      <div><span class="text-sm text-white">${gfB}</span><p class="text-[10px] text-gray-600">Goles</p></div>
+    </div>
+    ${h2hMatches.length ? `<div class="border-t border-white/5 pt-3">
+      ${h2hMatches.reverse().map(m => `<div class="flex items-center justify-center gap-4 py-1.5 text-sm">
+        <span class="text-white">${nameA}</span>
+        <span class="font-display text-lime-400">${m.goalsA}–${m.goalsB}</span>
+        <span class="text-white">${nameB}</span>
+      </div>`).join('')}
+    </div>` : '<p class="text-gray-600 text-xs text-center">Sin enfrentamientos</p>'}
+  `;
+  $('result-form').classList.remove('hidden');
+};
+
+// ═══════════════════════════════════════════════════════════════
+// PLAYER COMPARISON
+// ═══════════════════════════════════════════════════════════════
+window._comparePlayersUI = async () => {
+  if (!_playersCache.length) await loadPlayers();
+
+  const opts = _playersCache.map(p => `<option value="${p.id}">${p.name} (${tn(p.team_id)})</option>`).join('');
+  const body = $('result-form-body');
+  body.innerHTML = `
+    <h3 class="font-display text-lg text-white text-center mb-4">⚖️ Comparar Jugadores</h3>
+    <div class="grid grid-cols-2 gap-3 mb-4">
+      <select id="cmp-a" class="bg-pitch-900/60 border border-white/10 rounded-xl px-3 py-2.5 text-white text-sm outline-none"><option value="">Jugador A</option>${opts}</select>
+      <select id="cmp-b" class="bg-pitch-900/60 border border-white/10 rounded-xl px-3 py-2.5 text-white text-sm outline-none"><option value="">Jugador B</option>${opts}</select>
+    </div>
+    <button onclick="window._runComparison()" class="w-full bg-lime-400/10 text-lime-400 border border-lime-400/20 py-2.5 rounded-xl text-sm font-semibold hover:bg-lime-400/20 transition-all mb-4">⚖️ Comparar</button>
+    <div id="cmp-result"></div>
+  `;
+  $('result-form').classList.remove('hidden');
+};
+
+window._runComparison = () => {
+  const aId = $('cmp-a')?.value, bId = $('cmp-b')?.value;
+  if (!aId || !bId) { toast('Seleccioná 2 jugadores', true); return; }
+  const a = _playersCache.find(p => p.id === aId), b = _playersCache.find(p => p.id === bId);
+  if (!a || !b) return;
+
+  const avgA = a.ratings?.length ? (a.ratings.reduce((x,y) => x + Number(y), 0) / a.ratings.length).toFixed(1) : 0;
+  const avgB = b.ratings?.length ? (b.ratings.reduce((x,y) => x + Number(y), 0) / b.ratings.length).toFixed(1) : 0;
+
+  const stats = [
+    ['Partidos', a.matches_played, b.matches_played],
+    ['Goles', a.goals, b.goals],
+    ['Asistencias', a.assists, b.assists],
+    ['Rating', avgA, avgB],
+    ['CS', a.cs, b.cs],
+  ];
+
+  $('cmp-result').innerHTML = `
+    <div class="grid grid-cols-3 gap-2 text-center mb-3">
+      <div><p class="font-semibold text-white text-sm">${a.name}</p><p class="text-[10px] text-gray-500">${tn(a.team_id)}</p></div>
+      <div><span class="text-gray-600 text-xs">vs</span></div>
+      <div><p class="font-semibold text-white text-sm">${b.name}</p><p class="text-[10px] text-gray-500">${tn(b.team_id)}</p></div>
+    </div>
+    ${stats.map(([label, va, vb]) => {
+      const na = Number(va), nb = Number(vb);
+      const better = na > nb ? 'a' : nb > na ? 'b' : 'tie';
+      return `<div class="grid grid-cols-[1fr_auto_1fr] gap-2 items-center py-1.5 border-b border-white/5">
+        <span class="text-right font-display text-sm ${better === 'a' ? 'text-lime-400' : 'text-gray-400'}">${va}</span>
+        <span class="text-[10px] text-gray-600 w-16 text-center">${label}</span>
+        <span class="text-left font-display text-sm ${better === 'b' ? 'text-lime-400' : 'text-gray-400'}">${vb}</span>
+      </div>`;
+    }).join('')}
+  `;
+};
+
+// ═══════════════════════════════════════════════════════════════
+// RATING EVOLUTION CHART
+// ═══════════════════════════════════════════════════════════════
+function buildRatingChart(ratings) {
+  if (!ratings || ratings.length < 2) return '';
+  const nums = ratings.map(Number);
+  const min = Math.min(...nums) - 0.5;
+  const max = Math.max(...nums) + 0.5;
+  const range = max - min || 1;
+  const w = 300, h = 70, pad = 8;
+  const avg = (nums.reduce((a,b) => a+b, 0) / nums.length).toFixed(1);
+  const avgY = (h - pad - ((avg - min) / range) * (h - pad * 2)).toFixed(1);
+
+  const points = nums.map((r, i) => {
+    const x = (pad + (i / (nums.length - 1)) * (w - pad * 2)).toFixed(1);
+    const y = (h - pad - ((r - min) / range) * (h - pad * 2)).toFixed(1);
+    return x + ',' + y;
+  }).join(' ');
+
+  const dots = nums.map((r, i) => {
+    const x = (pad + (i / (nums.length - 1)) * (w - pad * 2)).toFixed(1);
+    const y = (h - pad - ((r - min) / range) * (h - pad * 2)).toFixed(1);
+    return `<circle cx="${x}" cy="${y}" r="2.5" fill="#00ff87"/>`;
+  }).join('');
+
+  return `<div class="mb-4">
+    <p class="text-xs text-gray-500 uppercase tracking-wider font-semibold mb-2">📈 Evolución de Rating</p>
+    <svg viewBox="0 0 ${w} ${h}" class="w-full bg-pitch-900/30 rounded-lg" style="height:80px">
+      <line x1="${pad}" y1="${avgY}" x2="${w-pad}" y2="${avgY}" stroke="rgba(0,255,135,0.15)" stroke-dasharray="3"/>
+      <polyline points="${points}" fill="none" stroke="#00ff87" stroke-width="2" stroke-linejoin="round"/>
+      ${dots}
+      <text x="${w-pad}" y="${avgY - 4}" text-anchor="end" fill="rgba(0,255,135,0.4)" font-size="8" font-family="monospace">${avg}</text>
+    </svg>
+  </div>`;
+}
+
+// Photo preview modal
+window._previewPhoto = (subId, index) => {
+  const body = $('result-form-body');
+  // Find the submission from the DOM data attributes or re-query
+  supa.from('submissions').select('scan_result').eq('id', subId).single().then(({ data }) => {
+    const photos = data?.scan_result?.photos || [];
+    if (!photos[index]) { toast('Foto no disponible', true); return; }
+    body.innerHTML = `
+      <div class="text-center">
+        <img src="${photos[index]}" class="w-full rounded-xl mb-3 border border-white/10">
+        <div class="flex gap-2 justify-center">
+          ${photos.map((ph, i) => `<img src="${ph}" class="w-12 h-9 rounded cursor-pointer border ${i === index ? 'border-lime-400' : 'border-white/10'} object-cover" onclick="window._previewPhoto('${subId}', ${i})">`).join('')}
+        </div>
+      </div>
+    `;
+    $('result-form').classList.remove('hidden');
+  });
 };
