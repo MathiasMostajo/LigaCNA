@@ -26,6 +26,13 @@
   <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Barlow+Condensed:wght@300;400;500;600;700&display=swap" rel="stylesheet">
   <style>
     body{font-family:'Barlow Condensed',sans-serif}
+    *{box-sizing:border-box}
+    input,select,button{font-family:inherit}
+    @media(max-width:640px){
+      .font-display{letter-spacing:.05em}
+      table{font-size:12px}
+      table th,table td{padding:4px 2px}
+    }
     .glow{box-shadow:0 0 40px rgba(0,255,135,.08)}
     .field-bg{background:radial-gradient(ellipse at 50% 0%,rgba(0,255,135,.04) 0%,transparent 70%)}
     @keyframes pulse-ring{0%{transform:scale(.8);opacity:1}100%{transform:scale(2);opacity:0}}
@@ -62,12 +69,68 @@
     </div>
   </nav>
   <!-- Hero + search -->
-  <div class="max-w-2xl mx-auto px-4 pt-20 pb-10 text-center slide-up">
-    <h1 class="font-display text-5xl md:text-7xl tracking-wide text-white mb-3">LIGA CNA</h1>
-    <p class="text-gray-500 text-lg mb-10">Buscá cualquier liga pública y seguí los resultados en tiempo real</p>
-    <div class="relative max-w-md mx-auto">
-      <input id="public-search" type="text" placeholder="🔍 Buscar liga por nombre..." class="w-full bg-pitch-800/80 border border-white/10 rounded-2xl px-5 py-4 text-white placeholder-gray-600 outline-none focus:border-lime-400/30 text-sm">
+  <div class="max-w-2xl mx-auto px-4 pt-16 pb-8 text-center slide-up">
+    <h1 class="font-display text-5xl md:text-7xl tracking-wide text-white mb-3">TU LIGA.<br>TU PLATAFORMA.</h1>
+    <p class="text-gray-400 text-lg mb-8 max-w-lg mx-auto">Gestioná torneos de Pro Clubs con scanner IA, tabla automática, y estadísticas en tiempo real. Gratis para empezar.</p>
+    <div class="relative max-w-md mx-auto mb-12">
+      <input id="public-search" type="text" placeholder="🔍 Buscar liga pública..." class="w-full bg-pitch-800/80 border border-white/10 rounded-2xl px-5 py-4 text-white placeholder-gray-600 outline-none focus:border-lime-400/30 text-sm">
       <div id="public-results" class="absolute top-full left-0 right-0 mt-2 bg-pitch-800 border border-white/10 rounded-xl overflow-hidden z-20 hidden max-h-64 overflow-y-auto"></div>
+    </div>
+
+    <!-- Features -->
+    <div class="grid grid-cols-2 md:grid-cols-4 gap-3 mb-12 text-center max-w-3xl mx-auto">
+      <div class="bg-pitch-800/40 border border-white/5 rounded-xl p-4">
+        <span class="text-2xl block mb-2">🤖</span>
+        <p class="text-xs text-white font-semibold">Scanner IA</p>
+        <p class="text-[10px] text-gray-600">Subí fotos, la IA extrae todo</p>
+      </div>
+      <div class="bg-pitch-800/40 border border-white/5 rounded-xl p-4">
+        <span class="text-2xl block mb-2">📊</span>
+        <p class="text-xs text-white font-semibold">Tabla Automática</p>
+        <p class="text-[10px] text-gray-600">Posiciones y stats en vivo</p>
+      </div>
+      <div class="bg-pitch-800/40 border border-white/5 rounded-xl p-4">
+        <span class="text-2xl block mb-2">🎮</span>
+        <p class="text-xs text-white font-semibold">Vista de DT</p>
+        <p class="text-[10px] text-gray-600">Tus DTs suben resultados</p>
+      </div>
+      <div class="bg-pitch-800/40 border border-white/5 rounded-xl p-4">
+        <span class="text-2xl block mb-2">📅</span>
+        <p class="text-xs text-white font-semibold">Fixture + Fixture</p>
+        <p class="text-[10px] text-gray-600">Calendario round-robin auto</p>
+      </div>
+    </div>
+
+    <!-- Pricing -->
+    <div class="max-w-3xl mx-auto mb-12">
+      <h2 class="font-display text-2xl text-white mb-6">PLANES</h2>
+      <div class="grid md:grid-cols-3 gap-3">
+        <div class="bg-pitch-800/40 border border-white/5 rounded-2xl p-5 text-center">
+          <p class="font-display text-xl text-gray-400 mb-1">AMATEUR</p>
+          <p class="font-display text-3xl text-white mb-3">Gratis</p>
+          <div class="text-xs text-gray-500 space-y-1 mb-4">
+            <p>12 equipos</p><p>15 jugadores/equipo</p><p>3 scans IA trial</p><p>Con publicidad</p>
+          </div>
+          <button onclick="document.getElementById('btn-goto-login').click()" class="w-full bg-white/5 border border-white/10 text-gray-400 py-2 rounded-xl text-sm font-semibold hover:text-white transition-all">Empezar →</button>
+        </div>
+        <div class="bg-pitch-800/60 border border-lime-400/20 rounded-2xl p-5 text-center relative glow">
+          <span class="absolute -top-2 left-1/2 -translate-x-1/2 bg-lime-400 text-pitch-900 text-[10px] font-bold px-3 py-0.5 rounded-full uppercase">Popular</span>
+          <p class="font-display text-xl text-lime-400 mb-1">PRO</p>
+          <p class="font-display text-3xl text-white mb-3">$X<span class="text-sm text-gray-500">/mes</span></p>
+          <div class="text-xs text-gray-500 space-y-1 mb-4">
+            <p>18 equipos</p><p>20 jugadores/equipo</p><p>Scanner IA ilimitado</p><p>Sin publicidad</p>
+          </div>
+          <button class="w-full bg-gradient-to-r from-lime-400 to-emerald-500 text-pitch-900 py-2 rounded-xl text-sm font-bold">Próximamente</button>
+        </div>
+        <div class="bg-pitch-800/40 border border-purple-400/20 rounded-2xl p-5 text-center">
+          <p class="font-display text-xl text-purple-400 mb-1">ELITE</p>
+          <p class="font-display text-3xl text-white mb-3">$Y<span class="text-sm text-gray-500">/año</span></p>
+          <div class="text-xs text-gray-500 space-y-1 mb-4">
+            <p>Equipos ilimitados</p><p>Jugadores ilimitados</p><p>Todo Pro incluido</p><p>White Label</p>
+          </div>
+          <button class="w-full bg-purple-500/10 border border-purple-400/20 text-purple-400 py-2 rounded-xl text-sm font-bold">Próximamente</button>
+        </div>
+      </div>
     </div>
   </div>
   <!-- Public league view (loaded dynamically) -->
@@ -200,5 +263,16 @@
 </div>
 
 <script type="module" src="./app.js"></script>
+
+<!-- Global modal (used by profiles, H2H, comparisons, fixture results) -->
+<div id="result-form" class="hidden fixed inset-0 bg-black/70 z-50 flex items-center justify-center p-4">
+  <div class="bg-pitch-800 border border-white/10 rounded-2xl p-6 w-full max-w-md max-h-[90vh] overflow-y-auto">
+    <div class="flex items-center justify-between mb-4">
+      <h3 class="font-display text-xl text-white" id="modal-title"></h3>
+      <button onclick="window._closeModal()" class="text-gray-500 hover:text-white">✕</button>
+    </div>
+    <div id="result-form-body"></div>
+  </div>
+</div>
 </body>
 </html>
