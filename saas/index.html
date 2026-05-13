@@ -3,7 +3,14 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Liga CNA — Plataforma</title>
+  <title>Pro Leagues — Gestión de Torneos</title>
+  <meta name="description" content="Plataforma SaaS para gestionar ligas de Pro Clubs y fútbol amateur. Scanner IA, tabla automática, estadísticas en tiempo real. Gratis para empezar.">
+  <meta property="og:title" content="Pro Leagues — Tu Liga, Tu Plataforma">
+  <meta property="og:description" content="Gestioná torneos con scanner IA, fixture automático y estadísticas en vivo.">
+  <meta property="og:type" content="website">
+  <meta property="og:image" content="https://ligacna-saas.vercel.app/og-image.png">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="theme-color" content="#0a0f0a">
   <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>⚽</text></svg>">
   <script src="https://cdn.tailwindcss.com"></script>
   <script>
@@ -59,8 +66,8 @@
   <nav class="border-b border-white/5 bg-pitch-800/50 backdrop-blur-sm sticky top-0 z-30">
     <div class="max-w-6xl mx-auto flex items-center justify-between px-4 py-3">
       <div class="flex items-center gap-2">
-        <div class="w-8 h-8 rounded-lg bg-gradient-to-br from-lime-400 to-emerald-600 flex items-center justify-center text-pitch-900 text-sm font-display font-bold">L</div>
-        <span class="font-display text-xl tracking-wide text-white">LIGA CNA</span>
+        <div class="w-8 h-8 rounded-lg bg-gradient-to-br from-lime-400 to-emerald-600 flex items-center justify-center text-pitch-900 text-sm font-display font-bold">⚽</div>
+        <span class="font-display text-xl tracking-wide text-white">PRO LEAGUES</span>
       </div>
       <div class="flex items-center gap-3">
         <button id="btn-goto-dt" class="text-sm text-gray-400 hover:text-lime-400 font-semibold transition-colors border border-white/10 px-3 py-1.5 rounded-lg">🎮 Soy DT</button>
@@ -96,7 +103,7 @@
       </div>
       <div class="bg-pitch-800/40 border border-white/5 rounded-xl p-4">
         <span class="text-2xl block mb-2">📅</span>
-        <p class="text-xs text-white font-semibold">Fixture + Fixture</p>
+        <p class="text-xs text-white font-semibold">Fixture Automático</p>
         <p class="text-[10px] text-gray-600">Calendario round-robin auto</p>
       </div>
     </div>
@@ -133,6 +140,22 @@
       </div>
     </div>
   </div>
+  <!-- Footer -->
+  <footer class="border-t border-white/5 mt-16 py-8 px-4">
+    <div class="max-w-4xl mx-auto flex flex-col md:flex-row items-center justify-between gap-4">
+      <div class="flex items-center gap-2">
+        <div class="w-6 h-6 rounded bg-gradient-to-br from-lime-400 to-emerald-600 flex items-center justify-center text-pitch-900 text-xs font-bold">⚽</div>
+        <span class="text-sm text-gray-600">Pro Leagues © 2026</span>
+      </div>
+      <div class="flex items-center gap-6 text-xs text-gray-600">
+        <a href="#" class="hover:text-gray-400 transition-colors">Términos de Uso</a>
+        <a href="#" class="hover:text-gray-400 transition-colors">Privacidad</a>
+        <a href="#" class="hover:text-gray-400 transition-colors">FAQ</a>
+        <a href="#" class="hover:text-gray-400 transition-colors">Contacto</a>
+      </div>
+    </div>
+  </footer>
+
   <!-- Public league view (loaded dynamically) -->
   <div id="public-league-view" class="hidden max-w-4xl mx-auto px-4 pb-16">
     <div id="public-league-content"></div>
@@ -144,8 +167,8 @@
   <div class="w-full max-w-md">
     <div class="text-center mb-10 slide-up">
       <div class="inline-flex items-center gap-3 mb-4">
-        <div class="w-12 h-12 rounded-xl bg-gradient-to-br from-lime-400 to-emerald-600 flex items-center justify-center text-pitch-900 text-2xl font-display font-bold shadow-lg shadow-lime-400/20">L</div>
-        <div><h1 class="font-display text-4xl tracking-wide text-white leading-none">LIGA CNA</h1><p class="text-[10px] tracking-[.35em] uppercase text-lime-400/60 font-semibold">Plataforma de gestión</p></div>
+        <div class="w-12 h-12 rounded-xl bg-gradient-to-br from-lime-400 to-emerald-600 flex items-center justify-center text-pitch-900 text-2xl font-display font-bold shadow-lg shadow-lime-400/20">⚽</div>
+        <div><h1 class="font-display text-4xl tracking-wide text-white leading-none">PRO LEAGUES</h1><p class="text-[10px] tracking-[.35em] uppercase text-lime-400/60 font-semibold">Gestión de torneos</p></div>
       </div>
     </div>
     <div class="bg-pitch-800/80 backdrop-blur-sm border border-white/5 rounded-2xl p-8 glow slide-up">
@@ -168,7 +191,7 @@
   <nav class="border-b border-white/5 bg-pitch-800/50 backdrop-blur-sm sticky top-0 z-30">
     <div class="max-w-2xl mx-auto flex items-center justify-between px-4 py-3">
       <div class="flex items-center gap-2">
-        <div class="w-8 h-8 rounded-lg bg-gradient-to-br from-lime-400 to-emerald-600 flex items-center justify-center text-pitch-900 text-sm font-display font-bold">L</div>
+        <div class="w-8 h-8 rounded-lg bg-gradient-to-br from-lime-400 to-emerald-600 flex items-center justify-center text-pitch-900 text-sm font-display font-bold">⚽</div>
         <span class="font-display text-xl tracking-wide text-white" id="dt-league-name">Liga</span>
       </div>
       <button id="btn-dt-back" class="text-sm text-gray-500 hover:text-white transition-colors">← Salir</button>
@@ -182,7 +205,7 @@
   <nav class="border-b border-white/5 bg-pitch-800/50 backdrop-blur-sm sticky top-0 z-30">
     <div class="max-w-4xl mx-auto flex items-center justify-between px-4 py-3">
       <div class="flex items-center gap-2">
-        <div class="w-8 h-8 rounded-lg bg-gradient-to-br from-lime-400 to-emerald-600 flex items-center justify-center text-pitch-900 text-sm font-display font-bold">L</div>
+        <div class="w-8 h-8 rounded-lg bg-gradient-to-br from-lime-400 to-emerald-600 flex items-center justify-center text-pitch-900 text-sm font-display font-bold">⚽</div>
         <span class="font-display text-xl tracking-wide text-white">MIS LIGAS</span>
       </div>
       <div class="flex items-center gap-3">
@@ -203,7 +226,7 @@
       <h3 class="font-display text-xl text-white mb-4">🏟 Nueva Liga</h3>
       <div class="mb-4">
         <label class="block text-xs text-gray-500 uppercase tracking-wider mb-1 font-semibold">Nombre de la Liga</label>
-        <input id="new-league-name" type="text" placeholder="Ej: Liga CNA T5" class="w-full bg-pitch-900/60 border border-white/10 rounded-xl px-4 py-3 text-white placeholder-gray-600 outline-none focus:border-lime-400/40 text-sm">
+        <input id="new-league-name" type="text" placeholder="Ej: Mi Liga Pro T5" class="w-full bg-pitch-900/60 border border-white/10 rounded-xl px-4 py-3 text-white placeholder-gray-600 outline-none focus:border-lime-400/40 text-sm">
       </div>
       <div class="flex gap-3">
         <button id="btn-confirm-create" class="flex-1 bg-gradient-to-r from-lime-400 to-emerald-500 text-pitch-900 font-bold py-3 rounded-xl text-sm uppercase tracking-wider">Crear →</button>
@@ -220,7 +243,7 @@
   <aside id="sidebar" class="fixed lg:static inset-y-0 left-0 z-50 w-64 bg-pitch-800 border-r border-white/5 flex flex-col -translate-x-full lg:translate-x-0 transition-transform duration-300">
     <div class="p-5 border-b border-white/5">
       <div class="flex items-center gap-3">
-        <div class="w-10 h-10 rounded-lg bg-gradient-to-br from-lime-400 to-emerald-600 flex items-center justify-center text-pitch-900 text-xl font-display font-bold shadow-md shadow-lime-400/10">L</div>
+        <div class="w-10 h-10 rounded-lg bg-gradient-to-br from-lime-400 to-emerald-600 flex items-center justify-center text-pitch-900 text-xl font-display font-bold shadow-md shadow-lime-400/10">⚽</div>
         <div><h1 class="font-display text-xl tracking-wide text-white leading-none" id="dash-league-name">Liga</h1><p class="text-[9px] tracking-[.3em] uppercase text-lime-400/50 font-semibold">Admin Panel</p></div>
       </div>
     </div>
