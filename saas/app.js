@@ -85,15 +85,27 @@ window._viewPublicLeague = async (slug) => {
     showLoading(content, 'Cargando liga...');
 
     content.innerHTML = `
-      <div class="flex items-center justify-between mb-6">
+      <div class="flex items-center justify-between mb-4">
         <div>
           <h2 class="font-display text-3xl text-white">${league.name}</h2>
           <p class="text-sm text-gray-500">${teams.length} equipos · ${matches.length} partidos jugados</p>
         </div>
         <button onclick="document.getElementById('public-league-view').classList.add('hidden')" class="text-gray-500 hover:text-white text-sm">✕ Cerrar</button>
       </div>
+
+      <!-- Public view tabs -->
+      <div class="flex gap-1 mb-4 overflow-x-auto pb-1">
+        <button onclick="document.querySelectorAll('[data-pub-section]').forEach(s=>s.classList.add('hidden'));document.getElementById('pub-tabla').classList.remove('hidden')" class="px-3 py-1.5 rounded-lg text-xs font-semibold bg-lime-400/10 text-lime-400 border border-lime-400/20 shrink-0">📊 Tabla</button>
+        <button onclick="document.querySelectorAll('[data-pub-section]').forEach(s=>s.classList.add('hidden'));document.getElementById('pub-fixture').classList.remove('hidden')" class="px-3 py-1.5 rounded-lg text-xs font-semibold bg-pitch-800 text-gray-500 border border-white/5 shrink-0">📅 Fixture</button>
+        <button onclick="document.querySelectorAll('[data-pub-section]').forEach(s=>s.classList.add('hidden'));document.getElementById('pub-goleadores').classList.remove('hidden')" class="px-3 py-1.5 rounded-lg text-xs font-semibold bg-pitch-800 text-gray-500 border border-white/5 shrink-0">⚽ Goleadores</button>
+      </div>
+
+      <!-- Ad banner for public view -->
+      <div class="bg-pitch-800/40 border border-dashed border-white/10 rounded-xl p-3 mb-4 text-center">
+        <p class="text-[10px] text-gray-700 uppercase tracking-wider">Espacio publicitario</p>
+      </div>
       <!-- Standings -->
-      <div class="bg-pitch-800/60 border border-white/5 rounded-2xl p-5 mb-4">
+      <div id="pub-tabla" data-pub-section class="bg-pitch-800/60 border border-white/5 rounded-2xl p-5 mb-4">
         <h3 class="font-display text-lg text-lime-400 mb-3">📊 TABLA</h3>
         <div class="overflow-x-auto">
           <table class="w-full text-sm">
@@ -103,16 +115,16 @@ window._viewPublicLeague = async (slug) => {
         </div>
       </div>
       <!-- Top scorers -->
-      <div class="bg-pitch-800/60 border border-white/5 rounded-2xl p-5 mb-4">
+      <div id="pub-goleadores" data-pub-section class="hidden bg-pitch-800/60 border border-white/5 rounded-2xl p-5 mb-4">
         <h3 class="font-display text-lg text-lime-400 mb-3">⚽ GOLEADORES</h3>
         ${players.filter(p=>p.goals>0).slice(0,10).map((p,i) => `<div class="flex items-center justify-between py-2 border-b border-white/5 text-sm">
           <div class="flex items-center gap-2"><span class="text-gray-600 w-5">${i+1}</span><span class="text-white font-medium">${p.name}</span><span class="text-gray-600 text-xs">${tn(p.team_id)}</span></div>
           <div class="flex gap-3"><span>⚽ ${p.goals}</span><span class="text-gray-600">🎯 ${p.assists}</span></div>
         </div>`).join('') || '<p class="text-gray-600 text-sm">Sin datos</p>'}
       </div>
-      <!-- Recent matches -->
-      <div class="bg-pitch-800/60 border border-white/5 rounded-2xl p-5">
-        <h3 class="font-display text-lg text-lime-400 mb-3">🕹 ÚLTIMOS PARTIDOS</h3>
+      <!-- Recent matches / Fixture -->
+      <div id="pub-fixture" data-pub-section class="hidden bg-pitch-800/60 border border-white/5 rounded-2xl p-5">
+        <h3 class="font-display text-lg text-lime-400 mb-3">📅 PARTIDOS</h3>
         ${matches.slice(0,10).map(m => `<div class="flex items-center justify-between py-2 border-b border-white/5 text-sm">
           <span class="text-white">${tn(m.home_id)}</span>
           <span class="font-display text-lg text-lime-400">${m.home_goals} – ${m.away_goals}</span>
@@ -319,7 +331,7 @@ function showAdInterstitial(onComplete) {
         Cargando liga en <span id="ad-countdown" style="color:#00ff87;font-weight:700;font-size:18px;">${seconds}</span> segundos
       </p>
       <p style="color:rgba(255,255,255,.2);font-size:11px;margin-top:12px;">
-        ✨ <a href="#" onclick="event.preventDefault()" style="color:#00ff87;text-decoration:underline;">Actualizá a Pro</a> para eliminar anuncios
+        ✨ <a href="#" onclick="event.preventDefault();clearInterval(timer);overlay.remove();window._showUpgradePage()" style="color:#00ff87;text-decoration:underline;">Actualizá a Pro</a> para eliminar anuncios
       </p>
     </div>
   `;
@@ -1023,6 +1035,7 @@ async function _initFixtureSectionInner() {
       <div class="flex items-center gap-3">
         <span class="text-2xl">📅</span>
         <h2 class="font-display text-3xl tracking-wide text-white">FIXTURE</h2>
+        <button onclick="window._showMatchHistory()" class="text-xs text-gray-500 hover:text-lime-400 bg-white/5 border border-white/10 px-2 py-1 rounded-lg transition-all">🕹 Historial</button>
       </div>
       <div class="flex gap-2">
         ${hasSchedule ? `<button onclick="initPlayoffsSection()" class="bg-purple-500/10 text-purple-400 border border-purple-400/20 px-4 py-2 rounded-xl text-sm font-semibold hover:bg-purple-500/20 transition-all">🏆 Playoffs</button>` : ''}
@@ -2075,6 +2088,13 @@ function showDTSubmissionForm() {
         </button>
       </div>
     </div>
+
+    <!-- Ad banner for amateur leagues -->
+    ${league.plan_type === 'amateur' ? \`
+      <div class="bg-pitch-800/40 border border-dashed border-white/10 rounded-xl p-3 mb-4 text-center">
+        <p class="text-[10px] text-gray-700 uppercase tracking-wider">Espacio publicitario</p>
+      </div>
+    \` : ''}
 
     <!-- Submit button -->
     <button id="btn-dt-submit" onclick="window._dtSubmit()" class="w-full bg-gradient-to-r from-lime-400 to-emerald-500 text-pitch-900 font-bold py-4 rounded-xl text-sm uppercase tracking-wider hover:from-lime-300 hover:to-emerald-400 transition-all shadow-lg shadow-lime-400/10 active:scale-[.98] mb-4">
@@ -3525,4 +3545,108 @@ window._dtViewLeaders = async () => {
       }).join('') : '<p class="text-gray-500 text-center py-8">Sin goleadores todavía</p>'}
     </div>
   `;
+};
+
+// ═══════════════════════════════════════════════════════════════
+// MATCH HISTORY SECTION
+// ═══════════════════════════════════════════════════════════════
+async function initHistorySection() {
+  const container = document.querySelector('[data-section="standings"]');
+  if (!container) return;
+
+  // History is shown as a sub-tab within standings
+  // Already handled by standings section — matches are clickable via fixture
+}
+
+// Standalone match history accessible from fixture
+window._showMatchHistory = async () => {
+  if (!_matchesCache.length) await loadMatches();
+  if (!_teamsCache.length) await loadTeams();
+
+  const body = $('result-form-body');
+  body.innerHTML = `
+    <h3 class="font-display text-lg text-white mb-4">🕹 Historial Completo</h3>
+    <div class="mb-3">
+      <select id="mh-filter" onchange="window._filterMatchHistory()" class="w-full bg-pitch-900/60 border border-white/10 rounded-xl px-3 py-2 text-white text-sm outline-none">
+        <option value="all">Todos los equipos</option>
+        ${_teamsCache.filter(t => !t.is_bye && !t.replaced).map(t => `<option value="${t.id}">${t.name}</option>`).join('')}
+      </select>
+    </div>
+    <div id="mh-list" class="max-h-[60vh] overflow-y-auto space-y-1">
+      ${renderMatchHistoryItems('all')}
+    </div>
+  `;
+  $('result-form').classList.remove('hidden');
+};
+
+function renderMatchHistoryItems(filterTeamId) {
+  let matches = [..._matchesCache].sort((a,b) => new Date(b.created_at) - new Date(a.created_at));
+  if (filterTeamId !== 'all') {
+    matches = matches.filter(m => m.home_id === filterTeamId || m.away_id === filterTeamId);
+  }
+  if (!matches.length) return '<p class="text-gray-600 text-sm text-center py-4">Sin partidos</p>';
+
+  return matches.map(m => {
+    const homeName = tn(m.home_id), awayName = tn(m.away_id);
+    const ps = Object.keys(m.player_stats || {}).length;
+    return `<div class="bg-pitch-900/30 rounded-lg p-3 flex items-center justify-between cursor-pointer hover:bg-white/5 transition-all" onclick="window._viewMatchDetail('${m.id}')">
+      <div class="flex items-center gap-2 flex-1 min-w-0">
+        <span class="text-sm text-white truncate flex-1 text-right">${homeName}</span>
+        <span class="font-display text-lg text-lime-400 px-2 shrink-0">${m.home_goals} – ${m.away_goals}</span>
+        <span class="text-sm text-white truncate flex-1">${awayName}</span>
+      </div>
+      <div class="flex items-center gap-2 ml-2 shrink-0">
+        ${ps ? `<span class="text-[10px] text-gray-600">${ps} stats</span>` : ''}
+        <span class="text-[10px] text-gray-700">${m.date || ''}</span>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+window._filterMatchHistory = () => {
+  const filter = document.getElementById('mh-filter')?.value || 'all';
+  const list = document.getElementById('mh-list');
+  if (list) list.innerHTML = renderMatchHistoryItems(filter);
+};
+
+// ═══════════════════════════════════════════════════════════════
+// STRIPE PLACEHOLDER + UPGRADE BUTTON
+// ═══════════════════════════════════════════════════════════════
+window._showUpgradePage = () => {
+  const body = $('result-form-body');
+  body.innerHTML = `
+    <div class="text-center">
+      <div class="text-4xl mb-4">✨</div>
+      <h3 class="font-display text-2xl text-white mb-2">Actualizar Plan</h3>
+      <p class="text-sm text-gray-500 mb-6">Desbloquea scanner IA ilimitado, más equipos y más jugadores</p>
+
+      <div class="space-y-3 mb-6">
+        <div class="bg-pitch-900/40 border border-lime-400/20 rounded-xl p-4 text-left">
+          <div class="flex items-center justify-between mb-2">
+            <span class="font-display text-lg text-lime-400">PRO</span>
+            <span class="text-sm text-gray-400">Próximamente</span>
+          </div>
+          <div class="text-xs text-gray-500 space-y-1">
+            <p>✅ 18 equipos · 20 jugadores/equipo</p>
+            <p>✅ Scanner IA ilimitado</p>
+            <p>✅ Sin publicidad</p>
+          </div>
+        </div>
+        <div class="bg-pitch-900/40 border border-purple-400/20 rounded-xl p-4 text-left">
+          <div class="flex items-center justify-between mb-2">
+            <span class="font-display text-lg text-purple-400">ELITE</span>
+            <span class="text-sm text-gray-400">Próximamente</span>
+          </div>
+          <div class="text-xs text-gray-500 space-y-1">
+            <p>✅ Todo incluido en Pro</p>
+            <p>✅ Equipos y jugadores ilimitados</p>
+            <p>✅ White Label (sin branding)</p>
+          </div>
+        </div>
+      </div>
+
+      <p class="text-xs text-gray-600">Los pagos se habilitarán próximamente.<br>Contactanos para acceso anticipado.</p>
+    </div>
+  `;
+  $('result-form').classList.remove('hidden');
 };
