@@ -11,6 +11,13 @@ function showScreen(id) {
   const t = $(`screen-${id}`); if (t) t.classList.remove('hidden');
 }
 
+// Loading spinner component
+function showLoading(container, msg) {
+  if (typeof container === 'string') container = document.querySelector(container);
+  if (!container) return;
+  container.innerHTML = '<div class="flex flex-col items-center justify-center py-12 text-center"><svg class="animate-spin h-8 w-8 mb-3 text-lime-400/30" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" fill="none"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg><p class="text-sm text-gray-600">' + (msg || 'Cargando...') + '</p></div>';
+}
+
 function toast(msg, isError = false) {
   const el = document.createElement('div');
   el.className = `fixed bottom-4 right-4 z-[9999] px-5 py-3 rounded-xl text-sm font-semibold shadow-xl ${isError ? 'bg-red-500/90 text-white' : 'bg-emerald-500/90 text-pitch-900'}`;
@@ -75,6 +82,8 @@ window._viewPublicLeague = async (slug) => {
     const tn = id => teams.find(t => t.id === id)?.name || '?';
 
     const content = $('public-league-content');
+    showLoading(content, 'Cargando liga...');
+
     content.innerHTML = `
       <div class="flex items-center justify-between mb-6">
         <div>
@@ -304,7 +313,7 @@ function showAdInterstitial(onComplete) {
     <div style="max-width:400px;text-align:center;padding:20px;">
       <div style="border:2px dashed rgba(255,255,255,.1);border-radius:16px;padding:40px 20px;margin-bottom:24px;background:rgba(255,255,255,.02);">
         <p style="color:rgba(255,255,255,.3);font-size:14px;font-family:'Barlow Condensed',sans-serif;letter-spacing:2px;text-transform:uppercase;">Espacio publicitario</p>
-        <p style="color:rgba(255,255,255,.15);font-size:12px;margin-top:8px;">Tu anuncio aquí — contacta a LigaCNA</p>
+        <p style="color:rgba(255,255,255,.15);font-size:12px;margin-top:8px;">Tu anuncio aquí — contacta al administrador</p>
       </div>
       <p style="color:rgba(255,255,255,.4);font-size:13px;font-family:'Barlow Condensed',sans-serif;">
         Cargando liga en <span id="ad-countdown" style="color:#00ff87;font-weight:700;font-size:18px;">${seconds}</span> segundos
@@ -400,6 +409,9 @@ function initDashboard() {
       const badge = $('inbox-badge');
       if (badge && count > 0) { badge.textContent = count; badge.classList.remove('hidden'); }
     }).catch(() => {});
+
+  // Show trial countdown
+  setTimeout(renderTrialBanner, 500);
 }
 
 // ═══════════════════════════════════════════════════════════════
@@ -522,9 +534,7 @@ async function _initTeamsSectionInner() {
     </div>
 
     <!-- Teams list -->
-    <div id="teams-list" class="space-y-3">
-      <div class="text-center py-8 text-gray-600"><svg class="animate-spin h-6 w-6 mx-auto mb-2" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" fill="none"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>Cargando equipos...</div>
-    </div>
+    <div id="teams-list" class="space-y-3"></div>
 
     <!-- Team detail (hidden, shown when clicking a team) -->
     <div id="team-detail" class="hidden mt-6"></div>
@@ -594,6 +604,7 @@ async function _initTeamsSectionInner() {
   };
 
   // Load and render teams
+  showLoading($('teams-list'), 'Cargando equipos...');
   await loadTeams();
   renderTeamsList();
 } // end _initTeamsSectionInner
@@ -1014,6 +1025,7 @@ async function _initFixtureSectionInner() {
         <h2 class="font-display text-3xl tracking-wide text-white">FIXTURE</h2>
       </div>
       <div class="flex gap-2">
+        ${hasSchedule ? `<button onclick="initPlayoffsSection()" class="bg-purple-500/10 text-purple-400 border border-purple-400/20 px-4 py-2 rounded-xl text-sm font-semibold hover:bg-purple-500/20 transition-all">🏆 Playoffs</button>` : ''}
         ${hasSchedule ? `<button id="btn-clear-fixture" class="bg-red-500/10 text-red-400 border border-red-500/20 px-4 py-2 rounded-xl text-sm font-semibold hover:bg-red-500/20 transition-all">🗑 Borrar</button>` : ''}
         <button id="btn-gen-fixture" class="bg-gradient-to-r from-lime-400 to-emerald-500 text-pitch-900 font-bold py-2 px-5 rounded-xl text-sm uppercase tracking-wider hover:from-lime-300 hover:to-emerald-400 transition-all shadow-lg shadow-lime-400/10 active:scale-[.98]">${hasSchedule ? '🔄 Regenerar' : '📅 Generar Fixture'}</button>
       </div>
@@ -1073,6 +1085,9 @@ async function _initFixtureSectionInner() {
       if (confirm('¿Regenerar fixture? Se borrará el actual.')) doGen();
     } else doGen();
   };
+
+  // Render playoffs if configured
+  if (state.activeLeague.settings?.playoffs) renderPlayoffsBracket();
 
   if ($('btn-clear-fixture')) {
     $('btn-clear-fixture').onclick = async () => {
@@ -1952,11 +1967,23 @@ function showDTSubmissionForm() {
   const canScan = ['pro', 'elite', 'superadmin'].includes(league.plan_type);
   _dtPhotos = [];
 
+  // Add navigation tabs for DT
+  const tabsHtml = `
+    <div class="flex gap-1 mb-4 overflow-x-auto pb-1">
+      <button onclick="showDTSubmissionForm()" class="px-3 py-1.5 rounded-lg text-xs font-semibold bg-lime-400/10 text-lime-400 border border-lime-400/20 shrink-0">📤 Enviar Resultado</button>
+      <button onclick="window._dtViewStandings()" class="px-3 py-1.5 rounded-lg text-xs font-semibold bg-pitch-800 text-gray-500 border border-white/5 hover:text-white shrink-0">📊 Tabla</button>
+      <button onclick="window._dtViewFixture()" class="px-3 py-1.5 rounded-lg text-xs font-semibold bg-pitch-800 text-gray-500 border border-white/5 hover:text-white shrink-0">📅 Fixture</button>
+      <button onclick="window._dtViewLeaders()" class="px-3 py-1.5 rounded-lg text-xs font-semibold bg-pitch-800 text-gray-500 border border-white/5 hover:text-white shrink-0">⭐ Líderes</button>
+    </div>
+  `;
+
   const shieldHtml = team.shield_url
     ? `<img src="${team.shield_url}" class="w-12 h-12 rounded-full object-cover border-2 border-lime-400/20">`
     : `<div class="w-12 h-12 rounded-full bg-pitch-700 border-2 border-lime-400/20 flex items-center justify-center text-xl font-display text-lime-400">${team.name.charAt(0)}</div>`;
 
   content.innerHTML = `
+    ${tabsHtml}
+
     <!-- Team header -->
     <div class="flex items-center gap-4 mb-6">
       ${shieldHtml}
@@ -2311,9 +2338,11 @@ window._dtSubmit = async () => {
       throw new Error(error.message || 'Error al enviar');
     }
 
-    toast('✅ Resultado enviado — el admin lo revisará');
+    // Show confirmation screen instead of just a toast
+    showDTConfirmation(scanResult);
+    return; // Don't reset form — confirmation screen replaces it
 
-    // Reset form
+    // Reset form (kept for reference but unreachable)
     $('dt-hg').value = 0;
     $('dt-ag').value = 0;
     _dtPhotos = [];
@@ -3126,4 +3155,374 @@ window._previewPhoto = (subId, index) => {
     `;
     $('result-form').classList.remove('hidden');
   });
+};
+
+// ═══════════════════════════════════════════════════════════════
+// PLAYOFFS BRACKET
+// ═══════════════════════════════════════════════════════════════
+async function initPlayoffsSection() {
+  // This will be triggered from fixture section via a button
+  const standings = calculateStandings();
+  if (!standings.length) { toast('⚠️ Necesitás partidos jugados para generar playoffs', true); return; }
+
+  const body = $('result-form-body');
+  body.innerHTML = `
+    <h3 class="font-display text-lg text-white mb-4">🏆 Configurar Playoffs</h3>
+    <div class="space-y-4">
+      <div>
+        <label class="block text-xs text-gray-500 uppercase tracking-wider mb-1 font-semibold">Formato</label>
+        <select id="po-format" class="w-full bg-pitch-900/60 border border-white/10 rounded-xl px-3 py-2.5 text-white text-sm outline-none">
+          <option value="4">Semifinales (4 equipos)</option>
+          <option value="8">Cuartos de Final (8 equipos)</option>
+          <option value="16">Octavos de Final (16 equipos)</option>
+          <option value="2">Final Directa (2 equipos)</option>
+        </select>
+      </div>
+      <div>
+        <label class="block text-xs text-gray-500 uppercase tracking-wider mb-1 font-semibold">Equipos que pasan directo a la final</label>
+        <input id="po-byes-final" type="number" min="0" max="2" value="0" class="w-full bg-pitch-900/60 border border-white/10 rounded-xl px-3 py-2.5 text-white text-sm outline-none">
+        <p class="text-xs text-gray-600 mt-1">Ej: 2 = los 2 primeros van directo a la final</p>
+      </div>
+      <div>
+        <label class="block text-xs text-gray-500 uppercase tracking-wider mb-1 font-semibold">Equipos que pasan directo a semis</label>
+        <input id="po-byes-semi" type="number" min="0" max="4" value="0" class="w-full bg-pitch-900/60 border border-white/10 rounded-xl px-3 py-2.5 text-white text-sm outline-none">
+      </div>
+      <button onclick="window._generatePlayoffs()" class="w-full bg-gradient-to-r from-lime-400 to-emerald-500 text-pitch-900 font-bold py-3 rounded-xl text-sm uppercase tracking-wider">🏆 Generar Bracket</button>
+    </div>
+  `;
+  $('result-form').classList.remove('hidden');
+}
+
+window._generatePlayoffs = async () => {
+  const format = parseInt($('po-format')?.value || 4);
+  const byesFinal = parseInt($('po-byes-final')?.value || 0);
+  const byesSemi = parseInt($('po-byes-semi')?.value || 0);
+  const standings = calculateStandings();
+
+  if (standings.length < format) {
+    toast(`⚠️ Necesitás al menos ${format} equipos con partidos`, true); return;
+  }
+
+  const qualified = standings.slice(0, format);
+
+  // Build bracket structure
+  const bracket = { format, byesFinal, byesSemi, rounds: [] };
+
+  // First round matchups (1st vs last, 2nd vs second-to-last, etc.)
+  let currentRound = [];
+  const seedOrder = [];
+  for (let i = 0; i < qualified.length / 2; i++) {
+    seedOrder.push({ home: qualified[i], away: qualified[qualified.length - 1 - i] });
+  }
+
+  // Apply byes
+  const directToFinal = seedOrder.splice(0, byesFinal);
+  const directToSemi = seedOrder.splice(0, byesSemi);
+
+  bracket.rounds.push({ name: getRoundName(format, 0), matches: seedOrder.map(m => ({
+    homeId: m.home.id, homeName: m.home.name,
+    awayId: m.away.id, awayName: m.away.name,
+    homeGoals: null, awayGoals: null, played: false
+  }))});
+
+  if (directToSemi.length) {
+    bracket.directToSemi = directToSemi.map(m => ({ id: m.home.id, name: m.home.name }));
+  }
+  if (directToFinal.length) {
+    bracket.directToFinal = directToFinal.map(m => ({ id: m.home.id, name: m.home.name }));
+  }
+
+  // Save to league settings
+  const settings = { ...(state.activeLeague.settings || {}), playoffs: bracket };
+  const { error } = await supa.from('leagues').update({ settings }).eq('id', state.activeLeague.id);
+  if (error) { toast('⚠️ ' + error.message, true); return; }
+  state.activeLeague.settings = settings;
+
+  window._closeModal();
+  toast('🏆 Playoffs generados');
+  renderPlayoffsBracket();
+};
+
+function getRoundName(format, roundIdx) {
+  const names = { 16: ['Octavos','Cuartos','Semis','Final'], 8: ['Cuartos','Semis','Final'], 4: ['Semis','Final'], 2: ['Final'] };
+  return (names[format] || ['Ronda'])[roundIdx] || 'Ronda ' + (roundIdx + 1);
+}
+
+function renderPlayoffsBracket() {
+  const playoffs = state.activeLeague.settings?.playoffs;
+  if (!playoffs) return;
+
+  // Find or create playoffs display in fixture section
+  let container = $('playoffs-bracket');
+  if (!container) {
+    const fixtureSection = document.querySelector('[data-section="fixture"]');
+    if (!fixtureSection) return;
+    const div = document.createElement('div');
+    div.id = 'playoffs-bracket';
+    div.className = 'mt-6';
+    fixtureSection.appendChild(div);
+    container = div;
+  }
+
+  const round = playoffs.rounds[0];
+  container.innerHTML = `
+    <div class="flex items-center justify-between mb-4">
+      <div class="flex items-center gap-3">
+        <span class="text-xl">🏆</span>
+        <h3 class="font-display text-xl text-white">${round?.name || 'PLAYOFFS'}</h3>
+      </div>
+      <button onclick="window._clearPlayoffs()" class="text-xs text-red-400 hover:text-red-300">🗑 Borrar</button>
+    </div>
+    ${playoffs.directToFinal?.length ? `<p class="text-xs text-yellow-400 mb-2">⭐ Directo a la Final: ${playoffs.directToFinal.map(t => t.name).join(', ')}</p>` : ''}
+    ${playoffs.directToSemi?.length ? `<p class="text-xs text-yellow-400 mb-2">⭐ Directo a Semis: ${playoffs.directToSemi.map(t => t.name).join(', ')}</p>` : ''}
+    <div class="space-y-2">
+      ${round.matches.map((m, i) => `
+        <div class="bg-pitch-800/60 border border-white/5 rounded-xl p-3 flex items-center justify-between">
+          <div class="flex items-center gap-2 flex-1">
+            <span class="text-sm text-white flex-1 text-right truncate">${m.homeName}</span>
+            ${m.played
+              ? `<span class="font-display text-lg text-lime-400 px-2">${m.homeGoals} – ${m.awayGoals}</span>`
+              : `<span class="text-gray-600 px-2">vs</span>`}
+            <span class="text-sm text-white flex-1 truncate">${m.awayName}</span>
+          </div>
+          ${!m.played ? `<button onclick="window._playoffResult(${i})" class="text-xs bg-lime-400/10 text-lime-400 border border-lime-400/20 px-3 py-1 rounded-lg ml-2">✏️</button>` : ''}
+        </div>
+      `).join('')}
+    </div>
+  `;
+}
+
+window._playoffResult = (matchIdx) => {
+  const playoffs = state.activeLeague.settings?.playoffs;
+  if (!playoffs) return;
+  const m = playoffs.rounds[0].matches[matchIdx];
+
+  const body = $('result-form-body');
+  body.innerHTML = `
+    <h3 class="font-display text-lg text-white text-center mb-4">🏆 ${playoffs.rounds[0].name}</h3>
+    <div class="grid grid-cols-3 gap-3 items-center text-center mb-4">
+      <p class="text-sm text-white font-medium">${m.homeName}</p>
+      <span class="text-gray-600">vs</span>
+      <p class="text-sm text-white font-medium">${m.awayName}</p>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 30px 1fr;gap:8px;align-items:center;margin-bottom:16px;">
+      <input type="number" id="po-hg" min="0" value="0" style="width:100%;box-sizing:border-box;" class="bg-pitch-900/60 border border-white/10 rounded-xl px-3 py-3 text-white text-center font-display text-2xl outline-none focus:border-lime-400/40">
+      <span class="text-gray-500 text-xl text-center">–</span>
+      <input type="number" id="po-ag" min="0" value="0" style="width:100%;box-sizing:border-box;" class="bg-pitch-900/60 border border-white/10 rounded-xl px-3 py-3 text-white text-center font-display text-2xl outline-none focus:border-lime-400/40">
+    </div>
+    <button onclick="window._savePlayoffResult(${matchIdx})" class="w-full bg-gradient-to-r from-lime-400 to-emerald-500 text-pitch-900 font-bold py-3 rounded-xl text-sm uppercase tracking-wider">✅ Guardar</button>
+  `;
+  $('result-form').classList.remove('hidden');
+};
+
+window._savePlayoffResult = async (matchIdx) => {
+  const hg = parseInt($('po-hg')?.value ?? 0);
+  const ag = parseInt($('po-ag')?.value ?? 0);
+  const playoffs = state.activeLeague.settings.playoffs;
+  playoffs.rounds[0].matches[matchIdx].homeGoals = hg;
+  playoffs.rounds[0].matches[matchIdx].awayGoals = ag;
+  playoffs.rounds[0].matches[matchIdx].played = true;
+
+  const settings = { ...state.activeLeague.settings, playoffs };
+  await supa.from('leagues').update({ settings }).eq('id', state.activeLeague.id);
+  state.activeLeague.settings = settings;
+  window._closeModal();
+  renderPlayoffsBracket();
+  toast('✅ Resultado guardado');
+};
+
+window._clearPlayoffs = async () => {
+  if (!confirm('¿Borrar el bracket de playoffs?')) return;
+  const settings = { ...state.activeLeague.settings };
+  delete settings.playoffs;
+  await supa.from('leagues').update({ settings }).eq('id', state.activeLeague.id);
+  state.activeLeague.settings = settings;
+  const el = $('playoffs-bracket');
+  if (el) el.remove();
+  toast('🗑 Playoffs borrados');
+};
+
+// ═══════════════════════════════════════════════════════════════
+// DT CONFIRMATION AFTER SUBMISSION
+// ═══════════════════════════════════════════════════════════════
+function showDTConfirmation(scanResult) {
+  const sc = scanResult.score || {};
+  const ps = scanResult.playerStats || {};
+  const playerCount = Object.keys(ps).length;
+
+  const content = $('dt-content');
+  content.innerHTML = `
+    <div class="max-w-md mx-auto pt-8 text-center">
+      <div class="text-5xl mb-4">✅</div>
+      <h2 class="font-display text-2xl text-white mb-2">Resultado Enviado</h2>
+      <p class="text-sm text-gray-500 mb-6">El admin revisará y aprobará tu resultado</p>
+
+      <div class="bg-pitch-800/60 border border-lime-400/20 rounded-2xl p-5 mb-6 glow">
+        <div class="flex items-center justify-center gap-4 py-3">
+          <span class="text-sm text-white font-medium">${sc.home || '?'}</span>
+          <span class="font-display text-3xl text-lime-400">${sc.homeGoals ?? '?'} – ${sc.awayGoals ?? '?'}</span>
+          <span class="text-sm text-white font-medium">${sc.away || '?'}</span>
+        </div>
+        ${playerCount ? `<p class="text-xs text-gray-500 mt-2">📋 ${playerCount} jugadores con stats</p>` : ''}
+        ${scanResult.photos?.length ? `<p class="text-xs text-gray-500">📸 ${scanResult.photos.length} fotos adjuntas</p>` : ''}
+      </div>
+
+      <div class="flex gap-3">
+        <button onclick="showDTSubmissionForm()" class="flex-1 bg-lime-400/10 text-lime-400 border border-lime-400/20 py-3 rounded-xl text-sm font-semibold hover:bg-lime-400/20 transition-all">📤 Enviar Otro</button>
+        <button onclick="showScreen('public'); _dtTeam=null;_dtLeague=null;" class="flex-1 bg-white/5 text-gray-400 border border-white/10 py-3 rounded-xl text-sm font-semibold hover:text-white transition-all">← Salir</button>
+      </div>
+    </div>
+  `;
+}
+
+// ═══════════════════════════════════════════════════════════════
+// TRIAL COUNTDOWN BANNER
+// ═══════════════════════════════════════════════════════════════
+function renderTrialBanner() {
+  const league = state.activeLeague;
+  if (!league?.trial_ends_at) return;
+  const trialEnd = new Date(league.trial_ends_at);
+  const now = new Date();
+  const daysLeft = Math.ceil((trialEnd - now) / (1000 * 60 * 60 * 24));
+
+  if (daysLeft <= 0 || league.plan_type !== 'amateur') return;
+
+  // Only show if trial is still active
+  const existing = document.getElementById('trial-banner');
+  if (existing) existing.remove();
+
+  const banner = document.createElement('div');
+  banner.id = 'trial-banner';
+  banner.className = 'bg-gradient-to-r from-purple-500/10 to-indigo-500/10 border border-purple-400/20 rounded-xl p-3 mb-4 flex items-center justify-between';
+  banner.innerHTML = `
+    <div class="flex items-center gap-2">
+      <span class="text-sm">✨</span>
+      <span class="text-xs text-purple-300">Trial Pro: <strong class="text-white">${daysLeft} día${daysLeft !== 1 ? 's' : ''}</strong> restantes — Scanner IA activo</span>
+    </div>
+    <button onclick="this.parentElement.remove()" class="text-gray-600 hover:text-white text-xs">✕</button>
+  `;
+
+  // Insert at top of main content
+  const main = document.querySelector('[data-section="inbox"]');
+  if (main) main.parentElement.insertBefore(banner, main);
+}
+
+// ═══════════════════════════════════════════════════════════════
+// DT READ-ONLY VIEWS (standings, fixture, leaders)
+// ═══════════════════════════════════════════════════════════════
+window._dtViewStandings = async () => {
+  const content = $('dt-content');
+  showLoading(content, 'Cargando tabla...');
+
+  const leagueId = _dtLeague.id;
+  const { data: teams } = await supa.from('teams').select('*').eq('league_id', leagueId).eq('is_bye', false).eq('replaced', false);
+  const { data: matches } = await supa.from('matches').select('*').eq('league_id', leagueId);
+
+  if (!teams?.length) { content.innerHTML = '<p class="text-gray-500 text-center py-8">Sin equipos</p>'; return; }
+
+  // Calculate standings
+  const s = {};
+  teams.forEach(t => { s[t.id] = { name: t.name, P:0, W:0, D:0, L:0, GF:0, GA:0, Pts:0 }; });
+  (matches || []).forEach(m => {
+    if (!s[m.home_id] || !s[m.away_id]) return;
+    s[m.home_id].P++; s[m.away_id].P++;
+    s[m.home_id].GF += m.home_goals; s[m.home_id].GA += m.away_goals;
+    s[m.away_id].GF += m.away_goals; s[m.away_id].GA += m.home_goals;
+    if (m.home_goals > m.away_goals) { s[m.home_id].W++; s[m.home_id].Pts += 3; s[m.away_id].L++; }
+    else if (m.home_goals < m.away_goals) { s[m.away_id].W++; s[m.away_id].Pts += 3; s[m.home_id].L++; }
+    else { s[m.home_id].D++; s[m.away_id].D++; s[m.home_id].Pts++; s[m.away_id].Pts++; }
+  });
+  const sorted = Object.values(s).sort((a,b) => b.Pts - a.Pts || (b.GF-b.GA) - (a.GF-a.GA));
+
+  content.innerHTML = `
+    <div class="flex gap-1 mb-4 overflow-x-auto pb-1">
+      <button onclick="showDTSubmissionForm()" class="px-3 py-1.5 rounded-lg text-xs font-semibold bg-pitch-800 text-gray-500 border border-white/5 shrink-0">📤 Enviar</button>
+      <button class="px-3 py-1.5 rounded-lg text-xs font-semibold bg-lime-400/10 text-lime-400 border border-lime-400/20 shrink-0">📊 Tabla</button>
+      <button onclick="window._dtViewFixture()" class="px-3 py-1.5 rounded-lg text-xs font-semibold bg-pitch-800 text-gray-500 border border-white/5 shrink-0">📅 Fixture</button>
+      <button onclick="window._dtViewLeaders()" class="px-3 py-1.5 rounded-lg text-xs font-semibold bg-pitch-800 text-gray-500 border border-white/5 shrink-0">⭐ Líderes</button>
+    </div>
+    <h3 class="font-display text-2xl text-white mb-4">📊 TABLA — ${_dtLeague.name}</h3>
+    <div class="bg-pitch-800/60 border border-white/5 rounded-2xl overflow-hidden">
+      <table class="w-full text-sm">
+        <thead><tr class="border-b border-white/10"><th class="py-2 px-2 text-left text-gray-500 text-xs">#</th><th class="text-left text-gray-500 text-xs">Equipo</th><th class="text-center text-gray-500 text-xs">PJ</th><th class="text-center text-gray-500 text-xs">G</th><th class="text-center text-gray-500 text-xs">E</th><th class="text-center text-gray-500 text-xs">P</th><th class="text-center text-gray-500 text-xs">DG</th><th class="text-center text-gray-500 text-xs">Pts</th></tr></thead>
+        <tbody>${sorted.map((t, i) => `<tr class="border-b border-white/5"><td class="py-2 px-2 ${i<3?'text-lime-400':'text-gray-500'}">${i+1}</td><td class="text-white font-medium">${t.name}</td><td class="text-center text-gray-400">${t.P}</td><td class="text-center text-gray-400">${t.W}</td><td class="text-center text-gray-400">${t.D}</td><td class="text-center text-gray-400">${t.L}</td><td class="text-center ${(t.GF-t.GA)>0?'text-emerald-400':(t.GF-t.GA)<0?'text-red-400':'text-gray-500'}">${t.GF-t.GA>0?'+':''}${t.GF-t.GA}</td><td class="text-center font-bold text-white">${t.Pts}</td></tr>`).join('')}</tbody>
+      </table>
+    </div>
+  `;
+};
+
+window._dtViewFixture = async () => {
+  const content = $('dt-content');
+  showLoading(content, 'Cargando fixture...');
+
+  const leagueId = _dtLeague.id;
+  const { data: leagueData } = await supa.from('leagues').select('settings').eq('id', leagueId).single();
+  const schedule = leagueData?.settings?.schedule || [];
+  const { data: teams } = await supa.from('teams').select('id, name').eq('league_id', leagueId);
+  const { data: matches } = await supa.from('matches').select('*').eq('league_id', leagueId);
+
+  const getName = id => teams?.find(t => t.id === id)?.name || '?';
+  const getResult = (hid, aid) => matches?.find(m => m.home_id === hid && m.away_id === aid);
+
+  content.innerHTML = `
+    <div class="flex gap-1 mb-4 overflow-x-auto pb-1">
+      <button onclick="showDTSubmissionForm()" class="px-3 py-1.5 rounded-lg text-xs font-semibold bg-pitch-800 text-gray-500 border border-white/5 shrink-0">📤 Enviar</button>
+      <button onclick="window._dtViewStandings()" class="px-3 py-1.5 rounded-lg text-xs font-semibold bg-pitch-800 text-gray-500 border border-white/5 shrink-0">📊 Tabla</button>
+      <button class="px-3 py-1.5 rounded-lg text-xs font-semibold bg-lime-400/10 text-lime-400 border border-lime-400/20 shrink-0">📅 Fixture</button>
+      <button onclick="window._dtViewLeaders()" class="px-3 py-1.5 rounded-lg text-xs font-semibold bg-pitch-800 text-gray-500 border border-white/5 shrink-0">⭐ Líderes</button>
+    </div>
+    <h3 class="font-display text-2xl text-white mb-4">📅 FIXTURE — ${_dtLeague.name}</h3>
+    ${schedule.length ? schedule.map((round, ri) => `
+      <div class="mb-2">
+        <button onclick="document.getElementById('dt-round-${ri}').classList.toggle('hidden')" class="w-full bg-pitch-800/60 border border-white/5 rounded-xl p-3 text-left flex items-center justify-between hover:border-lime-400/20 transition-all">
+          <span class="font-display text-sm text-white">FECHA ${round.round}</span>
+        </button>
+        <div id="dt-round-${ri}" class="hidden mt-1 space-y-1 pl-2">
+          ${round.fixtures.map(f => {
+            const res = getResult(f.home, f.away);
+            return `<div class="bg-pitch-800/40 border border-white/5 rounded-lg p-2 flex items-center justify-center gap-2 text-sm">
+              <span class="text-white flex-1 text-right truncate">${getName(f.home)}</span>
+              ${res ? `<span class="font-display text-lime-400 px-2">${res.home_goals} – ${res.away_goals}</span>` : '<span class="text-gray-600 px-2">vs</span>'}
+              <span class="text-white flex-1 truncate">${getName(f.away)}</span>
+            </div>`;
+          }).join('')}
+        </div>
+      </div>
+    `).join('') : '<p class="text-gray-500 text-center py-8">Fixture no generado</p>'}
+  `;
+};
+
+window._dtViewLeaders = async () => {
+  const content = $('dt-content');
+  showLoading(content, 'Cargando líderes...');
+
+  const leagueId = _dtLeague.id;
+  const { data: players } = await supa.from('players').select('*').eq('league_id', leagueId).order('goals', { ascending: false });
+  const { data: teams } = await supa.from('teams').select('id, name').eq('league_id', leagueId);
+  const getName = id => teams?.find(t => t.id === id)?.name || '?';
+
+  const topScorers = (players || []).filter(p => p.goals > 0).slice(0, 15);
+
+  content.innerHTML = `
+    <div class="flex gap-1 mb-4 overflow-x-auto pb-1">
+      <button onclick="showDTSubmissionForm()" class="px-3 py-1.5 rounded-lg text-xs font-semibold bg-pitch-800 text-gray-500 border border-white/5 shrink-0">📤 Enviar</button>
+      <button onclick="window._dtViewStandings()" class="px-3 py-1.5 rounded-lg text-xs font-semibold bg-pitch-800 text-gray-500 border border-white/5 shrink-0">📊 Tabla</button>
+      <button onclick="window._dtViewFixture()" class="px-3 py-1.5 rounded-lg text-xs font-semibold bg-pitch-800 text-gray-500 border border-white/5 shrink-0">📅 Fixture</button>
+      <button class="px-3 py-1.5 rounded-lg text-xs font-semibold bg-lime-400/10 text-lime-400 border border-lime-400/20 shrink-0">⭐ Líderes</button>
+    </div>
+    <h3 class="font-display text-2xl text-white mb-4">⭐ GOLEADORES — ${_dtLeague.name}</h3>
+    <div class="bg-pitch-800/60 border border-white/5 rounded-2xl overflow-hidden">
+      ${topScorers.length ? topScorers.map((p, i) => {
+        const avg = p.ratings?.length ? (p.ratings.reduce((a,b) => a + Number(b), 0) / p.ratings.length).toFixed(1) : '—';
+        const medal = i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : '';
+        return `<div class="flex items-center gap-3 py-3 px-4 border-b border-white/5">
+          <span class="w-6 text-center ${i < 3 ? 'text-lg' : 'text-gray-600 text-sm'}">${medal || (i+1)}</span>
+          <div class="flex-1"><p class="text-sm text-white font-medium">${p.name}</p><p class="text-xs text-gray-500">${getName(p.team_id)}</p></div>
+          <span class="text-sm font-display text-lime-400">⚽ ${p.goals}</span>
+          <span class="text-xs text-gray-500">🎯 ${p.assists}</span>
+          <span class="text-xs text-yellow-400">⭐ ${avg}</span>
+        </div>`;
+      }).join('') : '<p class="text-gray-500 text-center py-8">Sin goleadores todavía</p>'}
+    </div>
+  `;
 };
