@@ -3423,7 +3423,7 @@ function renderTrialBanner() {
   banner.innerHTML = `
     <div class="flex items-center gap-2">
       <span class="text-sm">✨</span>
-      <span class="text-xs text-purple-300">Trial Pro: <strong class="text-white">${daysLeft} día${daysLeft !== 1 ? 's' : ''}</strong> restantes — Scanner IA activo</span>
+      <span class="text-xs text-purple-300">Trial: <strong class="text-white">${daysLeft} día${daysLeft !== 1 ? 's' : ''}</strong> restantes — Probá todas las funciones</span>
     </div>
     <button onclick="this.parentElement.remove()" class="text-gray-600 hover:text-white text-xs">✕</button>
   `;
