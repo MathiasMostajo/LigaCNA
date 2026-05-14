@@ -518,7 +518,7 @@ async function initTeamsSection() {
   try { await _initTeamsSectionInner(); } catch(e) { 
     console.error('Teams section error:', e); 
     const container = document.querySelector('[data-section="teams"]');
-    if (container) container.innerHTML = '<div class="bg-red-500/10 border border-red-500/20 rounded-2xl p-6 text-center"><p class="text-red-400">Error cargando equipos: ' + e.message + '</p><button onclick="initTeamsSection()" class="mt-3 bg-white/5 text-gray-400 px-4 py-2 rounded-xl text-sm hover:text-white transition-all">Reintentar</button></div>';
+    if (container) container.innerHTML = '<div class="bg-red-500/10 border border-red-500/20 rounded-2xl p-6 text-center"><p class="text-red-400">Error cargando equipos: ' + e.message + '</p><button onclick="window._retryTeams()" class="mt-3 bg-white/5 text-gray-400 px-4 py-2 rounded-xl text-sm hover:text-white transition-all">Reintentar</button></div>';
   }
 }
 
@@ -1021,7 +1021,7 @@ async function initFixtureSection() {
   try { await _initFixtureSectionInner(); } catch(e) {
     console.error('Fixture error:', e);
     const container = document.querySelector('[data-section="fixture"]');
-    if (container) container.innerHTML = `<div class="bg-red-500/10 border border-red-500/20 rounded-2xl p-6 text-center"><p class="text-red-400">Error: ${e.message}</p><button onclick="initFixtureSection()" class="mt-3 bg-white/5 text-gray-400 px-4 py-2 rounded-xl text-sm">Reintentar</button></div>`;
+    if (container) container.innerHTML = `<div class="bg-red-500/10 border border-red-500/20 rounded-2xl p-6 text-center"><p class="text-red-400">Error: ${e.message}</p><button onclick="window._retryFixture()" class="mt-3 bg-white/5 text-gray-400 px-4 py-2 rounded-xl text-sm">Reintentar</button></div>`;
   }
 }
 
@@ -1045,7 +1045,7 @@ async function _initFixtureSectionInner() {
         <button onclick="window._showMatchHistory()" class="text-xs text-gray-500 hover:text-lime-400 bg-white/5 border border-white/10 px-2 py-1 rounded-lg transition-all">🕹 Historial</button>
       </div>
       <div class="flex gap-2">
-        ${hasSchedule ? `<button onclick="initPlayoffsSection()" class="bg-purple-500/10 text-purple-400 border border-purple-400/20 px-4 py-2 rounded-xl text-sm font-semibold hover:bg-purple-500/20 transition-all">🏆 Playoffs</button>` : ''}
+        ${hasSchedule ? `<button onclick="window._openPlayoffs()" class="bg-purple-500/10 text-purple-400 border border-purple-400/20 px-4 py-2 rounded-xl text-sm font-semibold hover:bg-purple-500/20 transition-all">🏆 Playoffs</button>` : ''}
         ${hasSchedule ? `<button id="btn-clear-fixture" class="bg-red-500/10 text-red-400 border border-red-500/20 px-4 py-2 rounded-xl text-sm font-semibold hover:bg-red-500/20 transition-all">🗑 Borrar</button>` : ''}
         <button id="btn-gen-fixture" class="bg-gradient-to-r from-lime-400 to-emerald-500 text-pitch-900 font-bold py-2 px-5 rounded-xl text-sm uppercase tracking-wider hover:from-lime-300 hover:to-emerald-400 transition-all shadow-lg shadow-lime-400/10 active:scale-[.98]">${hasSchedule ? '🔄 Regenerar' : '📅 Generar Fixture'}</button>
       </div>
@@ -1337,7 +1337,7 @@ async function initStandingsSection() {
   try { await _initStandingsSectionInner(); } catch(e) {
     console.error('Standings error:', e);
     const container = document.querySelector('[data-section="standings"]');
-    if (container) container.innerHTML = `<div class="bg-red-500/10 border border-red-500/20 rounded-2xl p-6 text-center"><p class="text-red-400">Error: ${e.message}</p><button onclick="initStandingsSection()" class="mt-3 bg-white/5 text-gray-400 px-4 py-2 rounded-xl text-sm">Reintentar</button></div>`;
+    if (container) container.innerHTML = `<div class="bg-red-500/10 border border-red-500/20 rounded-2xl p-6 text-center"><p class="text-red-400">Error: ${e.message}</p><button onclick="window._retryStandings()" class="mt-3 bg-white/5 text-gray-400 px-4 py-2 rounded-xl text-sm">Reintentar</button></div>`;
   }
 }
 
@@ -1989,7 +1989,7 @@ function showDTSubmissionForm() {
   // Add navigation tabs for DT
   const tabsHtml = `
     <div class="flex gap-1 mb-4 overflow-x-auto pb-1">
-      <button onclick="showDTSubmissionForm()" class="px-3 py-1.5 rounded-lg text-xs font-semibold bg-lime-400/10 text-lime-400 border border-lime-400/20 shrink-0">📤 Enviar Resultado</button>
+      <button onclick="window._dtSendAnother()" class="px-3 py-1.5 rounded-lg text-xs font-semibold bg-lime-400/10 text-lime-400 border border-lime-400/20 shrink-0">📤 Enviar Resultado</button>
       <button onclick="window._dtViewStandings()" class="px-3 py-1.5 rounded-lg text-xs font-semibold bg-pitch-800 text-gray-500 border border-white/5 hover:text-white shrink-0">📊 Tabla</button>
       <button onclick="window._dtViewFixture()" class="px-3 py-1.5 rounded-lg text-xs font-semibold bg-pitch-800 text-gray-500 border border-white/5 hover:text-white shrink-0">📅 Fixture</button>
       <button onclick="window._dtViewLeaders()" class="px-3 py-1.5 rounded-lg text-xs font-semibold bg-pitch-800 text-gray-500 border border-white/5 hover:text-white shrink-0">⭐ Líderes</button>
@@ -2179,6 +2179,14 @@ window._dtPhotoChange = (index, event) => {
   };
   reader.readAsDataURL(file);
 };
+
+window._dtSendAnother = () => { showDTSubmissionForm(); };
+window._retryTeams = () => { initTeamsSection(); };
+window._retryFixture = () => { initFixtureSection(); };
+window._retryStandings = () => { initStandingsSection(); };
+window._openPlayoffs = () => { initPlayoffsSection(); };
+window._refreshInbox = () => { initInboxSection(); };
+window._dtExit = () => { _dtTeam = null; _dtLeague = null; _dtPlayers = []; _dtPhotos = []; showScreen('public'); };
 
 window._dtToggleDetail = () => {
   const section = $('dt-detail-section');
@@ -2413,7 +2421,7 @@ async function initInboxSection() {
         <h2 class="font-display text-3xl tracking-wide text-white">BANDEJA</h2>
         <span id="inbox-count" class="text-xs text-gray-500"></span>
       </div>
-      <button onclick="initInboxSection()" class="text-xs text-gray-500 hover:text-lime-400 transition-colors">🔄 Actualizar</button>
+      <button onclick="window._refreshInbox()" class="text-xs text-gray-500 hover:text-lime-400 transition-colors">🔄 Actualizar</button>
     </div>
     <div id="admin-submissions-list"><div class="text-center py-8 text-gray-600 text-sm">Cargando submissions...</div></div>
   `;
@@ -3394,8 +3402,8 @@ function showDTConfirmation(scanResult) {
       </div>
 
       <div class="flex gap-3">
-        <button onclick="showDTSubmissionForm()" class="flex-1 bg-lime-400/10 text-lime-400 border border-lime-400/20 py-3 rounded-xl text-sm font-semibold hover:bg-lime-400/20 transition-all">📤 Enviar Otro</button>
-        <button onclick="showScreen('public'); _dtTeam=null;_dtLeague=null;" class="flex-1 bg-white/5 text-gray-400 border border-white/10 py-3 rounded-xl text-sm font-semibold hover:text-white transition-all">← Salir</button>
+        <button onclick="window._dtSendAnother()" class="flex-1 bg-lime-400/10 text-lime-400 border border-lime-400/20 py-3 rounded-xl text-sm font-semibold hover:bg-lime-400/20 transition-all">📤 Enviar Otro</button>
+        <button onclick="window._dtExit()" class="flex-1 bg-white/5 text-gray-400 border border-white/10 py-3 rounded-xl text-sm font-semibold hover:text-white transition-all">← Salir</button>
       </div>
     </div>
   `;
@@ -3463,7 +3471,7 @@ window._dtViewStandings = async () => {
 
   content.innerHTML = `
     <div class="flex gap-1 mb-4 overflow-x-auto pb-1">
-      <button onclick="showDTSubmissionForm()" class="px-3 py-1.5 rounded-lg text-xs font-semibold bg-pitch-800 text-gray-500 border border-white/5 shrink-0">📤 Enviar</button>
+      <button onclick="window._dtSendAnother()" class="px-3 py-1.5 rounded-lg text-xs font-semibold bg-pitch-800 text-gray-500 border border-white/5 shrink-0">📤 Enviar</button>
       <button class="px-3 py-1.5 rounded-lg text-xs font-semibold bg-lime-400/10 text-lime-400 border border-lime-400/20 shrink-0">📊 Tabla</button>
       <button onclick="window._dtViewFixture()" class="px-3 py-1.5 rounded-lg text-xs font-semibold bg-pitch-800 text-gray-500 border border-white/5 shrink-0">📅 Fixture</button>
       <button onclick="window._dtViewLeaders()" class="px-3 py-1.5 rounded-lg text-xs font-semibold bg-pitch-800 text-gray-500 border border-white/5 shrink-0">⭐ Líderes</button>
@@ -3493,7 +3501,7 @@ window._dtViewFixture = async () => {
 
   content.innerHTML = `
     <div class="flex gap-1 mb-4 overflow-x-auto pb-1">
-      <button onclick="showDTSubmissionForm()" class="px-3 py-1.5 rounded-lg text-xs font-semibold bg-pitch-800 text-gray-500 border border-white/5 shrink-0">📤 Enviar</button>
+      <button onclick="window._dtSendAnother()" class="px-3 py-1.5 rounded-lg text-xs font-semibold bg-pitch-800 text-gray-500 border border-white/5 shrink-0">📤 Enviar</button>
       <button onclick="window._dtViewStandings()" class="px-3 py-1.5 rounded-lg text-xs font-semibold bg-pitch-800 text-gray-500 border border-white/5 shrink-0">📊 Tabla</button>
       <button class="px-3 py-1.5 rounded-lg text-xs font-semibold bg-lime-400/10 text-lime-400 border border-lime-400/20 shrink-0">📅 Fixture</button>
       <button onclick="window._dtViewLeaders()" class="px-3 py-1.5 rounded-lg text-xs font-semibold bg-pitch-800 text-gray-500 border border-white/5 shrink-0">⭐ Líderes</button>
@@ -3532,7 +3540,7 @@ window._dtViewLeaders = async () => {
 
   content.innerHTML = `
     <div class="flex gap-1 mb-4 overflow-x-auto pb-1">
-      <button onclick="showDTSubmissionForm()" class="px-3 py-1.5 rounded-lg text-xs font-semibold bg-pitch-800 text-gray-500 border border-white/5 shrink-0">📤 Enviar</button>
+      <button onclick="window._dtSendAnother()" class="px-3 py-1.5 rounded-lg text-xs font-semibold bg-pitch-800 text-gray-500 border border-white/5 shrink-0">📤 Enviar</button>
       <button onclick="window._dtViewStandings()" class="px-3 py-1.5 rounded-lg text-xs font-semibold bg-pitch-800 text-gray-500 border border-white/5 shrink-0">📊 Tabla</button>
       <button onclick="window._dtViewFixture()" class="px-3 py-1.5 rounded-lg text-xs font-semibold bg-pitch-800 text-gray-500 border border-white/5 shrink-0">📅 Fixture</button>
       <button class="px-3 py-1.5 rounded-lg text-xs font-semibold bg-lime-400/10 text-lime-400 border border-lime-400/20 shrink-0">⭐ Líderes</button>
