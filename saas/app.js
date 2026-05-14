@@ -2090,11 +2090,11 @@ function showDTSubmissionForm() {
     </div>
 
     <!-- Ad banner for amateur leagues -->
-    ${league.plan_type === 'amateur' ? \`
+    ${league.plan_type === 'amateur' ? `
       <div class="bg-pitch-800/40 border border-dashed border-white/10 rounded-xl p-3 mb-4 text-center">
         <p class="text-[10px] text-gray-700 uppercase tracking-wider">Espacio publicitario</p>
       </div>
-    \` : ''}
+    ` : ''}
 
     <!-- Submit button -->
     <button id="btn-dt-submit" onclick="window._dtSubmit()" class="w-full bg-gradient-to-r from-lime-400 to-emerald-500 text-pitch-900 font-bold py-4 rounded-xl text-sm uppercase tracking-wider hover:from-lime-300 hover:to-emerald-400 transition-all shadow-lg shadow-lime-400/10 active:scale-[.98] mb-4">
