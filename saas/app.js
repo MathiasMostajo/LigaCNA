@@ -1709,9 +1709,8 @@ async function _initSettingsSectionInner() {
 
   // Delete league
   $('btn-delete-league').onclick = async () => {
-    if (!confirm(`¿Eliminar "${league.name}" completamente? Se borran todos los equipos, jugadores, partidos y datos. No se puede deshacer.`)) return;
-    const confirmName = prompt(`Escribí "${league.name}" para confirmar:`);
-    if (confirmName !== league.name) { toast('Nombre incorrecto, cancelado', true); return; }
+    if (!confirm('¿Eliminar esta liga completamente? Se borran todos los equipos, jugadores, partidos y datos. No se puede deshacer.')) return;
+    if (!confirm('¿Estás SEGURO? Esta acción es IRREVERSIBLE.')) return;
 
     try {
       const { error } = await supa.from('leagues').delete().eq('id', league.id);
