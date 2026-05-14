@@ -299,12 +299,19 @@ function renderHubLeagues() {
 window._manageLeague = (leagueId) => {
   const league = state.leagues.find(l => l.id === leagueId);
   if (!league) return;
-  // Clear all caches when switching leagues
+  // Clear all caches AND section content when switching leagues
   _teamsCache = [];
   _playersCache = [];
   _matchesCache = [];
   _scheduleCache = [];
   _activeTeamId = null;
+  // Reset all section HTML so they reload fresh for the new league
+  document.querySelectorAll('[data-section]').forEach(el => {
+    const section = el.getAttribute('data-section');
+    const titles = { inbox:'📥 BANDEJA', scanner:'🤖 ESCÁNER IA', fixture:'📅 FIXTURE', standings:'📊 TABLA', teams:'🏟 EQUIPOS', leaders:'⭐ LÍDERES', transfers:'📋 FICHAJES', settings:'⚙️ AJUSTES' };
+    el.innerHTML = '<div class="flex items-center gap-3 mb-6"><h2 class="font-display text-3xl tracking-wide text-white">' + (titles[section] || section) + '</h2></div><div class="text-center py-8 text-gray-600">Cargando...</div>';
+  });
+  _bound.dash = false;
 
   // Show interstitial ad for Amateur plan (non-superadmin)
   if (league.plan_type === 'amateur' && !state.isSuperadmin) {
