@@ -3411,7 +3411,8 @@ function renderTrialBanner() {
   const now = new Date();
   const daysLeft = Math.ceil((trialEnd - now) / (1000 * 60 * 60 * 24));
 
-  if (daysLeft <= 0 || league.plan_type !== 'amateur') return;
+  // Don't show trial banner — Amateur gets 3 fixed scans, no trial benefits
+  return;
 
   // Only show if trial is still active
   const existing = document.getElementById('trial-banner');
