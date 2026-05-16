@@ -1618,14 +1618,11 @@ async function _initSettingsSectionInner() {
       <div class="grid gap-4 md:grid-cols-2">
         <div>
           <label class="block text-xs text-gray-500 uppercase tracking-wider mb-1 font-semibold">Nombre</label>
-          <input id="set-league-name" type="text" value="${league.name}" class="w-full bg-pitch-900/60 border border-white/10 rounded-xl px-4 py-2.5 text-white outline-none focus:border-lime-400/40 text-sm">
+          <div class="w-full bg-pitch-900/30 border border-white/5 rounded-xl px-4 py-2.5 text-gray-400 text-sm">${league.name}</div>
         </div>
         <div>
           <label class="block text-xs text-gray-500 uppercase tracking-wider mb-1 font-semibold">Slug (URL pública)</label>
-          <div class="flex items-center gap-2">
-            <span class="text-xs text-gray-600">/liga/</span>
-            <input id="set-league-slug" type="text" value="${league.slug || ''}" class="flex-1 bg-pitch-900/60 border border-white/10 rounded-xl px-4 py-2.5 text-white outline-none focus:border-lime-400/40 text-sm">
-          </div>
+          <div class="w-full bg-pitch-900/30 border border-white/5 rounded-xl px-4 py-2.5 text-gray-400 text-sm">/liga/${league.slug || '—'}</div>
         </div>
         <div>
           <label class="block text-xs text-gray-500 uppercase tracking-wider mb-1 font-semibold">Máx equipos</label>
@@ -1684,9 +1681,7 @@ async function _initSettingsSectionInner() {
     try {
       const requirePhotos = $('set-require-photos')?.checked || false;
       const updates = {
-        name: $('set-league-name').value.trim() || league.name,
-        slug: $('set-league-slug').value.trim().toLowerCase().replace(/[^a-z0-9-]/g, '-') || league.slug,
-        max_players_per_team: parseInt($('set-max-players').value) || 11,
+        max_players_per_team: parseInt($('set-max-players').value) || 15,
         is_public: $('set-is-public').checked,
         settings: { ...(league.settings || {}), requirePhotos },
       };
@@ -1710,11 +1705,7 @@ async function _initSettingsSectionInner() {
       msgEl.className = 'mt-3 text-sm text-center py-2 px-4 rounded-lg bg-emerald-500/10 text-emerald-400 border border-emerald-500/20';
       msgEl.classList.remove('hidden');
       
-      // Update dashboard header
-      const ln = $('dash-league-name');
-      const lnm = $('dash-league-name-mobile');
-      if (ln) ln.textContent = updates.name;
-      if (lnm) lnm.textContent = updates.name;
+
     } catch(e) {
       msgEl.textContent = '⚠️ ' + e.message;
       msgEl.className = 'mt-3 text-sm text-center py-2 px-4 rounded-lg bg-red-500/10 text-red-400 border border-red-500/20';
