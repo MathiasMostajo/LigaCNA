@@ -390,6 +390,11 @@ function showAdInterstitial(onComplete) {
 // ═══════════════════════════════════════════════════════════════
 // STATE 4: LEAGUE DASHBOARD
 // ═══════════════════════════════════════════════════════════════
+// Update URL hash when entering a league
+function updateURLHash(slug) {
+  if (slug) window.location.hash = '#/liga/' + slug;
+}
+
 function initDashboard() {
   if (_bound.dash) return; _bound.dash = true;
 
@@ -426,6 +431,7 @@ function initDashboard() {
 
   // Back to hub — clear all caches
   $('btn-back-hub').onclick = () => {
+    window.location.hash = '';
     state.activeLeague = null;
     _teamsCache = [];
     _playersCache = [];
@@ -496,6 +502,42 @@ on('league:selected', () => {
 
 // ─── Boot ────────────────────────────────────────────────────
 initAuth();
+
+// Hash routing for shareable URLs
+function handleHashRoute() {
+  const hash = window.location.hash;
+  if (hash.startsWith('#/liga/')) {
+    const slug = hash.replace('#/liga/', '');
+    if (slug) {
+      supa.from('leagues').select('*').eq('slug', slug).eq('is_public', true).maybeSingle().then(async ({ data: league }) => {
+        if (!league) return;
+
+        // Check if user is logged in AND is a DT in this league
+        if (state.user && state.memberships?.length) {
+          const membership = state.memberships.find(m => m.league_id === league.id);
+          if (membership) {
+            // User is a DT in this league — show DT view
+            _dtTeam = membership.teams;
+            _dtLeague = membership.leagues || league;
+            showScreen('dt');
+            const leagueName = $('dt-league-name');
+            if (leagueName) leagueName.textContent = _dtLeague.name;
+            $('btn-dt-back').onclick = () => { _dtTeam = null; _dtLeague = null; showScreen('hub'); };
+            const { data: players } = await supa.from('players').select('*').eq('team_id', membership.team_id).order('name');
+            _dtPlayers = players || [];
+            showDTSubmissionForm();
+            return;
+          }
+        }
+
+        // Not a DT — show public view
+        loadPublicLeague(league.id);
+      });
+    }
+  }
+}
+window.addEventListener('hashchange', handleHashRoute);
+setTimeout(handleHashRoute, 1000);
 
 // Loading timeout fallback
 setTimeout(() => {
@@ -1611,19 +1653,7 @@ async function _initSettingsSectionInner() {
 
     <!-- League info -->
     <div class="bg-pitch-800/60 border border-white/5 rounded-2xl p-5 mb-4">
-      <div class="flex items-center justify-between mb-4">
-        <h3 class="font-display text-lg text-white">🏆 Información de la Liga</h3>
-        <span class="text-[10px] uppercase px-3 py-1 rounded-full border font-semibold ${planClass}">${league.plan_type}</span>
-      </div>
       <div class="grid gap-4 md:grid-cols-2">
-        <div>
-          <label class="block text-xs text-gray-500 uppercase tracking-wider mb-1 font-semibold">Nombre</label>
-          <div class="w-full bg-pitch-900/30 border border-white/5 rounded-xl px-4 py-2.5 text-gray-400 text-sm">${league.name}</div>
-        </div>
-        <div>
-          <label class="block text-xs text-gray-500 uppercase tracking-wider mb-1 font-semibold">Slug (URL pública)</label>
-          <div class="w-full bg-pitch-900/30 border border-white/5 rounded-xl px-4 py-2.5 text-gray-400 text-sm">/liga/${league.slug || '—'}</div>
-        </div>
         <div>
           <label class="block text-xs text-gray-500 uppercase tracking-wider mb-1 font-semibold">Máx equipos</label>
           <div class="flex items-center gap-2">
