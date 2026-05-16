@@ -1,7 +1,7 @@
 // ═══════════════════════════════════════════════════════════════
 // app.js v5 — 4-state navigation (Public, Auth, Hub, Dashboard)
 // ═══════════════════════════════════════════════════════════════
-import { supa, state, on, emit, signUp, signIn, signOut, createLeague, setActiveLeague, searchPublicLeagues, loadPublicLeague, initAuth } from './auth.js';
+import { supa, state, on, emit, signUp, signIn, signOut, createLeague, setActiveLeague, searchPublicLeagues, loadPublicLeague, loadMyMemberships, initAuth } from './auth.js';
 
 const $ = id => document.getElementById(id);
 let _bound = { login: false, hub: false, dash: false, public: false };
@@ -164,7 +164,7 @@ function initLoginUI() {
   function setMode(register) {
     isRegister = register;
     $('auth-title').textContent = register ? 'Crear Cuenta' : 'Iniciar Sesión';
-    $('auth-subtitle').textContent = register ? 'Registrate para administrar tu liga' : 'Accedé a tu liga';
+    $('auth-subtitle').textContent = register ? 'Creá tu cuenta para gestionar o jugar' : 'Accedé a tu cuenta';
     submitBtn.textContent = register ? 'Registrarme' : 'Entrar';
     $('auth-toggle-text').innerHTML = register
       ? '¿Ya tenés cuenta? <button id="auth-toggle" class="text-emerald-400 hover:text-emerald-300 font-semibold">Iniciar Sesión</button>'
@@ -237,8 +237,9 @@ function initHubUI() {
     }
   }
 
-  // Render leagues
+  // Render leagues AND DT memberships
   renderHubLeagues();
+  renderHubMemberships();
 
   // Create league toggle
   $('btn-create-league').onclick = () => $('hub-create-form').classList.toggle('hidden');
@@ -270,11 +271,13 @@ function initHubUI() {
 function renderHubLeagues() {
   const el = $('hub-leagues-list'); if (!el) return;
   if (!state.leagues.length) {
-    el.innerHTML = '<div class="bg-pitch-800/40 border border-dashed border-white/10 rounded-2xl p-12 text-center"><span class="text-4xl mb-4 block">🏆</span><p class="text-gray-500 mb-2">No tenés ligas todavía</p><p class="text-sm text-gray-600">Creá tu primera liga para empezar a gestionar torneos</p></div>';
+    el.innerHTML = state.memberships?.length
+      ? '' // Don't show empty league message if user has DT memberships
+      : '<div class="bg-pitch-800/40 border border-dashed border-white/10 rounded-2xl p-12 text-center"><span class="text-4xl mb-4 block">🏆</span><p class="text-gray-500 mb-2">No tenés ligas todavía</p><p class="text-sm text-gray-600">Creá tu primera liga para empezar a gestionar torneos</p></div>';
     return;
   }
 
-  el.innerHTML = state.leagues.map(l => {
+  html += state.leagues.map(l => {
     const planColors = { superadmin: 'bg-yellow-400/10 text-yellow-400', elite: 'bg-purple-400/10 text-purple-400', pro: 'bg-lime-400/10 text-lime-400', amateur: 'bg-gray-500/10 text-gray-500' };
     const planClass = planColors[l.plan_type] || planColors.amateur;
     return `<div class="bg-pitch-800/60 border border-white/5 rounded-2xl p-5 mb-3 hover:border-lime-400/20 transition-all glow">
@@ -294,6 +297,7 @@ function renderHubLeagues() {
       </div>
     </div>`;
   }).join('');
+  el.innerHTML = html;
 }
 
 window._manageLeague = (leagueId) => {
@@ -730,9 +734,16 @@ window._viewTeam = async (teamId) => {
         <div id="team-players-list">
           ${renderPlayersHTML(players)}
         </div>
+        <div id="team-dt-emails"></div>
       </div>
     </div>
   `;
+
+  // Load DT emails async
+  renderDTEmails(teamId).then(html => {
+    const dtEl = document.getElementById('team-dt-emails');
+    if (dtEl) dtEl.innerHTML = html;
+  });
 
   detail.classList.remove('hidden');
   // Scroll to detail
@@ -1802,6 +1813,13 @@ async function loadAdminSubmissions() {
           ${sub.team_name ? `<p class="text-xs text-gray-500 mb-2">Enviado por: <span class="text-white">${sub.team_name}</span></p>` : ''}
           ${hasDetail ? `<p class="text-xs text-gray-600 mb-2">📋 ${playerCount} jugadores con stats</p>` : ''}
 
+          <!-- Photo thumbnails -->
+          ${(sub.scan_result?.photos?.length) ? `
+            <div class="flex gap-1 mb-3 overflow-x-auto">
+              ${sub.scan_result.photos.map((ph, pi) => `<img src="${ph}" class="h-14 w-20 object-cover rounded-lg border border-white/10 cursor-pointer shrink-0 hover:border-lime-400/30 transition-all" onclick="window._previewPhoto('${sub.id}', ${pi})">`).join('')}
+            </div>
+          ` : ''}
+
           <!-- Actions -->
           <div class="flex gap-2 mt-3">
             <button onclick="window._adminApproveSub('${sub.id}')" class="flex-1 bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 py-2.5 rounded-xl text-sm font-semibold hover:bg-emerald-500/20 transition-all">✅ Aprobar</button>
@@ -1923,15 +1941,19 @@ function showDTCodeEntry() {
   const content = $('dt-content');
   content.innerHTML = `
     <div class="max-w-sm mx-auto pt-12 text-center">
-      <div class="text-5xl mb-4">🎮</div>
-      <h2 class="font-display text-3xl text-white mb-2">ACCESO DT</h2>
-      <p class="text-sm text-gray-500 mb-8">Ingresá el código que te dio el admin de tu liga</p>
+      <div class="text-5xl mb-4">🔑</div>
+      <h2 class="font-display text-3xl text-white mb-2">ACCESO RÁPIDO</h2>
+      <p class="text-sm text-gray-500 mb-6">Ingresá el código de tu equipo para enviar resultados sin crear cuenta</p>
+
       <input id="dt-code-input" type="text" placeholder="Ej: HK3T47" maxlength="10"
         class="w-full bg-pitch-900/60 border border-white/10 rounded-xl px-4 py-3.5 text-white text-center font-mono text-xl tracking-[.3em] uppercase placeholder-gray-600 outline-none focus:border-lime-400/40 mb-4">
       <button id="btn-dt-enter" class="w-full bg-gradient-to-r from-lime-400 to-emerald-500 text-pitch-900 font-bold py-3 rounded-xl text-sm uppercase tracking-wider hover:from-lime-300 hover:to-emerald-400 transition-all shadow-lg shadow-lime-400/10 active:scale-[.98]">
         Entrar
       </button>
+
       <div id="dt-code-error" class="hidden mt-4 text-sm text-center py-2 px-4 rounded-lg bg-red-500/10 text-red-400 border border-red-500/20"></div>
+
+      <p class="text-xs text-gray-600 mt-6">¿Tenés cuenta? <button onclick="showScreen('auth');initLoginUI&&initLoginUI()" class="text-lime-400 hover:text-lime-300">Iniciá sesión</button> para ver todas tus ligas y equipos</p>
     </div>
   `;
 
@@ -1977,6 +1999,7 @@ function showDTCodeEntry() {
   };
 
   $('btn-dt-back').onclick = () => { _dtTeam = null; _dtLeague = null; _dtPlayers = []; _dtPhotos = []; showScreen('public'); };
+
 }
 
 function showDTSubmissionForm() {
@@ -3402,11 +3425,18 @@ function showDTConfirmation(scanResult) {
       </div>
 
       <div class="flex gap-3">
-        <button onclick="window._dtSendAnother()" class="flex-1 bg-lime-400/10 text-lime-400 border border-lime-400/20 py-3 rounded-xl text-sm font-semibold hover:bg-lime-400/20 transition-all">📤 Enviar Otro</button>
-        <button onclick="window._dtExit()" class="flex-1 bg-white/5 text-gray-400 border border-white/10 py-3 rounded-xl text-sm font-semibold hover:text-white transition-all">← Salir</button>
+        <button id="btn-dt-send-another" class="flex-1 bg-lime-400/10 text-lime-400 border border-lime-400/20 py-3 rounded-xl text-sm font-semibold hover:bg-lime-400/20 transition-all">📤 Enviar Otro</button>
+        <button id="btn-dt-exit" class="flex-1 bg-white/5 text-gray-400 border border-white/10 py-3 rounded-xl text-sm font-semibold hover:text-white transition-all">← Salir</button>
       </div>
     </div>
   `;
+
+  // Attach listeners directly (avoids inline onclick issues)
+  $('btn-dt-send-another').onclick = () => showDTSubmissionForm();
+  $('btn-dt-exit').onclick = () => {
+    _dtTeam = null; _dtLeague = null; _dtPlayers = []; _dtPhotos = [];
+    showScreen('public');
+  };
 }
 
 // ═══════════════════════════════════════════════════════════════
@@ -3664,4 +3694,229 @@ window._showUpgradePage = () => {
     </div>
   `;
   $('result-form').classList.remove('hidden');
+};
+
+// ═══════════════════════════════════════════════════════════════
+// ADMIN: DT EMAIL MANAGEMENT (in team detail)
+// ═══════════════════════════════════════════════════════════════
+async function renderDTEmails(teamId) {
+  const { data: members } = await supa.from('team_members').select('*')
+    .eq('team_id', teamId).eq('league_id', state.activeLeague.id);
+
+  return `
+    <div class="mt-4 pt-4 border-t border-white/5">
+      <p class="text-xs text-gray-500 uppercase tracking-wider font-semibold mb-2">📧 DTs Vinculados</p>
+      <div class="space-y-1 mb-3" id="dt-emails-list">
+        ${(members || []).map(m => `
+          <div class="flex items-center justify-between py-1.5 px-2 bg-pitch-900/30 rounded-lg text-xs">
+            <div class="flex items-center gap-2">
+              <span class="${m.user_id ? 'text-lime-400' : 'text-yellow-400'}">●</span>
+              <span class="text-white">${m.email}</span>
+            </div>
+            <div class="flex items-center gap-2">
+              <span class="text-gray-600">${m.user_id ? 'Vinculado' : 'Pendiente'}</span>
+              <button onclick="window._removeDTEmail('${m.id}','${teamId}')" class="text-gray-700 hover:text-red-400 transition-colors">✕</button>
+            </div>
+          </div>
+        `).join('') || '<p class="text-xs text-gray-600">Sin DTs vinculados</p>'}
+      </div>
+      <div class="flex gap-2">
+        <input id="new-dt-email" type="email" placeholder="email@deldt.com" class="flex-1 bg-pitch-900/60 border border-white/10 rounded-lg px-3 py-1.5 text-white text-xs outline-none focus:border-lime-400/40 placeholder-gray-600">
+        <button onclick="window._addDTEmail('${teamId}')" class="bg-lime-400/10 text-lime-400 border border-lime-400/20 px-3 py-1.5 rounded-lg text-xs font-semibold hover:bg-lime-400/20 transition-all">+ Agregar</button>
+      </div>
+      <p class="text-[10px] text-gray-700 mt-1">El DT crea cuenta con este email y se vincula automáticamente</p>
+    </div>
+  `;
+}
+
+window._addDTEmail = async (teamId) => {
+  const input = document.getElementById('new-dt-email');
+  const email = input?.value.trim().toLowerCase();
+  if (!email || !email.includes('@')) { toast('⚠️ Email inválido', true); return; }
+
+  try {
+    // Check if already exists
+    const { data: existing } = await supa.from('team_members').select('id')
+      .eq('team_id', teamId).eq('email', email).maybeSingle();
+    if (existing) { toast('⚠️ Este email ya está vinculado', true); return; }
+
+    // Check if this email already has an account — auto-link user_id
+    const { data: users } = await supa.from('profiles').select('id, email').eq('email', email).maybeSingle();
+
+    const { error } = await supa.from('team_members').insert({
+      league_id: state.activeLeague.id,
+      team_id: teamId,
+      email,
+      user_id: users?.id || null,
+    });
+    if (error) throw error;
+
+    input.value = '';
+    toast('✅ DT vinculado');
+    // Refresh the team detail
+    window._viewTeam(teamId);
+  } catch(e) { toast('⚠️ ' + e.message, true); }
+};
+
+window._removeDTEmail = async (memberId, teamId) => {
+  if (!confirm('¿Desvincular este DT?')) return;
+  try {
+    await supa.from('team_members').delete().eq('id', memberId);
+    toast('✕ DT desvinculado');
+    window._viewTeam(teamId);
+  } catch(e) { toast('⚠️ ' + e.message, true); }
+};
+
+// ═══════════════════════════════════════════════════════════════
+// DT AUTHENTICATED VIEW (DT logs in with their account)
+// ═══════════════════════════════════════════════════════════════
+function showDTAuthenticatedView() {
+  const content = $('dt-content');
+  if (!content) return;
+
+  const memberships = state.memberships || [];
+  const leagueName = $('dt-league-name');
+
+  if (!memberships.length) {
+    content.innerHTML = `
+      <div class="max-w-sm mx-auto pt-12 text-center">
+        <div class="text-5xl mb-4">🔒</div>
+        <h2 class="font-display text-2xl text-white mb-2">Sin equipos vinculados</h2>
+        <p class="text-sm text-gray-500 mb-6">Tu email no está vinculado a ningún equipo. Pedile al admin de tu liga que te agregue.</p>
+        <button onclick="window._dtLogout()" class="bg-white/5 text-gray-400 border border-white/10 py-2 px-6 rounded-xl text-sm font-semibold hover:text-white transition-all">← Salir</button>
+      </div>
+    `;
+    return;
+  }
+
+  // If only one membership, go directly to that team
+  if (memberships.length === 1) {
+    const m = memberships[0];
+    _dtTeam = m.teams;
+    _dtLeague = m.leagues;
+    if (leagueName) leagueName.textContent = _dtLeague.name;
+    // Load players and show form
+    supa.from('players').select('*').eq('team_id', m.team_id).order('name').then(({ data }) => {
+      _dtPlayers = data || [];
+      showDTSubmissionForm();
+    });
+    return;
+  }
+
+  // Multiple memberships — let DT choose
+  if (leagueName) leagueName.textContent = 'Mis Equipos';
+
+  content.innerHTML = `
+    <div class="pt-6">
+      <div class="flex items-center justify-between mb-6">
+        <h2 class="font-display text-2xl text-white">🎮 Mis Equipos</h2>
+        <button onclick="window._dtLogout()" class="text-xs text-gray-500 hover:text-white transition-colors">Cerrar sesión</button>
+      </div>
+      <div class="space-y-3">
+        ${memberships.map(m => {
+          const team = m.teams;
+          const league = m.leagues;
+          const shieldHtml = team?.shield_url
+            ? `<img src="${team.shield_url}" class="w-10 h-10 rounded-full object-cover border border-white/10">`
+            : `<div class="w-10 h-10 rounded-full bg-pitch-700 border border-white/10 flex items-center justify-center text-lg font-display text-lime-400">${(team?.name || '?').charAt(0)}</div>`;
+
+          return `<div class="bg-pitch-800/60 border border-white/5 rounded-2xl p-4 hover:border-lime-400/20 transition-all cursor-pointer" onclick="window._dtSelectTeam('${m.team_id}', '${m.league_id}')">
+            <div class="flex items-center gap-4">
+              ${shieldHtml}
+              <div class="flex-1">
+                <h3 class="font-semibold text-white">${team?.name || '?'}</h3>
+                <p class="text-xs text-gray-500">${league?.name || '?'}</p>
+              </div>
+              <span class="text-gray-600">→</span>
+            </div>
+          </div>`;
+        }).join('')}
+      </div>
+    </div>
+  `;
+}
+
+window._dtSelectTeam = async (teamId, leagueId) => {
+  const m = state.memberships.find(x => x.team_id === teamId && x.league_id === leagueId);
+  if (!m) return;
+
+  _dtTeam = m.teams;
+  _dtLeague = m.leagues;
+
+  showScreen('dt');
+  const leagueName = $('dt-league-name');
+  if (leagueName) leagueName.textContent = _dtLeague.name;
+  $('btn-dt-back').onclick = () => { _dtTeam = null; _dtLeague = null; showScreen('hub'); };
+
+  const { data } = await supa.from('players').select('*').eq('team_id', teamId).order('name');
+  _dtPlayers = data || [];
+  showDTSubmissionForm();
+};
+
+window._dtLogout = async () => {
+  _dtTeam = null; _dtLeague = null; _dtPlayers = []; _dtPhotos = [];
+  try { await signOut(); } catch(e) {}
+  showScreen('public');
+};
+
+// ═══════════════════════════════════════════════════════════════
+// HUB: Render DT memberships alongside admin leagues
+// ═══════════════════════════════════════════════════════════════
+function renderHubMemberships() {
+  const memberships = state.memberships || [];
+  if (!memberships.length) return;
+
+  // Find or create the memberships container
+  let container = document.getElementById('hub-memberships');
+  if (!container) {
+    const hubList = $('hub-leagues-list');
+    if (!hubList) return;
+    container = document.createElement('div');
+    container.id = 'hub-memberships';
+    container.className = 'mt-8';
+    hubList.parentElement.appendChild(container);
+  }
+
+  container.innerHTML = `
+    <div class="flex items-center gap-3 mb-4">
+      <h2 class="font-display text-2xl text-white">🎮 Mis Equipos (DT)</h2>
+    </div>
+    <div class="space-y-3">
+      ${memberships.map(m => {
+        const team = m.teams;
+        const league = m.leagues;
+        const shieldHtml = team?.shield_url
+          ? `<img src="${team.shield_url}" class="w-10 h-10 rounded-full object-cover border border-white/10 shrink-0">`
+          : `<div class="w-10 h-10 rounded-full bg-pitch-700 border border-white/10 flex items-center justify-center text-lg font-display text-lime-400 shrink-0">${(team?.name || '?').charAt(0)}</div>`;
+
+        return `<div class="bg-pitch-800/60 border border-white/5 rounded-2xl p-4 hover:border-lime-400/20 transition-all">
+          <div class="flex items-center gap-4">
+            ${shieldHtml}
+            <div class="flex-1 min-w-0">
+              <h3 class="font-semibold text-white truncate">${team?.name || '?'}</h3>
+              <p class="text-xs text-gray-500">${league?.name || '?'} · ${m.role || 'DT'}</p>
+            </div>
+            <button onclick="window._enterAsDT('${m.team_id}','${m.league_id}')" class="bg-gradient-to-r from-lime-400 to-emerald-500 text-pitch-900 font-bold py-2 px-5 rounded-xl text-sm uppercase tracking-wider hover:from-lime-300 hover:to-emerald-400 transition-all shrink-0">Entrar →</button>
+          </div>
+        </div>`;
+      }).join('')}
+    </div>
+  `;
+}
+
+window._enterAsDT = async (teamId, leagueId) => {
+  const m = state.memberships.find(x => x.team_id === teamId && x.league_id === leagueId);
+  if (!m) return;
+
+  _dtTeam = m.teams;
+  _dtLeague = m.leagues;
+
+  const leagueName = $('dt-league-name');
+  if (leagueName) leagueName.textContent = _dtLeague.name;
+
+  showScreen('dt');
+
+  const { data } = await supa.from('players').select('*').eq('team_id', teamId).order('name');
+  _dtPlayers = data || [];
+  showDTSubmissionForm();
 };
