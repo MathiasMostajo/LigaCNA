@@ -272,55 +272,34 @@ function renderHubLeagues() {
   const el = $('hub-leagues-list'); if (!el) return;
   let html = '';
 
-  // DT memberships section
+  // ALWAYS show DT section
+  html += '<h3 class="font-display text-lg text-gray-400 mb-3">🎮 Mis Equipos (DT)</h3>';
   if (state.memberships?.length) {
-    html += '<div class="mb-6">';
-    html += '<h3 class="font-display text-lg text-gray-400 mb-3">🎮 Mis Equipos (DT)</h3>';
     html += state.memberships.map(m => {
       const team = m.teams || {};
       const league = m.leagues || {};
-      const shieldHtml = team.shield_url
+      const initial = (team.name || '?').charAt(0);
+      const shield = team.shield_url
         ? '<img src="' + team.shield_url + '" class="w-10 h-10 rounded-full object-cover border border-white/10 shrink-0">'
-        : '<div class="w-10 h-10 rounded-full bg-pitch-700 border border-white/10 flex items-center justify-center text-lg font-display text-lime-400 shrink-0">' + (team.name || '?').charAt(0) + '</div>';
-      return '<div class="bg-pitch-800/60 border border-white/5 rounded-2xl p-4 mb-2 hover:border-lime-400/20 transition-all">' +
-        '<div class="flex items-center gap-4">' + shieldHtml +
+        : '<div class="w-10 h-10 rounded-full bg-pitch-700 border border-white/10 flex items-center justify-center text-lg font-display text-lime-400 shrink-0">' + initial + '</div>';
+      return '<div class="bg-pitch-800/60 border border-white/5 rounded-2xl p-4 mb-2 hover:border-lime-400/20 transition-all"><div class="flex items-center gap-4">' + shield +
         '<div class="flex-1 min-w-0"><h3 class="font-display text-lg text-white truncate">' + (team.name || '?') + '</h3><p class="text-xs text-gray-500">' + (league.name || '?') + '</p></div>' +
-        '<button onclick="window._dtSelectTeam(\'' + m.team_id + '\',\'' + m.league_id + '\')" class="bg-lime-400/10 text-lime-400 border border-lime-400/20 font-bold py-2 px-4 rounded-xl text-sm hover:bg-lime-400/20 transition-all shrink-0">Entrar →</button>' +
-        '</div></div>';
+        '<button onclick="window._dtSelectTeam(\'' + m.team_id + '\',\'' + m.league_id + '\')" class="bg-lime-400/10 text-lime-400 border border-lime-400/20 font-bold py-2 px-4 rounded-xl text-sm hover:bg-lime-400/20 transition-all shrink-0">Entrar \u2192</button></div></div>';
     }).join('');
-    html += '</div>';
+  } else {
+    html += '<div class="bg-pitch-800/40 border border-dashed border-white/10 rounded-xl p-4 mb-2 text-center text-sm text-gray-600">Sin equipos vinculados. Pedile a un admin que te agregue.</div>';
   }
 
-  // Admin leagues section
-  if (!state.leagues.length && !state.memberships?.length) {
-    el.innerHTML = '<div class="bg-pitch-800/40 border border-dashed border-white/10 rounded-2xl p-12 text-center"><span class="text-4xl mb-4 block">🏆</span><p class="text-gray-500 mb-2">No tenés ligas ni equipos todavía</p><p class="text-sm text-gray-600">Creá tu primera liga o pedile a un admin que te agregue como DT</p></div>';
-    return;
-  }
-
+  // ALWAYS show Admin section
+  html += '<h3 class="font-display text-lg text-gray-400 mb-3 mt-6">🏆 Mis Ligas (Admin)</h3>';
   if (state.leagues.length) {
-    if (state.memberships?.length) {
-      html += '<h3 class="font-display text-lg text-gray-400 mb-3">🏆 Mis Ligas (Admin)</h3>';
-    }
     html += state.leagues.map(l => {
       const planColors = { superadmin: 'bg-yellow-400/10 text-yellow-400', elite: 'bg-purple-400/10 text-purple-400', pro: 'bg-lime-400/10 text-lime-400', amateur: 'bg-gray-500/10 text-gray-500' };
       const planClass = planColors[l.plan_type] || planColors.amateur;
-      return `<div class="bg-pitch-800/60 border border-white/5 rounded-2xl p-5 mb-3 hover:border-lime-400/20 transition-all glow">
-        <div class="flex items-center justify-between">
-          <div class="flex-1 min-w-0">
-            <div class="flex items-center gap-2 mb-1">
-              <h3 class="font-display text-xl text-white truncate">${l.name}</h3>
-              <span class="text-[10px] uppercase px-2 py-0.5 rounded-full font-semibold ${planClass}">${l.plan_type}</span>
-            </div>
-            <div class="flex items-center gap-4 text-xs text-gray-500">
-              <span>📝 ${l.slug}</span>
-              <span>🏟 ${l.max_teams} equipos · 👤 ${l.max_players_per_team} jug/eq</span>
-              <span>${l.is_public ? '🌐 Pública' : '🔒 Privada'}</span>
-            </div>
-          </div>
-          <button onclick="window._manageLeague('${l.id}')" class="bg-gradient-to-r from-lime-400 to-emerald-500 text-pitch-900 font-bold py-2 px-5 rounded-xl text-sm uppercase tracking-wider hover:from-lime-300 hover:to-emerald-400 transition-all shrink-0 ml-4">Gestionar →</button>
-        </div>
-      </div>`;
+      return '<div class="bg-pitch-800/60 border border-white/5 rounded-2xl p-5 mb-3 hover:border-lime-400/20 transition-all glow"><div class="flex items-center justify-between"><div class="flex-1 min-w-0"><div class="flex items-center gap-2 mb-1"><h3 class="font-display text-xl text-white truncate">' + l.name + '</h3><span class="text-[10px] uppercase px-2 py-0.5 rounded-full font-semibold ' + planClass + '">' + l.plan_type + '</span></div><div class="flex items-center gap-4 text-xs text-gray-500"><span>' + (l.is_public ? '🌐 Pública' : '🔒 Privada') + '</span></div></div><button onclick="window._manageLeague(\'' + l.id + '\')" class="bg-gradient-to-r from-lime-400 to-emerald-500 text-pitch-900 font-bold py-2 px-5 rounded-xl text-sm uppercase tracking-wider hover:from-lime-300 hover:to-emerald-400 transition-all shrink-0 ml-4">Gestionar \u2192</button></div></div>';
     }).join('');
+  } else {
+    html += '<div class="bg-pitch-800/40 border border-dashed border-white/10 rounded-xl p-4 mb-2 text-center text-sm text-gray-600">No tenés ligas. Creá tu primera liga arriba.</div>';
   }
 
   el.innerHTML = html;
