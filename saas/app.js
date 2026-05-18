@@ -1304,6 +1304,29 @@ window._showResultForm = (homeId, awayId, round) => {
       <input type="number" id="rf-ag" min="0" value="0" style="width:100%;box-sizing:border-box;" class="bg-pitch-900/60 border border-white/10 rounded-xl px-3 py-2.5 text-white text-center font-display text-2xl outline-none focus:border-lime-400/40">
     </div>
 
+    <!-- Player stats (expandable) -->
+    ${(homePlayers.length || awayPlayers.length) ? `
+      <button id="btn-toggle-pstats" class="w-full bg-pitch-900/40 border border-white/5 rounded-xl p-2 text-xs text-gray-500 hover:text-white transition-all mb-3 text-center">📋 Agregar stats de jugadores ▼</button>
+      <div id="rf-player-stats" class="hidden mb-3 max-h-60 overflow-y-auto">
+        ${homePlayers.length ? `<p class="text-[10px] text-lime-400 uppercase tracking-wider mb-1 font-semibold">${tn(homeId)}</p>` : ''}
+        ${homePlayers.map((p, i) => `<div class="flex items-center gap-1 py-1 border-b border-white/5 text-xs">
+          <span class="text-gray-500 w-7 shrink-0">${p.pos || '?'}</span>
+          <span class="text-white flex-1 truncate">${p.name}</span>
+          <span class="text-gray-600">⚽</span><input type="number" id="rf-hpg-${i}" data-pid="${p.id}" data-team="home" min="0" value="0" class="w-9 bg-pitch-900/60 border border-white/10 rounded px-1 py-0.5 text-white text-center text-xs outline-none">
+          <span class="text-gray-600">🎯</span><input type="number" id="rf-hpa-${i}" min="0" value="0" class="w-9 bg-pitch-900/60 border border-white/10 rounded px-1 py-0.5 text-white text-center text-xs outline-none">
+          <span class="text-gray-600">⭐</span><input type="number" id="rf-hpr-${i}" min="0" max="10" step="0.1" value="0" class="w-11 bg-pitch-900/60 border border-white/10 rounded px-1 py-0.5 text-white text-center text-xs outline-none">
+        </div>`).join('')}
+        ${awayPlayers.length ? `<p class="text-[10px] text-lime-400 uppercase tracking-wider mb-1 mt-2 font-semibold">${tn(awayId)}</p>` : ''}
+        ${awayPlayers.map((p, i) => `<div class="flex items-center gap-1 py-1 border-b border-white/5 text-xs">
+          <span class="text-gray-500 w-7 shrink-0">${p.pos || '?'}</span>
+          <span class="text-white flex-1 truncate">${p.name}</span>
+          <span class="text-gray-600">⚽</span><input type="number" id="rf-apg-${i}" data-pid="${p.id}" data-team="away" min="0" value="0" class="w-9 bg-pitch-900/60 border border-white/10 rounded px-1 py-0.5 text-white text-center text-xs outline-none">
+          <span class="text-gray-600">🎯</span><input type="number" id="rf-apa-${i}" min="0" value="0" class="w-9 bg-pitch-900/60 border border-white/10 rounded px-1 py-0.5 text-white text-center text-xs outline-none">
+          <span class="text-gray-600">⭐</span><input type="number" id="rf-apr-${i}" min="0" max="10" step="0.1" value="0" class="w-11 bg-pitch-900/60 border border-white/10 rounded px-1 py-0.5 text-white text-center text-xs outline-none">
+        </div>`).join('')}
+      </div>
+    ` : ''}
+
     <button id="btn-save-result" class="w-full bg-gradient-to-r from-lime-400 to-emerald-500 text-pitch-900 font-bold py-3 rounded-xl text-sm uppercase tracking-wider hover:from-lime-300 hover:to-emerald-400 transition-all shadow-lg shadow-lime-400/10 active:scale-[.98]">
       ✅ Guardar Resultado
     </button>
@@ -1311,9 +1334,37 @@ window._showResultForm = (homeId, awayId, round) => {
 
   $('result-form').classList.remove('hidden');
 
+  // Toggle player stats
+  const toggleBtn = $('btn-toggle-pstats');
+  if (toggleBtn) {
+    toggleBtn.onclick = () => {
+      const el = $('rf-player-stats');
+      if (el) { el.classList.toggle('hidden'); toggleBtn.textContent = el.classList.contains('hidden') ? '📋 Agregar stats de jugadores ▼' : '📋 Ocultar stats ▲'; }
+    };
+  }
+
   $('btn-save-result').onclick = async () => {
     const hg = parseInt($('rf-hg').value) || 0;
     const ag = parseInt($('rf-ag').value) || 0;
+
+    // Collect player stats
+    const playerStats = {};
+    homePlayers.forEach((p, i) => {
+      const goals = parseInt($(`rf-hpg-${i}`)?.value) || 0;
+      const assists = parseInt($(`rf-hpa-${i}`)?.value) || 0;
+      const rating = parseFloat($(`rf-hpr-${i}`)?.value) || 0;
+      if (goals || assists || rating) {
+        playerStats[p.id] = { goals, assists, rating, position: p.pos || '', played: true };
+      }
+    });
+    awayPlayers.forEach((p, i) => {
+      const goals = parseInt($(`rf-apg-${i}`)?.value) || 0;
+      const assists = parseInt($(`rf-apa-${i}`)?.value) || 0;
+      const rating = parseFloat($(`rf-apr-${i}`)?.value) || 0;
+      if (goals || assists || rating) {
+        playerStats[p.id] = { goals, assists, rating, position: p.pos || '', played: true };
+      }
+    });
 
     $('btn-save-result').disabled = true;
     $('btn-save-result').textContent = 'Guardando...';
@@ -1325,11 +1376,32 @@ window._showResultForm = (homeId, awayId, round) => {
         away_id: awayId,
         home_goals: hg,
         away_goals: ag,
+        player_stats: Object.keys(playerStats).length ? playerStats : null,
         round: round,
         date: new Date().toISOString().split('T')[0],
       }).select().single();
 
       if (error) throw error;
+
+      // Update player aggregates
+      for (const [pid, st] of Object.entries(playerStats)) {
+        const player = _playersCache.find(p => p.id === pid);
+        if (!player) continue;
+        const newRatings = [...(player.ratings || [])];
+        if (st.rating > 0) newRatings.push(st.rating);
+        await supa.from('players').update({
+          goals: (player.goals || 0) + st.goals,
+          assists: (player.assists || 0) + st.assists,
+          matches_played: (player.matches_played || 0) + 1,
+          ratings: newRatings,
+        }).eq('id', pid);
+        // Update local cache
+        player.goals = (player.goals || 0) + st.goals;
+        player.assists = (player.assists || 0) + st.assists;
+        player.matches_played = (player.matches_played || 0) + 1;
+        player.ratings = newRatings;
+      }
+
       _matchesCache.push(data);
       $('result-form').classList.add('hidden');
       $('fixture-rounds').innerHTML = renderFixtureRounds();
@@ -3782,25 +3854,18 @@ window._addDTEmail = async (teamId) => {
   if (!email || !email.includes('@')) { toast('⚠️ Email inválido', true); return; }
 
   try {
-    // Check if already exists
-    const { data: existing } = await supa.from('team_members').select('id')
-      .eq('team_id', teamId).eq('email', email).maybeSingle();
-    if (existing) { toast('⚠️ Este email ya está vinculado', true); return; }
-
-    // Check if this email already has an account — auto-link user_id
-    const { data: users } = await supa.from('profiles').select('id, email').eq('email', email).maybeSingle();
-
     const { error } = await supa.from('team_members').insert({
       league_id: state.activeLeague.id,
       team_id: teamId,
       email,
-      user_id: users?.id || null,
     });
-    if (error) throw error;
+    if (error) {
+      if (error.message.includes('duplicate') || error.code === '23505') { toast('⚠️ Este email ya está vinculado', true); return; }
+      throw error;
+    }
 
     input.value = '';
-    toast('✅ DT vinculado');
-    // Refresh the team detail
+    toast('✅ DT vinculado — el trigger auto-vincula cuando se registre');
     window._viewTeam(teamId);
   } catch(e) { toast('⚠️ ' + e.message, true); }
 };
