@@ -979,7 +979,7 @@ window._uploadShield = async (teamId, event) => {
           ctx.fillStyle = '#ffffff';
           ctx.fillRect(0, 0, 200, 200);
           const scale = Math.min(200 / img.width, 200 / img.height);
-          const w = img.width * scale, h = img.height * scale;
+          const w2 = img.width * scale, h2 = img.height * scale;
           ctx.drawImage(img, (200 - w) / 2, (200 - h) / 2, w, h);
           resolve(canvas.toDataURL('image/jpeg', 0.8));
         };
@@ -2478,12 +2478,12 @@ window._dtSubmit = async () => {
           const img = new Image();
           img.onload = () => {
             const canvas = document.createElement('canvas');
-            canvas.width = 120; canvas.height = 90;
+            canvas.width = 480; canvas.height = 360;
             const ctx = canvas.getContext('2d');
-            const scale = Math.min(120 / img.width, 90 / img.height);
-            const w = img.width * scale, h = img.height * scale;
-            ctx.drawImage(img, (120 - w) / 2, (90 - h) / 2, w, h);
-            resolve(canvas.toDataURL('image/jpeg', 0.5));
+            const scale = Math.min(480 / img.width, 360 / img.height);
+            const w2 = img.width * scale, h2 = img.height * scale;
+            ctx.drawImage(img, (480 - w2) / 2, (360 - h2) / 2, w2, h2);
+            resolve(canvas.toDataURL('image/jpeg', 0.75));
           };
           img.onerror = () => resolve(null);
           img.src = photo;
