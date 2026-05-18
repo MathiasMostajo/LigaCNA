@@ -5,7 +5,7 @@ const SB_URL = 'https://wrgexwyjivfxijivdbqa.supabase.co';
 const SB_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6IndyZ2V4d3lqaXZmeGlqaXZkYnFhIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzM1NDI2NTgsImV4cCI6MjA4OTExODY1OH0.KGBX0-PQGiwrAHrWrZ1TS_rbHtDbQwNA0F2NRhlT830';
 
 // ─── Cache bust ──────────────────────────────────────────────
-const APP_VERSION = 'v42';
+const APP_VERSION = 'v43';
 const SAAS_KEY = 'lcna_saas_version';
 if (localStorage.getItem(SAAS_KEY) !== APP_VERSION) {
   console.log('[AUTH] Version changed to', APP_VERSION);
@@ -129,12 +129,13 @@ function setActiveLeague(league) {
 }
 
 // ─── DT: Load team memberships ───────────────────────────────
-async function loadMyMemberships(email) {
-  console.log('[AUTH] loading memberships for', email);
+async function loadMyMemberships(userId, email) {
+  console.log('[AUTH] loading memberships for', email, userId);
   try {
-    const { data, error } = await supa.from('team_members').select('*, teams(*), leagues(id, name, slug, plan_type, max_players_per_team, settings, is_public)')
-      .eq('email', email);
-    if (error) { console.warn('[AUTH] memberships error:', error.message); return []; }
+    const { data, error } = await supa.from('team_members')
+      .select('*, teams(*), leagues(id, name, slug, plan_type, max_players_per_team, settings, is_public)')
+      .or('user_id.eq.' + userId + ',email.eq.' + email);
+    if (error) { console.warn('[AUTH] memberships error:', error); return []; }
     console.log('[AUTH] found', data?.length || 0, 'memberships');
     return data || [];
   } catch(e) { console.warn('[AUTH] loadMyMemberships exception:', e.message); return []; }
