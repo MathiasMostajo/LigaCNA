@@ -247,7 +247,7 @@
         <div><h1 class="font-display text-xl tracking-wide text-white leading-none" id="dash-league-name">Liga</h1><p class="text-[9px] tracking-[.3em] uppercase text-lime-400/50 font-semibold">Admin Panel</p></div>
       </div>
     </div>
-    <nav class="flex-1 p-3 space-y-1">
+    <nav class="flex-1 p-3 space-y-1 overflow-y-auto">
       <button data-nav="inbox" class="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium text-gray-400 hover:text-white hover:bg-white/5 transition-all group bg-white/10"><span class="text-lg">📥</span><span>Bandeja</span><span id="inbox-badge" class="ml-auto text-[10px] bg-red-500/20 text-red-400 px-2 py-0.5 rounded-full font-mono hidden"></span></button>
       <button data-nav="scanner" class="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium text-gray-400 hover:text-white hover:bg-white/5 transition-all group"><span class="text-lg">🤖</span><span>Escáner IA</span><span class="ml-auto text-[10px] bg-lime-400/10 text-lime-400 px-2 py-0.5 rounded-full font-mono">AI</span></button>
       <button data-nav="fixture" class="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium text-gray-400 hover:text-white hover:bg-white/5 transition-all group"><span class="text-lg">📅</span><span>Fixture</span></button>
@@ -258,6 +258,12 @@
       <div class="h-px bg-white/5 my-3"></div>
       <button data-nav="settings" class="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium text-gray-400 hover:text-white hover:bg-white/5 transition-all group"><span class="text-lg">⚙️</span><span>Ajustes</span></button>
     </nav>
+    <!-- Ad placeholder -->
+    <div class="p-3 border-t border-white/5 shrink-0">
+      <div class="bg-pitch-900/40 border border-dashed border-white/10 rounded-xl p-4 text-center">
+        <p class="text-[9px] text-gray-700 uppercase tracking-wider">Anuncio</p>
+      </div>
+    </div>
     <div class="p-4 border-t border-white/5">
       <button id="btn-back-hub" class="w-full text-left flex items-center gap-2 text-sm text-gray-500 hover:text-lime-400 transition-colors mb-3"><span>←</span><span>Mis Ligas</span></button>
       <div class="flex items-center gap-3">
