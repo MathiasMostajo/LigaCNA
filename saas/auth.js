@@ -174,13 +174,15 @@ async function handleSession(session) {
 
   const profile = await withTimeout(loadProfile(session.user.id), 8000, null);
   const leagues = await withTimeout(loadMyLeagues(session.user.id), 8000, []);
+  const memberships = await withTimeout(loadMyMemberships(session.user.id, session.user.email), 8000, []);
 
   state.profile = profile || defaultProfile;
   state.leagues = leagues || [];
+  state.memberships = memberships || [];
   state.isSuperadmin = state.profile.role === 'superadmin';
   state.loading = false;
 
-  console.log('[AUTH] ready — superadmin:', state.isSuperadmin, ', leagues:', state.leagues.length);
+  console.log('[AUTH] ready — superadmin:', state.isSuperadmin, ', leagues:', state.leagues.length, ', memberships:', state.memberships.length);
   emit('auth:ready', state);
 }
 
