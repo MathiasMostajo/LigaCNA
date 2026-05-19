@@ -28,7 +28,7 @@ function initPublicUI() {
         const el = $('public-results');
         if (!leagues.length) { el.innerHTML = '<div class="p-4 text-sm text-gray-500">No se encontraron ligas</div>'; }
         else {
-          el.innerHTML = leagues.map(l => `<button onclick="window._viewPublicLeague('${l.slug}')" class="w-full text-left px-4 py-3 hover:bg-white/5 transition-all border-b border-white/5 last:border-0">
+          el.innerHTML = leagues.map(l => `<button onclick="window.location.hash='#/liga/${l.slug}'" class="w-full text-left px-4 py-3 hover:bg-white/5 transition-all border-b border-white/5 last:border-0">
             <div class="font-semibold text-white text-sm">${l.name}</div>
             <div class="text-xs text-gray-500">${l.max_teams} equipos · ${l.slug}</div>
           </button>`).join('');
@@ -47,11 +47,32 @@ function initPublicUI() {
 }
 
 window._viewPublicLeague = async (slug) => {
-  $('public-results').classList.add('hidden');
-  $('public-search').value = '';
+  $('public-results')?.classList.add('hidden');
+  if ($('public-search')) $('public-search').value = '';
+
+  // Make sure we're on the public screen
+  showScreen('public');
+
+  const content = $('public-league-content');
+  showLoading(content, 'Cargando liga...');
+
+  // Hide landing content, show league view
+  const landingContent = document.querySelector('#screen-public > .slide-up');
+  const footer = document.querySelector('#screen-public > footer');
+  if (landingContent) landingContent.classList.add('hidden');
+  if (footer) footer.classList.add('hidden');
+  $('public-league-view').classList.remove('hidden');
+
   try {
     const league = await loadPublicLeague(slug);
-    if (!league) { toast('Liga no encontrada', true); return; }
+    if (!league) {
+      toast('Liga no encontrada', true);
+      // Restore landing
+      if (landingContent) landingContent.classList.remove('hidden');
+      if (footer) footer.classList.remove('hidden');
+      $('public-league-view').classList.add('hidden');
+      return;
+    }
 
     // Load public data
     const [teamsRes, matchesRes, playersRes] = await Promise.all([
@@ -63,16 +84,13 @@ window._viewPublicLeague = async (slug) => {
     const teams = teamsRes.data || [], matches = matchesRes.data || [], players = playersRes.data || [];
     const tn = id => teams.find(t => t.id === id)?.name || '?';
 
-    const content = $('public-league-content');
-    showLoading(content, 'Cargando liga...');
-
     content.innerHTML = `
       <div class="flex items-center justify-between mb-4">
         <div>
           <h2 class="font-display text-3xl text-white">${league.name}</h2>
           <p class="text-sm text-gray-500">${teams.length} equipos · ${matches.length} partidos jugados</p>
         </div>
-        <button onclick="document.getElementById('public-league-view').classList.add('hidden')" class="text-gray-500 hover:text-white text-sm">✕ Cerrar</button>
+        <button onclick="window._closePublicLeague()" class="text-gray-500 hover:text-white text-sm">✕ Cerrar</button>
       </div>
 
       <!-- Public view tabs -->
@@ -114,8 +132,20 @@ window._viewPublicLeague = async (slug) => {
         </div>`).join('') || '<p class="text-gray-600 text-sm">Sin partidos</p>'}
       </div>
     `;
-    $('public-league-view').classList.remove('hidden');
-  } catch(e) { toast('Error: ' + e.message, true); }
+    window.scrollTo(0, 0);
+  } catch(e) {
+    toast('Error: ' + e.message, true);
+    window._closePublicLeague();
+  }
+};
+
+window._closePublicLeague = () => {
+  $('public-league-view').classList.add('hidden');
+  const landingContent = document.querySelector('#screen-public > .slide-up');
+  const footer = document.querySelector('#screen-public > footer');
+  if (landingContent) landingContent.classList.remove('hidden');
+  if (footer) footer.classList.remove('hidden');
+  window.location.hash = '';
 };
 
 function buildPublicStandings(teams, matches) {
@@ -254,26 +284,8 @@ function renderHubLeagues() {
   const el = $('hub-leagues-list'); if (!el) return;
   let html = '';
 
-  // ALWAYS show DT section
-  html += '<h3 class="font-display text-lg text-gray-400 mb-3">🎮 Mis Equipos (DT)</h3>';
-  if (state.memberships?.length) {
-    html += state.memberships.map(m => {
-      const team = m.teams || {};
-      const league = m.leagues || {};
-      const initial = (team.name || '?').charAt(0);
-      const shield = team.shield_url
-        ? '<img src="' + team.shield_url + '" class="w-10 h-10 rounded-full object-cover border border-white/10 shrink-0">'
-        : '<div class="w-10 h-10 rounded-full bg-pitch-700 border border-white/10 flex items-center justify-center text-lg font-display text-lime-400 shrink-0">' + initial + '</div>';
-      return '<div class="bg-pitch-800/60 border border-white/5 rounded-2xl p-4 mb-2 hover:border-lime-400/20 transition-all"><div class="flex items-center gap-4">' + shield +
-        '<div class="flex-1 min-w-0"><h3 class="font-display text-lg text-white truncate">' + (team.name || '?') + '</h3><p class="text-xs text-gray-500">' + (league.name || '?') + '</p></div>' +
-        '<button onclick="window._dtSelectTeam(\'' + m.team_id + '\',\'' + m.league_id + '\')" class="bg-lime-400/10 text-lime-400 border border-lime-400/20 font-bold py-2 px-4 rounded-xl text-sm hover:bg-lime-400/20 transition-all shrink-0">Entrar \u2192</button></div></div>';
-    }).join('');
-  } else {
-    html += '<div class="bg-pitch-800/40 border border-dashed border-white/10 rounded-xl p-4 mb-2 text-center text-sm text-gray-600">Sin equipos vinculados. Pedile a un admin que te agregue.</div>';
-  }
-
-  // ALWAYS show Admin section
-  html += '<h3 class="font-display text-lg text-gray-400 mb-3 mt-6">🏆 Mis Ligas (Admin)</h3>';
+  // Admin section (DT section is handled by renderHubMemberships in dt.js)
+  html += '<h3 class="font-display text-lg text-gray-400 mb-3">🏆 Mis Ligas (Admin)</h3>';
   if (state.leagues.length) {
     html += state.leagues.map(l => {
       const planColors = { superadmin: 'bg-yellow-400/10 text-yellow-400', elite: 'bg-purple-400/10 text-purple-400', pro: 'bg-lime-400/10 text-lime-400', amateur: 'bg-gray-500/10 text-gray-500' };
@@ -492,7 +504,12 @@ function handleHashRoute() {
         }
 
         // Not a DT — show public view
-        loadPublicLeague(league.id);
+        showScreen('public');
+        _bound.public = false;
+        initPublicUI();
+        $('public-results').classList.add('hidden');
+        $('public-search').value = '';
+        window._viewPublicLeague(league.slug);
       });
     }
   }
