@@ -1,0 +1,114 @@
+// ═══════════════════════════════════════════════════════════════
+// shared.js — Shared utilities, caches, and data loaders
+// ═══════════════════════════════════════════════════════════════
+import { supa, state } from './auth.js';
+
+// ─── DOM helpers ─────────────────────────────────────────────
+const $ = id => document.getElementById(id);
+
+function showScreen(id) {
+  document.querySelectorAll('[data-screen]').forEach(el => el.classList.add('hidden'));
+  const t = $(`screen-${id}`); if (t) t.classList.remove('hidden');
+}
+
+function showLoading(container, msg) {
+  if (typeof container === 'string') container = document.querySelector(container);
+  if (!container) return;
+  container.innerHTML = '<div class="flex flex-col items-center justify-center py-12 text-center"><svg class="animate-spin h-8 w-8 mb-3 text-lime-400/30" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" fill="none"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg><p class="text-sm text-gray-600">' + (msg || 'Cargando...') + '</p></div>';
+}
+
+function toast(msg, isError = false) {
+  const el = document.createElement('div');
+  el.className = `fixed bottom-4 right-4 z-[9999] px-5 py-3 rounded-xl text-sm font-semibold shadow-xl ${isError ? 'bg-red-500/90 text-white' : 'bg-emerald-500/90 text-pitch-900'}`;
+  el.textContent = msg;
+  document.body.appendChild(el);
+  setTimeout(() => { el.style.opacity = '0'; setTimeout(() => el.remove(), 300); }, 3000);
+}
+
+// ─── Plan limits ─────────────────────────────────────────────
+function getPlanLimits(planType) {
+  const plans = {
+    amateur:    { maxTeams: 12, maxPlayers: 15, hasAds: true,  hasScan: false },
+    pro:        { maxTeams: 18, maxPlayers: 20, hasAds: false, hasScan: true  },
+    elite:      { maxTeams: 999, maxPlayers: 999, hasAds: false, hasScan: true },
+    superadmin: { maxTeams: 999, maxPlayers: 999, hasAds: false, hasScan: true },
+  };
+  return plans[planType] || plans.amateur;
+}
+
+// ─── Shared caches (mutable, shared across modules) ──────────
+const cache = {
+  teams: [],
+  players: [],
+  matches: [],
+  schedule: [],
+  activeTeamId: null,
+};
+
+// ─── Data loaders ────────────────────────────────────────────
+async function loadTeams() {
+  const { data, error } = await supa.from('teams').select('*')
+    .eq('league_id', state.activeLeague.id)
+    .eq('replaced', false)
+    .order('created_at');
+  if (error) { console.error(error); return []; }
+  cache.teams = data || [];
+  return cache.teams;
+}
+
+async function loadPlayers(teamId) {
+  const filter = supa.from('players').select('*').eq('league_id', state.activeLeague.id);
+  if (teamId) filter.eq('team_id', teamId);
+  const { data, error } = await filter.order('goals', { ascending: false });
+  if (error) { console.error(error); return []; }
+  cache.players = data || [];
+  return cache.players;
+}
+
+async function loadMatches() {
+  const { data, error } = await supa.from('matches').select('*')
+    .eq('league_id', state.activeLeague.id)
+    .order('round');
+  if (error) { console.error(error); return []; }
+  cache.matches = data || [];
+  return cache.matches;
+}
+
+// Team name by ID
+function tn(teamId) {
+  return cache.teams.find(t => t.id === teamId)?.name || '?';
+}
+
+// ─── Rating chart SVG builder ────────────────────────────────
+function buildRatingChart(ratings) {
+  if (!ratings || !ratings.length) return '<p class="text-gray-600 text-xs">Sin datos de rating</p>';
+
+  const w = 280, h = 80, pad = 20;
+  const vals = ratings.map(Number);
+  const min = Math.min(...vals, 5), max = Math.max(...vals, 9);
+  const range = max - min || 1;
+
+  const points = vals.map((v, i) => {
+    const x = pad + (i / Math.max(vals.length - 1, 1)) * (w - 2 * pad);
+    const y = h - pad - ((v - min) / range) * (h - 2 * pad);
+    return `${x},${y}`;
+  }).join(' ');
+
+  const avg = (vals.reduce((a, b) => a + b, 0) / vals.length).toFixed(1);
+
+  return `<svg viewBox="0 0 ${w} ${h}" class="w-full max-w-xs">
+    <polyline points="${points}" fill="none" stroke="#00ff87" stroke-width="2" stroke-linejoin="round"/>
+    ${vals.map((v, i) => {
+      const x = pad + (i / Math.max(vals.length - 1, 1)) * (w - 2 * pad);
+      const y = h - pad - ((v - min) / range) * (h - 2 * pad);
+      return `<circle cx="${x}" cy="${y}" r="3" fill="#00ff87"/>`;
+    }).join('')}
+    <text x="${w - pad}" y="12" fill="#666" font-size="10" text-anchor="end">Prom: ${avg}</text>
+  </svg>`;
+}
+
+export {
+  $, showScreen, showLoading, toast, getPlanLimits,
+  cache, loadTeams, loadPlayers, loadMatches, tn,
+  buildRatingChart,
+};
