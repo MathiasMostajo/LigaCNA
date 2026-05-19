@@ -240,41 +240,6 @@ window._runComparison = () => {
 };
 
 // ═══════════════════════════════════════════════════════════════
-// RATING EVOLUTION CHART
-// ═══════════════════════════════════════════════════════════════
-function buildRatingChart(ratings) {
-  if (!ratings || ratings.length < 2) return '';
-  const nums = ratings.map(Number);
-  const min = Math.min(...nums) - 0.5;
-  const max = Math.max(...nums) + 0.5;
-  const range = max - min || 1;
-  const w = 300, h = 70, pad = 8;
-  const avg = (nums.reduce((a,b) => a+b, 0) / nums.length).toFixed(1);
-  const avgY = (h - pad - ((avg - min) / range) * (h - pad * 2)).toFixed(1);
-
-  const points = nums.map((r, i) => {
-    const x = (pad + (i / (nums.length - 1)) * (w - pad * 2)).toFixed(1);
-    const y = (h - pad - ((r - min) / range) * (h - pad * 2)).toFixed(1);
-    return x + ',' + y;
-  }).join(' ');
-
-  const dots = nums.map((r, i) => {
-    const x = (pad + (i / (nums.length - 1)) * (w - pad * 2)).toFixed(1);
-    const y = (h - pad - ((r - min) / range) * (h - pad * 2)).toFixed(1);
-    return `<circle cx="${x}" cy="${y}" r="2.5" fill="#00ff87"/>`;
-  }).join('');
-
-  return `<div class="mb-4">
-    <p class="text-xs text-gray-500 uppercase tracking-wider font-semibold mb-2">📈 Evolución de Rating</p>
-    <svg viewBox="0 0 ${w} ${h}" class="w-full bg-pitch-900/30 rounded-lg" style="height:80px">
-      <line x1="${pad}" y1="${avgY}" x2="${w-pad}" y2="${avgY}" stroke="rgba(0,255,135,0.15)" stroke-dasharray="3"/>
-      <polyline points="${points}" fill="none" stroke="#00ff87" stroke-width="2" stroke-linejoin="round"/>
-      ${dots}
-      <text x="${w-pad}" y="${avgY - 4}" text-anchor="end" fill="rgba(0,255,135,0.4)" font-size="8" font-family="monospace">${avg}</text>
-    </svg>
-  </div>`;
-}
-
 // Photo preview modal
 window._previewPhoto = (subId, index) => {
   const body = $('result-form-body');
