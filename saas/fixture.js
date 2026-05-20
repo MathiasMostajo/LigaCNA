@@ -396,6 +396,7 @@ window._viewMatchDetail = async (matchId) => {
 
   // Show as modal
   const body = $('result-form-body');
+  const isAdmin = state.activeLeague && state.activeLeague.admin_id === state.user?.id;
   body.innerHTML = `
     <div class="grid grid-cols-3 gap-3 items-center text-center mb-4 py-3 bg-pitch-900/40 rounded-xl">
       <div><p class="font-display text-sm text-white">${homeName}</p></div>
@@ -407,8 +408,222 @@ window._viewMatchDetail = async (matchId) => {
       <div><p class="text-xs text-gray-500 font-semibold mb-2">✈️ ${awayName}</p>${renderPlayers(match.away_id)}</div>
     </div>
     <p class="text-xs text-gray-600 mt-3 text-center">${match.date || ''}</p>
+    ${isAdmin ? `
+      <div class="flex gap-2 mt-4 pt-3 border-t border-white/5">
+        <button onclick="window._editMatch('${match.id}')" class="flex-1 bg-blue-500/10 text-blue-400 border border-blue-500/20 py-2 rounded-xl text-sm font-semibold hover:bg-blue-500/20 transition-all">✏️ Editar</button>
+        <button onclick="window._deleteMatch('${match.id}')" class="bg-red-500/10 text-red-400 border border-red-500/20 py-2 px-4 rounded-xl text-sm font-semibold hover:bg-red-500/20 transition-all">🗑</button>
+      </div>
+    ` : ''}
   `;
   $('result-form').classList.remove('hidden');
+};
+
+// ─── Reverse player stats from a match ──────────────────────
+async function reversePlayerStats(match) {
+  const ps = match.player_stats || {};
+  for (const [pid, st] of Object.entries(ps)) {
+    const player = cache.players.find(p => p.id === pid);
+    if (!player) continue;
+
+    const newGoals = Math.max(0, (player.goals || 0) - (st.goals || 0));
+    const newAssists = Math.max(0, (player.assists || 0) - (st.assists || 0));
+    const newMP = Math.max(0, (player.matches_played || 0) - 1);
+
+    // Remove the rating entry (remove first matching value)
+    const newRatings = [...(player.ratings || [])];
+    if (st.rating > 0) {
+      const idx = newRatings.findIndex(r => Number(r) === Number(st.rating));
+      if (idx !== -1) newRatings.splice(idx, 1);
+    }
+
+    const { error } = await supa.from('players').update({
+      goals: newGoals, assists: newAssists, matches_played: newMP, ratings: newRatings,
+    }).eq('id', pid);
+
+    if (!error) {
+      player.goals = newGoals;
+      player.assists = newAssists;
+      player.matches_played = newMP;
+      player.ratings = newRatings;
+    }
+  }
+}
+
+// ─── Delete match ────────────────────────────────────────────
+window._deleteMatch = async (matchId) => {
+  const match = cache.matches.find(m => m.id === matchId);
+  if (!match) return;
+  if (!confirm(`¿Borrar ${tn(match.home_id)} ${match.home_goals}–${match.away_goals} ${tn(match.away_id)}? Se revierten todas las estadísticas. No se puede deshacer.`)) return;
+
+  try {
+    // Reverse player stats first
+    await reversePlayerStats(match);
+
+    // Delete the match
+    const { error } = await supa.from('matches').delete().eq('id', matchId);
+    if (error) throw error;
+
+    // Remove from cache
+    cache.matches = cache.matches.filter(m => m.id !== matchId);
+
+    $('result-form').classList.add('hidden');
+    $('fixture-rounds').innerHTML = renderFixtureRounds();
+    toast('🗑 Partido eliminado');
+  } catch(e) {
+    toast('⚠️ ' + e.message, true);
+  }
+};
+
+// ─── Edit match ──────────────────────────────────────────────
+window._editMatch = (matchId) => {
+  const match = cache.matches.find(m => m.id === matchId);
+  if (!match) return;
+
+  const homeId = match.home_id, awayId = match.away_id;
+  const ps = match.player_stats || {};
+
+  const homePlayers = cache.players.filter(p => p.team_id === homeId);
+  const awayPlayers = cache.players.filter(p => p.team_id === awayId);
+
+  const body = $('result-form-body');
+  body.innerHTML = `
+    <div class="grid grid-cols-[1fr_auto_1fr] gap-3 items-center mb-5">
+      <div class="text-center">
+        <p class="font-semibold text-white text-sm mb-1">${tn(homeId)}</p>
+        <p class="text-[10px] text-gray-500">🏠 LOCAL</p>
+      </div>
+      <span class="text-gray-600">vs</span>
+      <div class="text-center">
+        <p class="font-semibold text-white text-sm mb-1">${tn(awayId)}</p>
+        <p class="text-[10px] text-gray-500">✈️ VISITANTE</p>
+      </div>
+    </div>
+
+    <div style="display:grid;grid-template-columns:1fr 30px 1fr;gap:8px;align-items:center;margin-bottom:20px;">
+      <input type="number" id="rf-hg" min="0" value="${match.home_goals}" style="width:100%;box-sizing:border-box;" class="bg-pitch-900/60 border border-white/10 rounded-xl px-3 py-2.5 text-white text-center font-display text-2xl outline-none focus:border-lime-400/40">
+      <span class="text-gray-500 text-lg text-center">–</span>
+      <input type="number" id="rf-ag" min="0" value="${match.away_goals}" style="width:100%;box-sizing:border-box;" class="bg-pitch-900/60 border border-white/10 rounded-xl px-3 py-2.5 text-white text-center font-display text-2xl outline-none focus:border-lime-400/40">
+    </div>
+
+    ${(homePlayers.length || awayPlayers.length) ? `
+      <button id="btn-toggle-pstats" class="w-full bg-pitch-900/40 border border-white/5 rounded-xl p-2 text-xs text-gray-500 hover:text-white transition-all mb-3 text-center">📋 Stats de jugadores ▲</button>
+      <div id="rf-player-stats" class="mb-3 max-h-60 overflow-y-auto">
+        ${homePlayers.length ? `<p class="text-[10px] text-lime-400 uppercase tracking-wider mb-1 font-semibold">${tn(homeId)}</p>` : ''}
+        ${homePlayers.map((p, i) => {
+          const st = ps[p.id] || {};
+          return `<div class="flex items-center gap-1 py-1 border-b border-white/5 text-xs">
+            <span class="text-gray-500 w-7 shrink-0">${p.pos || '?'}</span>
+            <span class="text-white flex-1 truncate">${p.name}</span>
+            <span class="text-gray-600">⚽</span><input type="number" id="rf-hpg-${i}" data-pid="${p.id}" data-team="home" min="0" value="${st.goals || 0}" class="w-9 bg-pitch-900/60 border border-white/10 rounded px-1 py-0.5 text-white text-center text-xs outline-none">
+            <span class="text-gray-600">🎯</span><input type="number" id="rf-hpa-${i}" min="0" value="${st.assists || 0}" class="w-9 bg-pitch-900/60 border border-white/10 rounded px-1 py-0.5 text-white text-center text-xs outline-none">
+            <span class="text-gray-600">⭐</span><input type="number" id="rf-hpr-${i}" min="0" max="10" step="0.1" value="${st.rating || 0}" class="w-11 bg-pitch-900/60 border border-white/10 rounded px-1 py-0.5 text-white text-center text-xs outline-none">
+          </div>`;
+        }).join('')}
+        ${awayPlayers.length ? `<p class="text-[10px] text-lime-400 uppercase tracking-wider mb-1 mt-2 font-semibold">${tn(awayId)}</p>` : ''}
+        ${awayPlayers.map((p, i) => {
+          const st = ps[p.id] || {};
+          return `<div class="flex items-center gap-1 py-1 border-b border-white/5 text-xs">
+            <span class="text-gray-500 w-7 shrink-0">${p.pos || '?'}</span>
+            <span class="text-white flex-1 truncate">${p.name}</span>
+            <span class="text-gray-600">⚽</span><input type="number" id="rf-apg-${i}" data-pid="${p.id}" data-team="away" min="0" value="${st.goals || 0}" class="w-9 bg-pitch-900/60 border border-white/10 rounded px-1 py-0.5 text-white text-center text-xs outline-none">
+            <span class="text-gray-600">🎯</span><input type="number" id="rf-apa-${i}" min="0" value="${st.assists || 0}" class="w-9 bg-pitch-900/60 border border-white/10 rounded px-1 py-0.5 text-white text-center text-xs outline-none">
+            <span class="text-gray-600">⭐</span><input type="number" id="rf-apr-${i}" min="0" max="10" step="0.1" value="${st.rating || 0}" class="w-11 bg-pitch-900/60 border border-white/10 rounded px-1 py-0.5 text-white text-center text-xs outline-none">
+          </div>`;
+        }).join('')}
+      </div>
+    ` : ''}
+
+    <div class="flex gap-2">
+      <button id="btn-save-edit" class="flex-1 bg-gradient-to-r from-lime-400 to-emerald-500 text-pitch-900 font-bold py-3 rounded-xl text-sm uppercase tracking-wider hover:from-lime-300 hover:to-emerald-400 transition-all shadow-lg shadow-lime-400/10 active:scale-[.98]">
+        💾 Guardar Cambios
+      </button>
+    </div>
+  `;
+
+  // Toggle player stats
+  const toggleBtn = $('btn-toggle-pstats');
+  if (toggleBtn) {
+    toggleBtn.onclick = () => {
+      const el = $('rf-player-stats');
+      if (el) { el.classList.toggle('hidden'); toggleBtn.textContent = el.classList.contains('hidden') ? '📋 Stats de jugadores ▼' : '📋 Stats de jugadores ▲'; }
+    };
+  }
+
+  // Save handler
+  $('btn-save-edit').onclick = async () => {
+    const hg = parseInt($('rf-hg').value) || 0;
+    const ag = parseInt($('rf-ag').value) || 0;
+
+    // Collect new player stats
+    const newPlayerStats = {};
+    homePlayers.forEach((p, i) => {
+      const goals = parseInt($(`rf-hpg-${i}`)?.value) || 0;
+      const assists = parseInt($(`rf-hpa-${i}`)?.value) || 0;
+      const rating = parseFloat($(`rf-hpr-${i}`)?.value) || 0;
+      if (goals || assists || rating) {
+        newPlayerStats[p.id] = { goals, assists, rating, position: p.pos || '', played: true };
+      }
+    });
+    awayPlayers.forEach((p, i) => {
+      const goals = parseInt($(`rf-apg-${i}`)?.value) || 0;
+      const assists = parseInt($(`rf-apa-${i}`)?.value) || 0;
+      const rating = parseFloat($(`rf-apr-${i}`)?.value) || 0;
+      if (goals || assists || rating) {
+        newPlayerStats[p.id] = { goals, assists, rating, position: p.pos || '', played: true };
+      }
+    });
+
+    $('btn-save-edit').disabled = true;
+    $('btn-save-edit').textContent = 'Guardando...';
+
+    try {
+      // 1. Reverse old stats
+      await reversePlayerStats(match);
+
+      // 2. Update match record
+      const { error } = await supa.from('matches').update({
+        home_goals: hg,
+        away_goals: ag,
+        player_stats: Object.keys(newPlayerStats).length ? newPlayerStats : null,
+      }).eq('id', matchId);
+      if (error) throw error;
+
+      // 3. Apply new stats
+      for (const [pid, st] of Object.entries(newPlayerStats)) {
+        const player = cache.players.find(p => p.id === pid);
+        if (!player) continue;
+        const newRatings = [...(player.ratings || [])];
+        if (st.rating > 0) newRatings.push(st.rating);
+        await supa.from('players').update({
+          goals: (player.goals || 0) + st.goals,
+          assists: (player.assists || 0) + st.assists,
+          matches_played: (player.matches_played || 0) + 1,
+          ratings: newRatings,
+        }).eq('id', pid);
+        player.goals = (player.goals || 0) + st.goals;
+        player.assists = (player.assists || 0) + st.assists;
+        player.matches_played = (player.matches_played || 0) + 1;
+        player.ratings = newRatings;
+      }
+
+      // 4. Update local cache
+      const cacheMatch = cache.matches.find(m => m.id === matchId);
+      if (cacheMatch) {
+        cacheMatch.home_goals = hg;
+        cacheMatch.away_goals = ag;
+        cacheMatch.player_stats = newPlayerStats;
+      }
+
+      $('result-form').classList.add('hidden');
+      $('fixture-rounds').innerHTML = renderFixtureRounds();
+      toast(`✅ Partido actualizado`);
+    } catch(e) {
+      toast('⚠️ ' + e.message, true);
+    }
+
+    $('btn-save-edit').disabled = false;
+    $('btn-save-edit').textContent = '💾 Guardar Cambios';
+  };
 };
 
 // ═══════════════════════════════════════════════════════════════
