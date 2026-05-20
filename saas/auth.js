@@ -57,9 +57,11 @@ async function signIn(email, password) {
 
 async function signOut() {
   console.log('[AUTH] signing out');
-  try { await supa.auth.signOut(); } catch(e) { console.warn('[AUTH] signOut error:', e); }
+  try { await supa.auth.signOut({ scope: 'local' }); } catch(e) { console.warn('[AUTH] signOut error:', e); }
+  // Force clear any remaining session data
+  Object.keys(localStorage).filter(k => k.startsWith('sb-')).forEach(k => localStorage.removeItem(k));
   state.user = null; state.profile = null; state.leagues = [];
-  state.activeLeague = null; state.isSuperadmin = false;
+  state.memberships = []; state.activeLeague = null; state.isSuperadmin = false;
   emit('auth:logout');
 }
 
