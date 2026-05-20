@@ -42,33 +42,56 @@ const cache = {
   players: [],
   matches: [],
   schedule: [],
+  seasons: [],
   activeTeamId: null,
 };
 
+// ─── Season helpers ──────────────────────────────────────────
+function getSeasonId() {
+  return state.activeLeague?.active_season_id || null;
+}
+
+async function loadSeasons() {
+  const { data, error } = await supa.from('seasons').select('*')
+    .eq('league_id', state.activeLeague.id)
+    .order('created_at', { ascending: false });
+  if (error) { console.error(error); return []; }
+  cache.seasons = data || [];
+  return cache.seasons;
+}
+
 // ─── Data loaders ────────────────────────────────────────────
 async function loadTeams() {
-  const { data, error } = await supa.from('teams').select('*')
+  const seasonId = getSeasonId();
+  let query = supa.from('teams').select('*')
     .eq('league_id', state.activeLeague.id)
     .eq('replaced', false)
     .order('created_at');
+  if (seasonId) query = query.eq('season_id', seasonId);
+  const { data, error } = await query;
   if (error) { console.error(error); return []; }
   cache.teams = data || [];
   return cache.teams;
 }
 
 async function loadPlayers(teamId) {
-  const filter = supa.from('players').select('*').eq('league_id', state.activeLeague.id);
-  if (teamId) filter.eq('team_id', teamId);
-  const { data, error } = await filter.order('goals', { ascending: false });
+  const seasonId = getSeasonId();
+  let query = supa.from('players').select('*').eq('league_id', state.activeLeague.id);
+  if (seasonId) query = query.eq('season_id', seasonId);
+  if (teamId) query = query.eq('team_id', teamId);
+  const { data, error } = await query.order('goals', { ascending: false });
   if (error) { console.error(error); return []; }
   cache.players = data || [];
   return cache.players;
 }
 
 async function loadMatches() {
-  const { data, error } = await supa.from('matches').select('*')
+  const seasonId = getSeasonId();
+  let query = supa.from('matches').select('*')
     .eq('league_id', state.activeLeague.id)
     .order('round');
+  if (seasonId) query = query.eq('season_id', seasonId);
+  const { data, error } = await query;
   if (error) { console.error(error); return []; }
   cache.matches = data || [];
   return cache.matches;
@@ -115,6 +138,6 @@ function buildRatingChart(ratings) {
 
 export {
   $, showScreen, showLoading, toast, getPlanLimits,
-  cache, loadTeams, loadPlayers, loadMatches, tn,
+  cache, getSeasonId, loadSeasons, loadTeams, loadPlayers, loadMatches, tn,
   buildRatingChart,
 };
