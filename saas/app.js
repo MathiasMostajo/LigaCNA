@@ -505,6 +505,7 @@ on('league:selected', () => {
   showScreen('dashboard');
   _bound.dash = false;
   initDashboard();
+  updateURLHash(state.activeLeague?.slug);
 });
 
 // ─── Boot ────────────────────────────────────────────────────
