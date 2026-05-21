@@ -2,7 +2,7 @@
 // admin.js — Settings, inbox, admin scanner, transfers, playoffs
 // ═══════════════════════════════════════════════════════════════
 import { supa, state } from './auth.js';
-import { $, showLoading, toast, getPlanLimits, cache, loadTeams, loadPlayers, tn } from './shared.js';
+import { $, showLoading, toast, getPlanLimits, cache, getSeasonId, loadTeams, loadPlayers, tn } from './shared.js';
 import { callAI, processResult, saveMatchStats, updatePlayerStats, approveSubmission, rejectSubmission, posToES } from './scanner.js';
 import { calculateStandings } from './fixture.js';
 
@@ -295,6 +295,7 @@ window._adminApproveSub = async (subId) => {
       // Save match
       const { error: matchErr } = await supa.from('matches').insert({
         league_id: state.activeLeague.id,
+        season_id: getSeasonId(),
         home_id: homeId,
         away_id: awayId,
         home_goals: hg,
