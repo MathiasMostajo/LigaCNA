@@ -393,7 +393,10 @@ function initDashboard() {
     container.innerHTML = `
       <div class="flex items-center gap-2">
         <select id="season-dropdown" class="bg-pitch-900/60 border border-white/10 rounded-lg px-2 py-1 text-xs text-white outline-none focus:border-lime-400/30 cursor-pointer">
-          ${seasons.map(s => `<option value="${s.id}" ${s.id === activeSeason.id ? 'selected' : ''}>${s.name}${s.status === 'archived' ? ' 📁' : ' ⚽'}</option>`).join('')}
+          ${seasons.map(s => {
+            const label = s.name + (s.status === 'archived' ? ' 📁' : ' ⚽') + (s.champion ? ' 🏆 ' + s.champion : '');
+            return `<option value="${s.id}" ${s.id === activeSeason.id ? 'selected' : ''}>${label}</option>`;
+          }).join('')}
         </select>
         ${isAdmin ? `
           <button id="btn-new-season" class="text-[10px] text-lime-400 hover:text-lime-300 font-semibold border border-lime-400/20 rounded-lg px-2 py-1">+ Nueva</button>
@@ -482,6 +485,16 @@ function initDashboard() {
 on('auth:loading', () => showScreen('loading'));
 
 on('auth:logout', () => {
+  // Clear hash to prevent handleHashRoute from interfering
+  window.location.hash = '';
+  // Restore landing content in case public league view was showing
+  const landingContent = document.querySelector('#screen-public > .slide-up');
+  const footer = document.querySelector('#screen-public > footer');
+  const publicLeagueView = $('public-league-view');
+  if (landingContent) landingContent.classList.remove('hidden');
+  if (footer) footer.classList.remove('hidden');
+  if (publicLeagueView) publicLeagueView.classList.add('hidden');
+
   showScreen('public');
   _bound.login = false;
   _bound.public = false;
@@ -514,40 +527,42 @@ initAuth();
 // Hash routing for shareable URLs
 function handleHashRoute() {
   const hash = window.location.hash;
-  if (hash.startsWith('#/liga/')) {
-    const slug = hash.replace('#/liga/', '');
-    if (slug) {
-      supa.from('leagues').select('*').eq('slug', slug).eq('is_public', true).maybeSingle().then(async ({ data: league }) => {
-        if (!league) return;
+  if (!hash.startsWith('#/liga/')) return;
 
-        // Check if user is logged in AND is a DT in this league
-        if (state.user && state.memberships?.length) {
-          const membership = state.memberships.find(m => m.league_id === league.id);
-          if (membership) {
-            // User is a DT in this league — show DT view
-            dtState.team = membership.teams;
-            dtState.league = membership.leagues || league;
-            showScreen('dt');
-            const leagueName = $('dt-league-name');
-            if (leagueName) leagueName.textContent = dtState.league.name;
-            $('btn-dt-back').onclick = () => { dtState.team = null; dtState.league = null; showScreen('hub'); };
-            const { data: players } = await supa.from('players').select('*').eq('team_id', membership.team_id).order('name');
-            dtState.players = players || [];
-            showDTSubmissionForm();
-            return;
-          }
-        }
+  // Don't interfere if user is already managing a league in dashboard
+  if (state.activeLeague && state.user) return;
 
-        // Not a DT — show public view
-        showScreen('public');
-        _bound.public = false;
-        initPublicUI();
-        $('public-results').classList.add('hidden');
-        $('public-search').value = '';
-        window._viewPublicLeague(league.slug);
-      });
+  const slug = hash.replace('#/liga/', '');
+  if (!slug) return;
+
+  supa.from('leagues').select('*').eq('slug', slug).eq('is_public', true).maybeSingle().then(async ({ data: league }) => {
+    if (!league) return;
+
+    // Check if user is logged in AND is a DT in this league
+    if (state.user && state.memberships?.length) {
+      const membership = state.memberships.find(m => m.league_id === league.id);
+      if (membership) {
+        dtState.team = membership.teams;
+        dtState.league = membership.leagues || league;
+        showScreen('dt');
+        const leagueName = $('dt-league-name');
+        if (leagueName) leagueName.textContent = dtState.league.name;
+        $('btn-dt-back').onclick = () => { dtState.team = null; dtState.league = null; showScreen('hub'); };
+        const { data: players } = await supa.from('players').select('*').eq('team_id', membership.team_id).order('name');
+        dtState.players = players || [];
+        showDTSubmissionForm();
+        return;
+      }
     }
-  }
+
+    // Not a DT — show public view
+    showScreen('public');
+    _bound.public = false;
+    initPublicUI();
+    $('public-results')?.classList.add('hidden');
+    if ($('public-search')) $('public-search').value = '';
+    window._viewPublicLeague(league.slug);
+  });
 }
 window.addEventListener('hashchange', handleHashRoute);
 setTimeout(handleHashRoute, 1000);
@@ -685,6 +700,17 @@ window._createNewSeason = async () => {
   const name = prompt('Nombre de la nueva temporada:', defaultName);
   if (!name || !name.trim()) return;
 
+  // Ask for champion of current season
+  let champion = '';
+  let playoffChampion = '';
+  if (cache.teams.length) {
+    const teamNames = cache.teams.filter(t => !t.is_bye && !t.replaced).map(t => t.name).join(', ');
+    champion = prompt('🏆 ¿Campeón de la temporada actual?\n\nEquipos: ' + teamNames + '\n\n(Dejá vacío si no terminó)', '') || '';
+    if (champion) {
+      playoffChampion = prompt('🏆 ¿Campeón de playoffs? (Dejá vacío si no hubo)', '') || '';
+    }
+  }
+
   const importTeams = confirm('¿Importar los equipos de la temporada actual? (Solo equipos, stats en 0)');
 
   try {
@@ -706,9 +732,14 @@ window._createNewSeason = async () => {
       .select().single();
     if (error) throw error;
 
-    // Archive current season
+    // Archive current season with champion info
     if (currentSeasonId) {
-      await supa.from('seasons').update({ status: 'archived', archived_at: new Date().toISOString() }).eq('id', currentSeasonId);
+      await supa.from('seasons').update({
+        status: 'archived',
+        archived_at: new Date().toISOString(),
+        champion: champion || null,
+        playoff_champion: playoffChampion || null,
+      }).eq('id', currentSeasonId);
     }
 
     // Update league active season
