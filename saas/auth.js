@@ -135,7 +135,7 @@ async function loadMyMemberships(userId, email) {
   console.log('[AUTH] loading memberships for', email, userId);
   try {
     const { data, error } = await supa.from('team_members')
-      .select('*, teams(*), leagues(id, name, slug, plan_type, max_players_per_team, settings, is_public)')
+      .select('*, teams(*), leagues(id, name, slug, plan_type, max_players_per_team, settings, is_public, active_season_id)')
       .or('user_id.eq.' + userId + ',email.eq.' + email);
     if (error) { console.warn('[AUTH] memberships error:', error); return []; }
     console.log('[AUTH] found', data?.length || 0, 'memberships');
