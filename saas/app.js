@@ -436,7 +436,7 @@ function initDashboard() {
       if (section === 'leaders') initLeadersSection();
       if (section === 'transfers') initTransfersSection();
       if (section === 'settings') initSettingsSection();
-      if (section === 'history') initHistorySection();
+      if (section === 'history') { console.log('[NAV] history clicked'); initHistorySection(); }
     };
   });
 
@@ -660,15 +660,19 @@ window._showUpgradePage = () => {
 // HISTORY — Season overview
 // ═══════════════════════════════════════════════════════════════
 async function initHistorySection() {
+  console.log('[HISTORY] initHistorySection called');
   const container = $('history-content');
+  console.log('[HISTORY] container:', container ? 'found' : 'NOT FOUND');
   if (!container) return;
   showLoading(container, 'Cargando historial...');
 
   const league = state.activeLeague;
+  console.log('[HISTORY] league:', league?.id);
   if (!league) return;
 
   try {
     const seasons = cache.seasons.length ? cache.seasons : await loadSeasons();
+    console.log('[HISTORY] seasons loaded:', seasons.length);
 
     if (!seasons.length) {
       container.innerHTML = '<div class="bg-pitch-800/40 border border-dashed border-white/10 rounded-xl p-8 text-center text-gray-600">No hay temporadas registradas.</div>';
