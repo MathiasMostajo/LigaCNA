@@ -692,9 +692,13 @@ window._createNewSeason = async () => {
     let oldTeams = [];
     if (importTeams) {
       let q = supa.from('teams').select('*').eq('league_id', league.id).eq('replaced', false).eq('is_bye', false);
-      if (currentSeasonId) q = q.eq('season_id', currentSeasonId);
-      const { data } = await q;
+      if (currentSeasonId) {
+        q = q.or('season_id.eq.' + currentSeasonId + ',season_id.is.null');
+      }
+      const { data, error: teamErr } = await q;
+      if (teamErr) console.error('Team import query error:', teamErr);
       oldTeams = data || [];
+      console.log('[SEASON] Found', oldTeams.length, 'teams to import');
     }
 
     // Create new season
