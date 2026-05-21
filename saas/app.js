@@ -312,7 +312,7 @@ window._manageLeague = (leagueId) => {
   // Reset all section HTML so they reload fresh for the new league
   document.querySelectorAll('[data-section]').forEach(el => {
     const section = el.getAttribute('data-section');
-    const titles = { inbox:'📥 BANDEJA', scanner:'🤖 ESCÁNER IA', fixture:'📅 FIXTURE', standings:'📊 TABLA', teams:'🏟 EQUIPOS', leaders:'⭐ LÍDERES', transfers:'📋 FICHAJES', settings:'⚙️ AJUSTES' };
+    const titles = { inbox:'📥 BANDEJA', scanner:'🤖 ESCÁNER IA', fixture:'📅 FIXTURE', standings:'📊 TABLA', teams:'🏟 EQUIPOS', leaders:'⭐ LÍDERES', transfers:'📋 FICHAJES', history:'📜 HISTORIAL', settings:'⚙️ AJUSTES' };
     el.innerHTML = '<div class="flex items-center gap-3 mb-6"><h2 class="font-display text-3xl tracking-wide text-white">' + (titles[section] || section) + '</h2></div><div class="text-center py-8 text-gray-600">Cargando...</div>';
   });
   _bound.dash = false;
@@ -436,6 +436,7 @@ function initDashboard() {
       if (section === 'leaders') initLeadersSection();
       if (section === 'transfers') initTransfersSection();
       if (section === 'settings') initSettingsSection();
+      if (section === 'history') initHistorySection();
     };
   });
 
@@ -656,6 +657,68 @@ window._showUpgradePage = () => {
 
 
 // ═══════════════════════════════════════════════════════════════
+// HISTORY — Season overview
+// ═══════════════════════════════════════════════════════════════
+async function initHistorySection() {
+  const container = $('history-content');
+  if (!container) return;
+  showLoading(container, 'Cargando historial...');
+
+  const league = state.activeLeague;
+  if (!league) return;
+
+  const seasons = cache.seasons.length ? cache.seasons : await loadSeasons();
+
+  if (!seasons.length) {
+    container.innerHTML = '<div class="bg-pitch-800/40 border border-dashed border-white/10 rounded-xl p-8 text-center text-gray-600">No hay temporadas registradas.</div>';
+    return;
+  }
+
+  const seasonData = [];
+  for (const s of seasons) {
+    const [teamsRes, matchesRes, playersRes] = await Promise.all([
+      supa.from('teams').select('id', { count: 'exact', head: true }).eq('season_id', s.id).eq('replaced', false).eq('is_bye', false),
+      supa.from('matches').select('id', { count: 'exact', head: true }).eq('season_id', s.id),
+      supa.from('players').select('name, goals').eq('season_id', s.id).order('goals', { ascending: false }).limit(1),
+    ]);
+    seasonData.push({
+      ...s,
+      teamCount: teamsRes.count || 0,
+      matchCount: matchesRes.count || 0,
+      topScorer: playersRes.data?.[0] || null,
+    });
+  }
+
+  const activeId = league.active_season_id;
+
+  container.innerHTML = seasonData.map(s => {
+    const isActive = s.id === activeId;
+    const badge = isActive
+      ? '<span class="text-[10px] bg-lime-400/10 text-lime-400 px-2 py-0.5 rounded-full font-semibold">EN CURSO</span>'
+      : '<span class="text-[10px] bg-gray-600/20 text-gray-500 px-2 py-0.5 rounded-full font-semibold">ARCHIVADA</span>';
+    const champion = s.champion ? `<div class="flex items-center gap-1.5 mt-2"><span>🏆</span><span class="text-sm text-yellow-400 font-semibold">${s.champion}</span></div>` : '';
+    const playoffChamp = s.playoff_champion ? `<div class="flex items-center gap-1.5"><span>🏆</span><span class="text-sm text-purple-400 font-semibold">Playoffs: ${s.playoff_champion}</span></div>` : '';
+    const topScorer = s.topScorer ? `<div class="flex items-center gap-1.5"><span>⚽</span><span class="text-sm text-white">${s.topScorer.name} — ${s.topScorer.goals} goles</span></div>` : '';
+    const dates = s.archived_at ? 'Archivada: ' + new Date(s.archived_at).toLocaleDateString() : 'Inicio: ' + new Date(s.created_at).toLocaleDateString();
+    const viewBtn = isActive ? '' : `<button onclick="window._switchSeason('${s.id}')" class="mt-3 text-xs text-lime-400 hover:text-lime-300 font-semibold">Ver temporada →</button>`;
+
+    return `<div class="bg-pitch-800/60 border ${isActive ? 'border-lime-400/20' : 'border-white/5'} rounded-2xl p-5 mb-4">
+      <div class="flex items-center justify-between mb-2">
+        <h3 class="font-display text-xl text-white">${s.name}</h3>
+        ${badge}
+      </div>
+      ${champion}${playoffChamp}${topScorer}
+      <div class="flex gap-4 mt-3 text-xs text-gray-500">
+        <span>🏟 ${s.teamCount} equipos</span>
+        <span>📅 ${s.matchCount} partidos</span>
+        <span>📆 ${dates}</span>
+      </div>
+      ${viewBtn}
+    </div>`;
+  }).join('');
+}
+
+// ═══════════════════════════════════════════════════════════════
 // SEASON MANAGEMENT
 // ═══════════════════════════════════════════════════════════════
 window._switchSeason = async (seasonId) => {
@@ -679,7 +742,7 @@ window._switchSeason = async (seasonId) => {
   // Reset section HTML
   document.querySelectorAll('[data-section]').forEach(el => {
     const section = el.getAttribute('data-section');
-    const titles = { inbox:'📥 BANDEJA', scanner:'🤖 ESCÁNER IA', fixture:'📅 FIXTURE', standings:'📊 TABLA', teams:'🏟 EQUIPOS', leaders:'⭐ LÍDERES', transfers:'📋 FICHAJES', settings:'⚙️ AJUSTES' };
+    const titles = { inbox:'📥 BANDEJA', scanner:'🤖 ESCÁNER IA', fixture:'📅 FIXTURE', standings:'📊 TABLA', teams:'🏟 EQUIPOS', leaders:'⭐ LÍDERES', transfers:'📋 FICHAJES', history:'📜 HISTORIAL', settings:'⚙️ AJUSTES' };
     el.innerHTML = '<div class="flex items-center gap-3 mb-6"><h2 class="font-display text-3xl tracking-wide text-white">' + (titles[section] || section) + '</h2></div><div class="text-center py-8 text-gray-600">Cargando...</div>';
   });
 
@@ -782,6 +845,13 @@ window._createNewSeason = async () => {
     cache.players = [];
     cache.matches = [];
     cache.schedule = [];
+
+    // Reset ALL section HTML (fixture, playoffs, standings, etc.)
+    document.querySelectorAll('[data-section]').forEach(el => {
+      const section = el.getAttribute('data-section');
+      const titles = { inbox:'📥 BANDEJA', scanner:'🤖 ESCÁNER IA', fixture:'📅 FIXTURE', standings:'📊 TABLA', teams:'🏟 EQUIPOS', leaders:'⭐ LÍDERES', transfers:'📋 FICHAJES', history:'📜 HISTORIAL', settings:'⚙️ AJUSTES' };
+      el.innerHTML = '<div class="flex items-center gap-3 mb-6"><h2 class="font-display text-3xl tracking-wide text-white">' + (titles[section] || section) + '</h2></div><div class="text-center py-8 text-gray-600">Cargando...</div>';
+    });
 
     _bound.dash = false;
     initDashboard();
