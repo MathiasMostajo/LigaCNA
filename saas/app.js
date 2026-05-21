@@ -667,55 +667,56 @@ async function initHistorySection() {
   const league = state.activeLeague;
   if (!league) return;
 
-  const seasons = cache.seasons.length ? cache.seasons : await loadSeasons();
+  try {
+    const seasons = cache.seasons.length ? cache.seasons : await loadSeasons();
 
-  if (!seasons.length) {
-    container.innerHTML = '<div class="bg-pitch-800/40 border border-dashed border-white/10 rounded-xl p-8 text-center text-gray-600">No hay temporadas registradas.</div>';
-    return;
+    if (!seasons.length) {
+      container.innerHTML = '<div class="bg-pitch-800/40 border border-dashed border-white/10 rounded-xl p-8 text-center text-gray-600">No hay temporadas registradas.</div>';
+      return;
+    }
+
+    const seasonData = [];
+    for (const s of seasons) {
+      const { data: teams } = await supa.from('teams').select('id').eq('season_id', s.id).eq('replaced', false).eq('is_bye', false);
+      const { data: matches } = await supa.from('matches').select('id').eq('season_id', s.id);
+      const { data: topPlayers } = await supa.from('players').select('name, goals').eq('season_id', s.id).order('goals', { ascending: false }).limit(1);
+
+      seasonData.push({
+        ...s,
+        teamCount: teams?.length || 0,
+        matchCount: matches?.length || 0,
+        topScorer: topPlayers?.[0] || null,
+      });
+    }
+
+    const activeId = league.active_season_id;
+
+    container.innerHTML = seasonData.map(s => {
+      const isActive = s.id === activeId;
+      const badge = isActive
+        ? '<span class="text-[10px] bg-lime-400/10 text-lime-400 px-2 py-0.5 rounded-full font-semibold">EN CURSO</span>'
+        : '<span class="text-[10px] bg-gray-600/20 text-gray-500 px-2 py-0.5 rounded-full font-semibold">ARCHIVADA</span>';
+      const champion = s.champion ? '<div class="flex items-center gap-1.5 mt-2"><span>🏆</span><span class="text-sm text-yellow-400 font-semibold">' + s.champion + '</span></div>' : '';
+      const playoffChamp = s.playoff_champion ? '<div class="flex items-center gap-1.5"><span>🏆</span><span class="text-sm text-purple-400 font-semibold">Playoffs: ' + s.playoff_champion + '</span></div>' : '';
+      const topScorer = s.topScorer && s.topScorer.goals > 0 ? '<div class="flex items-center gap-1.5"><span>⚽</span><span class="text-sm text-white">' + s.topScorer.name + ' — ' + s.topScorer.goals + ' goles</span></div>' : '';
+      const dates = s.archived_at ? 'Archivada: ' + new Date(s.archived_at).toLocaleDateString() : 'Inicio: ' + new Date(s.created_at).toLocaleDateString();
+      const viewBtn = isActive ? '' : '<button onclick="window._switchSeason(\'' + s.id + '\')" class="mt-3 text-xs text-lime-400 hover:text-lime-300 font-semibold">Ver temporada →</button>';
+
+      return '<div class="bg-pitch-800/60 border ' + (isActive ? 'border-lime-400/20' : 'border-white/5') + ' rounded-2xl p-5 mb-4">'
+        + '<div class="flex items-center justify-between mb-2">'
+        + '<h3 class="font-display text-xl text-white">' + s.name + '</h3>'
+        + badge + '</div>'
+        + champion + playoffChamp + topScorer
+        + '<div class="flex gap-4 mt-3 text-xs text-gray-500">'
+        + '<span>🏟 ' + s.teamCount + ' equipos</span>'
+        + '<span>📅 ' + s.matchCount + ' partidos</span>'
+        + '<span>📆 ' + dates + '</span>'
+        + '</div>' + viewBtn + '</div>';
+    }).join('');
+  } catch(e) {
+    console.error('[HISTORY] error:', e);
+    container.innerHTML = '<div class="text-red-400 text-sm">Error al cargar historial: ' + e.message + '</div>';
   }
-
-  const seasonData = [];
-  for (const s of seasons) {
-    const [teamsRes, matchesRes, playersRes] = await Promise.all([
-      supa.from('teams').select('id', { count: 'exact', head: true }).eq('season_id', s.id).eq('replaced', false).eq('is_bye', false),
-      supa.from('matches').select('id', { count: 'exact', head: true }).eq('season_id', s.id),
-      supa.from('players').select('name, goals').eq('season_id', s.id).order('goals', { ascending: false }).limit(1),
-    ]);
-    seasonData.push({
-      ...s,
-      teamCount: teamsRes.count || 0,
-      matchCount: matchesRes.count || 0,
-      topScorer: playersRes.data?.[0] || null,
-    });
-  }
-
-  const activeId = league.active_season_id;
-
-  container.innerHTML = seasonData.map(s => {
-    const isActive = s.id === activeId;
-    const badge = isActive
-      ? '<span class="text-[10px] bg-lime-400/10 text-lime-400 px-2 py-0.5 rounded-full font-semibold">EN CURSO</span>'
-      : '<span class="text-[10px] bg-gray-600/20 text-gray-500 px-2 py-0.5 rounded-full font-semibold">ARCHIVADA</span>';
-    const champion = s.champion ? `<div class="flex items-center gap-1.5 mt-2"><span>🏆</span><span class="text-sm text-yellow-400 font-semibold">${s.champion}</span></div>` : '';
-    const playoffChamp = s.playoff_champion ? `<div class="flex items-center gap-1.5"><span>🏆</span><span class="text-sm text-purple-400 font-semibold">Playoffs: ${s.playoff_champion}</span></div>` : '';
-    const topScorer = s.topScorer ? `<div class="flex items-center gap-1.5"><span>⚽</span><span class="text-sm text-white">${s.topScorer.name} — ${s.topScorer.goals} goles</span></div>` : '';
-    const dates = s.archived_at ? 'Archivada: ' + new Date(s.archived_at).toLocaleDateString() : 'Inicio: ' + new Date(s.created_at).toLocaleDateString();
-    const viewBtn = isActive ? '' : `<button onclick="window._switchSeason('${s.id}')" class="mt-3 text-xs text-lime-400 hover:text-lime-300 font-semibold">Ver temporada →</button>`;
-
-    return `<div class="bg-pitch-800/60 border ${isActive ? 'border-lime-400/20' : 'border-white/5'} rounded-2xl p-5 mb-4">
-      <div class="flex items-center justify-between mb-2">
-        <h3 class="font-display text-xl text-white">${s.name}</h3>
-        ${badge}
-      </div>
-      ${champion}${playoffChamp}${topScorer}
-      <div class="flex gap-4 mt-3 text-xs text-gray-500">
-        <span>🏟 ${s.teamCount} equipos</span>
-        <span>📅 ${s.matchCount} partidos</span>
-        <span>📆 ${dates}</span>
-      </div>
-      ${viewBtn}
-    </div>`;
-  }).join('');
 }
 
 // ═══════════════════════════════════════════════════════════════
@@ -805,9 +806,11 @@ window._createNewSeason = async () => {
       }).eq('id', currentSeasonId);
     }
 
-    // Update league active season
-    await supa.from('leagues').update({ active_season_id: newSeason.id }).eq('id', league.id);
+    // Update league active season AND clear old schedule
+    const newSettings = { ...(league.settings || {}), schedule: [] };
+    await supa.from('leagues').update({ active_season_id: newSeason.id, settings: newSettings }).eq('id', league.id);
     league.active_season_id = newSeason.id;
+    league.settings = newSettings;
 
     // Import teams if requested
     if (importTeams && oldTeams.length) {
