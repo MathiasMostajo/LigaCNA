@@ -67,7 +67,7 @@ async function loadTeams() {
     .eq('league_id', state.activeLeague.id)
     .eq('replaced', false)
     .order('created_at');
-  if (seasonId) query = query.eq('season_id', seasonId);
+  if (seasonId) query = query.or('season_id.eq.' + seasonId + ',season_id.is.null');
   const { data, error } = await query;
   if (error) { console.error(error); return []; }
   cache.teams = data || [];
@@ -77,7 +77,7 @@ async function loadTeams() {
 async function loadPlayers(teamId) {
   const seasonId = getSeasonId();
   let query = supa.from('players').select('*').eq('league_id', state.activeLeague.id);
-  if (seasonId) query = query.eq('season_id', seasonId);
+  if (seasonId) query = query.or('season_id.eq.' + seasonId + ',season_id.is.null');
   if (teamId) query = query.eq('team_id', teamId);
   const { data, error } = await query.order('goals', { ascending: false });
   if (error) { console.error(error); return []; }
@@ -90,7 +90,7 @@ async function loadMatches() {
   let query = supa.from('matches').select('*')
     .eq('league_id', state.activeLeague.id)
     .order('round');
-  if (seasonId) query = query.eq('season_id', seasonId);
+  if (seasonId) query = query.or('season_id.eq.' + seasonId + ',season_id.is.null');
   const { data, error } = await query;
   if (error) { console.error(error); return []; }
   cache.matches = data || [];
