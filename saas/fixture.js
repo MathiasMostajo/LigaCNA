@@ -2,7 +2,7 @@
 // fixture.js — Fixture generation, results, standings, H2H, match history
 // ═══════════════════════════════════════════════════════════════
 import { supa, state } from './auth.js';
-import { $, showScreen, showLoading, toast, cache, loadTeams, loadPlayers, loadMatches, tn } from './shared.js';
+import { $, showScreen, showLoading, toast, cache, getSeasonId, loadTeams, loadPlayers, loadMatches, tn } from './shared.js';
 
 function getMatchResult(homeId, awayId) {
   // Only match the EXACT home/away pair — A vs B is different from B vs A
@@ -323,6 +323,7 @@ window._showResultForm = (homeId, awayId, round) => {
     try {
       const { data, error } = await supa.from('matches').insert({
         league_id: state.activeLeague.id,
+        season_id: getSeasonId(),
         home_id: homeId,
         away_id: awayId,
         home_goals: hg,
