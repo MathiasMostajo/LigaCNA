@@ -2,7 +2,7 @@
 // teams.js — Teams CRUD, players, team profiles, DT email management
 // ═══════════════════════════════════════════════════════════════
 import { supa, state } from './auth.js';
-import { $, showLoading, toast, getPlanLimits, cache, loadTeams, loadPlayers } from './shared.js';
+import { $, showLoading, toast, getPlanLimits, cache, getSeasonId, loadTeams, loadPlayers } from './shared.js';
 
 async function initTeamsSection() {
   try { await _initTeamsSectionInner(); } catch(e) { 
@@ -93,6 +93,7 @@ async function _initTeamsSectionInner() {
     try {
       const { data, error } = await supa.from('teams').insert({
         league_id: state.activeLeague.id,
+        season_id: getSeasonId(),
         name,
         code: autoCode,
       }).select().single();
@@ -291,6 +292,7 @@ window._addPlayer = async (teamId) => {
   try {
     const { data, error } = await supa.from('players').insert({
       league_id: state.activeLeague.id,
+      season_id: getSeasonId(),
       team_id: teamId,
       name,
       pos: pos.toUpperCase(),
