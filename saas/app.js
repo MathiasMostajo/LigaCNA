@@ -395,7 +395,10 @@ function initDashboard() {
         <select id="season-dropdown" class="bg-pitch-900/60 border border-white/10 rounded-lg px-2 py-1 text-xs text-white outline-none focus:border-lime-400/30 cursor-pointer">
           ${seasons.map(s => `<option value="${s.id}" ${s.id === activeSeason.id ? 'selected' : ''}>${s.name}${s.status === 'archived' ? ' 📁' : ' ⚽'}</option>`).join('')}
         </select>
-        ${isAdmin ? `<button id="btn-new-season" class="text-[10px] text-lime-400 hover:text-lime-300 font-semibold border border-lime-400/20 rounded-lg px-2 py-1">+ Nueva</button>` : ''}
+        ${isAdmin ? `
+          <button id="btn-new-season" class="text-[10px] text-lime-400 hover:text-lime-300 font-semibold border border-lime-400/20 rounded-lg px-2 py-1">+ Nueva</button>
+          ${seasons.length > 1 ? `<button id="btn-delete-season" class="text-[10px] text-red-400 hover:text-red-300 border border-red-400/20 rounded-lg px-1.5 py-1" title="Borrar temporada seleccionada">🗑</button>` : ''}
+        ` : ''}
       </div>
     `;
 
@@ -405,6 +408,10 @@ function initDashboard() {
 
     if ($('btn-new-season')) {
       $('btn-new-season').onclick = () => window._createNewSeason();
+    }
+
+    if ($('btn-delete-season')) {
+      $('btn-delete-season').onclick = () => window._deleteSeason();
     }
   });
 
@@ -680,6 +687,16 @@ window._createNewSeason = async () => {
   const importTeams = confirm('¿Importar los equipos de la temporada actual? (Solo equipos, stats en 0)');
 
   try {
+    // Load current season's teams BEFORE switching (cache might be empty)
+    const currentSeasonId = league.active_season_id;
+    let oldTeams = [];
+    if (importTeams) {
+      let q = supa.from('teams').select('*').eq('league_id', league.id).eq('replaced', false).eq('is_bye', false);
+      if (currentSeasonId) q = q.eq('season_id', currentSeasonId);
+      const { data } = await q;
+      oldTeams = data || [];
+    }
+
     // Create new season
     const { data: newSeason, error } = await supa.from('seasons')
       .insert({ league_id: league.id, name: name.trim(), status: 'active' })
@@ -687,7 +704,6 @@ window._createNewSeason = async () => {
     if (error) throw error;
 
     // Archive current season
-    const currentSeasonId = league.active_season_id;
     if (currentSeasonId) {
       await supa.from('seasons').update({ status: 'archived', archived_at: new Date().toISOString() }).eq('id', currentSeasonId);
     }
@@ -697,8 +713,8 @@ window._createNewSeason = async () => {
     league.active_season_id = newSeason.id;
 
     // Import teams if requested
-    if (importTeams && cache.teams.length) {
-      for (const team of cache.teams.filter(t => !t.is_bye && !t.replaced)) {
+    if (importTeams && oldTeams.length) {
+      for (const team of oldTeams) {
         const { data: newTeam } = await supa.from('teams').insert({
           league_id: league.id,
           season_id: newSeason.id,
@@ -743,6 +759,66 @@ window._createNewSeason = async () => {
     }, 300);
 
     toast(`✅ ${name.trim()} creada`);
+  } catch(e) {
+    toast('⚠️ ' + e.message, true);
+  }
+};
+
+window._deleteSeason = async () => {
+  const league = state.activeLeague;
+  if (!league) return;
+
+  const selectedId = $('season-dropdown')?.value;
+  if (!selectedId) return;
+
+  const season = cache.seasons.find(s => s.id === selectedId);
+  if (!season) return;
+
+  if (cache.seasons.length <= 1) {
+    toast('No podés borrar la única temporada', true);
+    return;
+  }
+
+  if (!confirm(`¿Borrar "${season.name}" y TODOS sus datos (equipos, jugadores, partidos)? No se puede deshacer.`)) return;
+  if (!confirm(`⚠️ ÚLTIMA CONFIRMACIÓN: ¿Estás seguro de borrar "${season.name}"?`)) return;
+
+  try {
+    // Delete all season data (cascade from teams handles players)
+    await supa.from('matches').delete().eq('season_id', selectedId);
+    await supa.from('submissions').delete().eq('season_id', selectedId);
+    await supa.from('fichaje_requests').delete().eq('season_id', selectedId);
+    await supa.from('removal_requests').delete().eq('season_id', selectedId);
+    await supa.from('players').delete().eq('season_id', selectedId);
+    await supa.from('teams').delete().eq('season_id', selectedId);
+
+    // If deleting the active season, switch to another one first
+    if (league.active_season_id === selectedId) {
+      const remaining = cache.seasons.find(s => s.id !== selectedId);
+      if (remaining) {
+        await supa.from('leagues').update({ active_season_id: remaining.id }).eq('id', league.id);
+        league.active_season_id = remaining.id;
+      }
+    }
+
+    // Now delete the season itself
+    await supa.from('seasons').delete().eq('id', selectedId);
+
+    // Reload
+    await loadSeasons();
+    cache.teams = [];
+    cache.players = [];
+    cache.matches = [];
+    cache.schedule = [];
+
+    _bound.dash = false;
+    initDashboard();
+
+    setTimeout(() => {
+      const activeNav = document.querySelector('[data-nav].bg-white\\/10');
+      if (activeNav) activeNav.click();
+    }, 300);
+
+    toast(`🗑 ${season.name} eliminada`);
   } catch(e) {
     toast('⚠️ ' + e.message, true);
   }
