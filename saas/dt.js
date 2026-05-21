@@ -2,7 +2,7 @@
 // dt.js — DT code entry, submission form, DT views, DT auth
 // ═══════════════════════════════════════════════════════════════
 import { supa, state, signOut, loadMyMemberships } from './auth.js';
-import { $, showScreen, showLoading, toast, getPlanLimits, cache } from './shared.js';
+import { $, showScreen, showLoading, toast, getPlanLimits, cache, getSeasonId } from './shared.js';
 import { callAI, processResult, saveSubmission, posToES } from './scanner.js';
 
 let _dtTeam = null;
@@ -458,6 +458,7 @@ window._dtSubmit = async () => {
     // Insert submission (DT is NOT logged in — uses public_insert RLS policy)
     const { error } = await supa.from('submissions').insert({
       league_id: _dtLeague.id,
+      season_id: _dtLeague.active_season_id || null,
       team_code: _dtTeam.code,
       team_name: _dtTeam.name,
       scan_result: scanResult,
