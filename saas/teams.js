@@ -257,10 +257,86 @@ function renderPlayersHTML(players) {
       <span class="text-gray-500">🎯${p.assists}</span>
       <span class="text-yellow-400/80">⭐${avgRating}</span>
       <span class="text-gray-600">${p.matches_played}GP</span>
+      <button onclick="event.stopPropagation(); window._editPlayerStats('${p.id}')" class="text-gray-700 hover:text-blue-400 transition-colors opacity-0 group-hover:opacity-100 text-xs" title="Editar stats">✏️</button>
       <button onclick="event.stopPropagation(); window._removePlayer('${p.id}','${p.name}')" class="text-gray-700 hover:text-red-400 transition-colors opacity-0 group-hover:opacity-100 text-xs">✕</button>
     </div>`;
   }).join('');
 }
+
+window._editPlayerStats = (playerId) => {
+  const player = cache.players.find(p => p.id === playerId);
+  if (!player) return;
+
+  const avgRating = player.ratings?.length ? (player.ratings.reduce((a,b) => a + Number(b), 0) / player.ratings.length).toFixed(1) : '0';
+
+  // Create modal
+  const modal = document.createElement('div');
+  modal.id = 'edit-player-modal';
+  modal.className = 'fixed inset-0 bg-black/70 z-[9999] flex items-center justify-center p-4';
+  modal.innerHTML = `
+    <div class="bg-pitch-800 border border-white/10 rounded-2xl p-6 w-full max-w-sm">
+      <h3 class="font-display text-xl text-white mb-4">✏️ ${player.name}</h3>
+      <div class="grid grid-cols-2 gap-3 mb-4">
+        <div>
+          <label class="text-[10px] text-gray-500 uppercase tracking-wider">⚽ Goles</label>
+          <input type="number" id="ep-goals" min="0" value="${player.goals || 0}" class="w-full bg-pitch-900/60 border border-white/10 rounded-lg px-3 py-2 text-white text-center outline-none focus:border-lime-400/30 mt-1">
+        </div>
+        <div>
+          <label class="text-[10px] text-gray-500 uppercase tracking-wider">🎯 Asistencias</label>
+          <input type="number" id="ep-assists" min="0" value="${player.assists || 0}" class="w-full bg-pitch-900/60 border border-white/10 rounded-lg px-3 py-2 text-white text-center outline-none focus:border-lime-400/30 mt-1">
+        </div>
+        <div>
+          <label class="text-[10px] text-gray-500 uppercase tracking-wider">📅 Partidos</label>
+          <input type="number" id="ep-matches" min="0" value="${player.matches_played || 0}" class="w-full bg-pitch-900/60 border border-white/10 rounded-lg px-3 py-2 text-white text-center outline-none focus:border-lime-400/30 mt-1">
+        </div>
+        <div>
+          <label class="text-[10px] text-gray-500 uppercase tracking-wider">🧤 Clean Sheets</label>
+          <input type="number" id="ep-cs" min="0" value="${player.cs || 0}" class="w-full bg-pitch-900/60 border border-white/10 rounded-lg px-3 py-2 text-white text-center outline-none focus:border-lime-400/30 mt-1">
+        </div>
+      </div>
+      <p class="text-[10px] text-gray-600 mb-4">⭐ Rating promedio: ${avgRating} (${player.ratings?.length || 0} partidos)</p>
+      <div class="flex gap-2">
+        <button id="ep-save" class="flex-1 bg-gradient-to-r from-lime-400 to-emerald-500 text-pitch-900 font-bold py-2.5 rounded-xl text-sm">Guardar</button>
+        <button id="ep-cancel" class="bg-pitch-900/60 border border-white/10 text-gray-400 font-semibold py-2.5 px-4 rounded-xl text-sm hover:text-white">Cancelar</button>
+      </div>
+    </div>
+  `;
+
+  document.body.appendChild(modal);
+
+  modal.querySelector('#ep-cancel').onclick = () => modal.remove();
+  modal.onclick = (e) => { if (e.target === modal) modal.remove(); };
+
+  modal.querySelector('#ep-save').onclick = async () => {
+    const goals = parseInt(document.getElementById('ep-goals').value) || 0;
+    const assists = parseInt(document.getElementById('ep-assists').value) || 0;
+    const matches_played = parseInt(document.getElementById('ep-matches').value) || 0;
+    const cs = parseInt(document.getElementById('ep-cs').value) || 0;
+
+    try {
+      const { error } = await supa.from('players').update({
+        goals, assists, matches_played, cs,
+      }).eq('id', playerId);
+      if (error) throw error;
+
+      player.goals = goals;
+      player.assists = assists;
+      player.matches_played = matches_played;
+      player.cs = cs;
+
+      modal.remove();
+      toast('✅ Stats actualizadas');
+
+      // Re-render player list
+      const teamPlayers = cache.players.filter(p => p.team_id === player.team_id);
+      const sorted = [...teamPlayers].sort((a,b) => (b.goals||0) - (a.goals||0));
+      const listEl = document.getElementById('player-list');
+      if (listEl) listEl.innerHTML = renderPlayersHTML(sorted);
+    } catch(e) {
+      toast('⚠️ ' + e.message, true);
+    }
+  };
+};
 
 window._closeTeamDetail = () => {
   cache.activeTeamId = null;
