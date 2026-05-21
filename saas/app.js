@@ -2,7 +2,7 @@
 // app.js v6 — Entry point (imports all modules)
 // ═══════════════════════════════════════════════════════════════
 import { supa, state, on, emit, signUp, signIn, signOut, createLeague, setActiveLeague, searchPublicLeagues, loadPublicLeague, loadMyMemberships, initAuth } from './auth.js';
-import { $, showScreen, showLoading, toast, getPlanLimits, cache, loadTeams, loadPlayers, loadMatches, tn } from './shared.js';
+import { $, showScreen, showLoading, toast, getPlanLimits, cache, getSeasonId, loadSeasons, loadTeams, loadPlayers, loadMatches, tn } from './shared.js';
 import { initTeamsSection, renderTeamsList } from './teams.js';
 import { initFixtureSection, initStandingsSection, calculateStandings } from './fixture.js';
 import { initLeadersSection } from './leaders.js';
@@ -307,6 +307,7 @@ window._manageLeague = (leagueId) => {
   cache.players = [];
   cache.matches = [];
   cache.schedule = [];
+  cache.seasons = [];
   cache.activeTeamId = null;
   // Reset all section HTML so they reload fresh for the new league
   document.querySelectorAll('[data-section]').forEach(el => {
@@ -380,6 +381,32 @@ function initDashboard() {
   if (ln) ln.textContent = league.name;
   if (lnm) lnm.textContent = league.name;
   if (ue) ue.textContent = state.user.email;
+
+  // Load seasons and render selector
+  loadSeasons().then(seasons => {
+    const container = $('season-selector');
+    if (!container || !seasons.length) return;
+
+    const activeSeason = seasons.find(s => s.id === league.active_season_id) || seasons[0];
+    const isAdmin = league.admin_id === state.user?.id;
+
+    container.innerHTML = `
+      <div class="flex items-center gap-2">
+        <select id="season-dropdown" class="bg-pitch-900/60 border border-white/10 rounded-lg px-2 py-1 text-xs text-white outline-none focus:border-lime-400/30 cursor-pointer">
+          ${seasons.map(s => `<option value="${s.id}" ${s.id === activeSeason.id ? 'selected' : ''}>${s.name}${s.status === 'archived' ? ' 📁' : ' ⚽'}</option>`).join('')}
+        </select>
+        ${isAdmin ? `<button id="btn-new-season" class="text-[10px] text-lime-400 hover:text-lime-300 font-semibold border border-lime-400/20 rounded-lg px-2 py-1">+ Nueva</button>` : ''}
+      </div>
+    `;
+
+    $('season-dropdown').onchange = (e) => {
+      window._switchSeason(e.target.value);
+    };
+
+    if ($('btn-new-season')) {
+      $('btn-new-season').onclick = () => window._createNewSeason();
+    }
+  });
 
   // Sidebar nav
   document.querySelectorAll('[data-nav]').forEach(btn => {
@@ -604,6 +631,122 @@ window._showUpgradePage = () => {
 };
 
 
+
+// ═══════════════════════════════════════════════════════════════
+// SEASON MANAGEMENT
+// ═══════════════════════════════════════════════════════════════
+window._switchSeason = async (seasonId) => {
+  const league = state.activeLeague;
+  if (!league) return;
+
+  // Update active season locally
+  league.active_season_id = seasonId;
+
+  // Update in database (only admin)
+  if (league.admin_id === state.user?.id) {
+    await supa.from('leagues').update({ active_season_id: seasonId }).eq('id', league.id);
+  }
+
+  // Clear caches and reload all sections
+  cache.teams = [];
+  cache.players = [];
+  cache.matches = [];
+  cache.schedule = [];
+
+  // Reset section HTML
+  document.querySelectorAll('[data-section]').forEach(el => {
+    const section = el.getAttribute('data-section');
+    const titles = { inbox:'📥 BANDEJA', scanner:'🤖 ESCÁNER IA', fixture:'📅 FIXTURE', standings:'📊 TABLA', teams:'🏟 EQUIPOS', leaders:'⭐ LÍDERES', transfers:'📋 FICHAJES', settings:'⚙️ AJUSTES' };
+    el.innerHTML = '<div class="flex items-center gap-3 mb-6"><h2 class="font-display text-3xl tracking-wide text-white">' + (titles[section] || section) + '</h2></div><div class="text-center py-8 text-gray-600">Cargando...</div>';
+  });
+
+  // Reload the currently visible section
+  const activeNav = document.querySelector('[data-nav].bg-white\\/10');
+  if (activeNav) activeNav.click();
+
+  const seasonName = cache.seasons.find(s => s.id === seasonId)?.name || '';
+  toast(`📅 ${seasonName}`);
+};
+
+window._createNewSeason = async () => {
+  const league = state.activeLeague;
+  if (!league) return;
+
+  const seasonCount = cache.seasons.length;
+  const defaultName = 'Temporada ' + (seasonCount + 1);
+  const name = prompt('Nombre de la nueva temporada:', defaultName);
+  if (!name || !name.trim()) return;
+
+  const importTeams = confirm('¿Importar los equipos de la temporada actual? (Solo equipos, stats en 0)');
+
+  try {
+    // Create new season
+    const { data: newSeason, error } = await supa.from('seasons')
+      .insert({ league_id: league.id, name: name.trim(), status: 'active' })
+      .select().single();
+    if (error) throw error;
+
+    // Archive current season
+    const currentSeasonId = league.active_season_id;
+    if (currentSeasonId) {
+      await supa.from('seasons').update({ status: 'archived', archived_at: new Date().toISOString() }).eq('id', currentSeasonId);
+    }
+
+    // Update league active season
+    await supa.from('leagues').update({ active_season_id: newSeason.id }).eq('id', league.id);
+    league.active_season_id = newSeason.id;
+
+    // Import teams if requested
+    if (importTeams && cache.teams.length) {
+      for (const team of cache.teams.filter(t => !t.is_bye && !t.replaced)) {
+        const { data: newTeam } = await supa.from('teams').insert({
+          league_id: league.id,
+          season_id: newSeason.id,
+          name: team.name,
+          code: team.code,
+          shield_url: team.shield_url,
+        }).select().single();
+
+        // Import players with zeroed stats
+        if (newTeam) {
+          const { data: oldPlayers } = await supa.from('players').select('name, pos')
+            .eq('team_id', team.id).eq('league_id', league.id);
+          if (oldPlayers?.length) {
+            await supa.from('players').insert(
+              oldPlayers.map(p => ({
+                league_id: league.id,
+                season_id: newSeason.id,
+                team_id: newTeam.id,
+                name: p.name,
+                pos: p.pos,
+              }))
+            );
+          }
+        }
+      }
+    }
+
+    // Reload
+    await loadSeasons();
+    cache.teams = [];
+    cache.players = [];
+    cache.matches = [];
+    cache.schedule = [];
+
+    _bound.dash = false;
+    initDashboard();
+
+    // Reload the currently visible section
+    setTimeout(() => {
+      const activeNav = document.querySelector('[data-nav].bg-white\\/10');
+      if (activeNav) activeNav.click();
+    }, 300);
+
+    toast(`✅ ${name.trim()} creada`);
+  } catch(e) {
+    toast('⚠️ ' + e.message, true);
+  }
+};
 
 // ─── Retry/refresh globals ──────────────────────────────────
 window._retryTeams = () => { initTeamsSection(); };
