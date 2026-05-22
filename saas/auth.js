@@ -171,12 +171,14 @@ async function handleSession(session) {
 
   state.user = session.user;
 
-  // Load profile and leagues with 8-second timeout each
+  // Load profile, leagues, and memberships IN PARALLEL (not sequential)
   const defaultProfile = { id: session.user.id, email: session.user.email, role: 'user', plan_type: 'amateur', ai_trial_scans: 3 };
 
-  const profile = await withTimeout(loadProfile(session.user.id), 8000, null);
-  const leagues = await withTimeout(loadMyLeagues(session.user.id), 8000, []);
-  const memberships = await withTimeout(loadMyMemberships(session.user.id, session.user.email), 8000, []);
+  const [profile, leagues, memberships] = await Promise.all([
+    withTimeout(loadProfile(session.user.id), 8000, null),
+    withTimeout(loadMyLeagues(session.user.id), 8000, []),
+    withTimeout(loadMyMemberships(session.user.id, session.user.email), 8000, []),
+  ]);
 
   state.profile = profile || defaultProfile;
   state.leagues = leagues || [];
@@ -201,50 +203,49 @@ function initAuth() {
 
   console.log('[AUTH] initializing...');
 
-  // Get initial session with timeout
-  withTimeout(
-    supa.auth.getSession().then(({ data: { session } }) => handleSession(session)),
-    10000,
-    null
-  ).catch(e => {
-    console.error('[AUTH] getSession failed:', e);
-    state.loading = false;
-    emit('auth:logout');
-  }).then(result => {
-    // If timeout returned null (handleSession never completed), force logout
-    if (result === null && state.loading) {
-      console.warn('[AUTH] session load timed out, forcing logout');
-      state.loading = false;
+  // Single auth handler — onAuthStateChange fires INITIAL_SESSION on first load
+  let initialized = false;
+
+  supa.auth.onAuthStateChange(async (event, session) => {
+    console.log('[AUTH] onAuthStateChange:', event);
+
+    // TOKEN_REFRESHED — just update token, don't reload
+    if (event === 'TOKEN_REFRESHED') {
+      if (session?.user) state.user = session.user;
+      return;
+    }
+
+    // SIGNED_IN after initial load — skip if same user already loaded
+    if (event === 'SIGNED_IN' && initialized) {
+      if (state.user?.id === session?.user?.id && state.profile) {
+        state.user = session.user;
+        return;
+      }
+    }
+
+    // INITIAL_SESSION or first SIGNED_IN — load everything
+    if (event === 'INITIAL_SESSION' || (event === 'SIGNED_IN' && !initialized)) {
+      initialized = true;
+      await handleSession(session);
+      return;
+    }
+
+    // SIGNED_OUT
+    if (event === 'SIGNED_OUT') {
+      state.user = null; state.profile = null; state.leagues = [];
+      state.memberships = []; state.activeLeague = null; state.loading = false;
       emit('auth:logout');
     }
   });
 
-  // Listen for future changes
-  supa.auth.onAuthStateChange(async (event, session) => {
-    console.log('[AUTH] onAuthStateChange:', event);
-    if (event === 'INITIAL_SESSION') return;
-    
-    // TOKEN_REFRESHED — don't reload everything, just update the session
-    if (event === 'TOKEN_REFRESHED') {
-      console.log('[AUTH] token refreshed, keeping current state');
-      if (session?.user) state.user = session.user;
-      return;
-    }
-    
-    if (event === 'SIGNED_IN') {
-      // If same user is already loaded, skip full reload (prevents UI flicker)
-      if (state.user?.id === session?.user?.id && state.profile && state.leagues.length >= 0 && !state.loading) {
-        console.log('[AUTH] same user already loaded, skipping reload');
-        state.user = session.user; // update token but keep data
-        return;
-      }
-      await handleSession(session);
-    } else if (event === 'SIGNED_OUT') {
-      state.user = null; state.profile = null; state.leagues = [];
-      state.activeLeague = null; state.loading = false;
+  // Fallback: if nothing fires within 15s, show public screen
+  setTimeout(() => {
+    if (state.loading && !initialized) {
+      console.warn('[AUTH] no auth event after 15s, showing public');
+      state.loading = false;
       emit('auth:logout');
     }
-  });
+  }, 15000);
 }
 
 export { supa, state, on, emit, signUp, signIn, signOut, createLeague, setActiveLeague, searchPublicLeagues, loadPublicLeague, loadMyLeagues, loadMyMemberships, initAuth };
