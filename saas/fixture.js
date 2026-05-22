@@ -63,7 +63,8 @@ async function _initFixtureSectionInner() {
   if (!cache.teams.length) await loadTeams();
   await loadMatches();
   if (!cache.players.length) await loadPlayers();
-  cache.schedule = state.activeLeague.settings?.schedule || [];
+  const seasonId = getSeasonId();
+  cache.schedule = (state.activeLeague.settings?.schedules || {})[seasonId] || state.activeLeague.settings?.schedule || [];
 
   const hasSchedule = cache.schedule.length > 0;
 
@@ -121,11 +122,13 @@ async function _initFixtureSectionInner() {
     const doGen = async () => {
       const schedule = generateCalendar(activeTeams.map(t => t.id));
       cache.schedule = schedule;
-      // Save schedule in league settings
-      const settings = { ...(state.activeLeague.settings || {}), schedule };
-      const { error } = await supa.from('leagues').update({ settings }).eq('id', state.activeLeague.id);
+      // Save schedule per-season in league settings
+      const curSettings = { ...(state.activeLeague.settings || {}) };
+      if (!curSettings.schedules) curSettings.schedules = {};
+      curSettings.schedules[getSeasonId()] = schedule;
+      const { error } = await supa.from('leagues').update({ settings: curSettings }).eq('id', state.activeLeague.id);
       if (error) { toast('⚠️ Error: ' + error.message, true); return; }
-      state.activeLeague.settings = settings;
+      state.activeLeague.settings = curSettings;
       initFixtureSection();
       const totalGames = schedule.reduce((t, r) => t + r.fixtures.length, 0);
       toast(`📅 ${totalGames} partidos en ${schedule.length} fechas!`);
@@ -143,10 +146,12 @@ async function _initFixtureSectionInner() {
     $('btn-clear-fixture').onclick = async () => {
       if (!confirm('¿Borrar fixture? Los resultados no se tocan.')) return;
       cache.schedule = [];
-      const settings = { ...(state.activeLeague.settings || {}), schedule: [] };
-      const { error } = await supa.from('leagues').update({ settings }).eq('id', state.activeLeague.id);
+      const curSettings2 = { ...(state.activeLeague.settings || {}) };
+      if (curSettings2.schedules) delete curSettings2.schedules[getSeasonId()];
+      delete curSettings2.schedule; // clean old format
+      const { error } = await supa.from('leagues').update({ settings: curSettings2 }).eq('id', state.activeLeague.id);
       if (error) { toast('⚠️ Error: ' + error.message, true); return; }
-      state.activeLeague.settings = settings;
+      state.activeLeague.settings = curSettings2;
       initFixtureSection();
       toast('🗑 Fixture borrado');
     };
