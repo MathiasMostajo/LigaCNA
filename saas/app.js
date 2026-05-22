@@ -663,7 +663,6 @@ async function initHistorySection() {
   const section = document.querySelector('[data-section="history"]');
   if (!section) return;
 
-  // Preserve the header, replace everything after it
   section.innerHTML = '<div class="flex items-center gap-3 mb-6"><span class="text-2xl">📜</span><h2 class="font-display text-3xl tracking-wide text-white">HISTORIAL</h2></div><div id="history-content"></div>';
   const container = $('history-content');
   showLoading(container, 'Cargando historial...');
@@ -679,44 +678,89 @@ async function initHistorySection() {
       return;
     }
 
+    // Load stats per season
     const seasonData = [];
     for (const s of seasons) {
-      const { data: teams } = await supa.from('teams').select('id').eq('season_id', s.id).eq('replaced', false).eq('is_bye', false);
-      const { data: matches } = await supa.from('matches').select('id').eq('season_id', s.id);
-      const { data: topPlayers } = await supa.from('players').select('name, goals').eq('season_id', s.id).order('goals', { ascending: false }).limit(1);
+      const [teamsRes, matchesRes, scorerRes, assistRes, ratingRes] = await Promise.all([
+        supa.from('teams').select('id').eq('season_id', s.id).eq('replaced', false).eq('is_bye', false),
+        supa.from('matches').select('id').eq('season_id', s.id),
+        supa.from('players').select('name, goals').eq('season_id', s.id).order('goals', { ascending: false }).limit(1),
+        supa.from('players').select('name, assists').eq('season_id', s.id).order('assists', { ascending: false }).limit(1),
+        supa.from('players').select('name, ratings').eq('season_id', s.id),
+      ]);
 
-      seasonData.push({
-        ...s,
-        teamCount: teams?.length || 0,
-        matchCount: matches?.length || 0,
-        topScorer: topPlayers?.[0] || null,
-      });
+      let bestRating = null;
+      if (ratingRes.data) {
+        let best = { name: '', avg: 0 };
+        for (const p of ratingRes.data) {
+          if (p.ratings && p.ratings.length >= 3) {
+            const avg = p.ratings.reduce((a,b) => a + Number(b), 0) / p.ratings.length;
+            if (avg > best.avg) best = { name: p.name, avg };
+          }
+        }
+        if (best.avg > 0) bestRating = { name: best.name, avg: best.avg.toFixed(1) };
+      }
+
+      seasonData.push({ ...s, teamCount: teamsRes.data?.length || 0, matchCount: matchesRes.data?.length || 0, topScorer: scorerRes.data?.[0] || null, topAssist: assistRes.data?.[0] || null, bestRating });
     }
+
+    // Combined view: aggregate all players across seasons
+    const { data: allPlayers } = await supa.from('players').select('name, goals, assists, matches_played, ratings').eq('league_id', league.id);
+    const combined = {};
+    for (const p of (allPlayers || [])) {
+      const key = p.name.toLowerCase().trim();
+      if (!combined[key]) combined[key] = { name: p.name, goals: 0, assists: 0, mp: 0, ratings: [] };
+      combined[key].goals += p.goals || 0;
+      combined[key].assists += p.assists || 0;
+      combined[key].mp += p.matches_played || 0;
+      if (p.ratings && p.ratings.length) combined[key].ratings.push(...p.ratings.map(Number));
+    }
+    const combinedList = Object.values(combined).filter(p => p.mp > 0);
+    const topCScorer = [...combinedList].sort((a,b) => b.goals - a.goals).slice(0, 5);
+    const topCAssist = [...combinedList].sort((a,b) => b.assists - a.assists).slice(0, 5);
+    const topCRating = [...combinedList].filter(p => p.ratings.length >= 3).map(p => ({ ...p, avg: (p.ratings.reduce((a,b) => a+b, 0) / p.ratings.length).toFixed(1) })).sort((a,b) => b.avg - a.avg).slice(0, 5);
 
     const activeId = league.active_season_id;
 
-    container.innerHTML = seasonData.map(s => {
+    // Render season cards
+    const seasonCards = seasonData.map(s => {
       const isActive = s.id === activeId;
-      const badge = isActive
-        ? '<span class="text-[10px] bg-lime-400/10 text-lime-400 px-2 py-0.5 rounded-full font-semibold">EN CURSO</span>'
-        : '<span class="text-[10px] bg-gray-600/20 text-gray-500 px-2 py-0.5 rounded-full font-semibold">ARCHIVADA</span>';
-      const champion = s.champion ? '<div class="flex items-center gap-1.5 mt-2"><span>🏆</span><span class="text-sm text-yellow-400 font-semibold">' + s.champion + '</span></div>' : '';
-      const playoffChamp = s.playoff_champion ? '<div class="flex items-center gap-1.5"><span>🏆</span><span class="text-sm text-purple-400 font-semibold">Playoffs: ' + s.playoff_champion + '</span></div>' : '';
-      const topScorer = s.topScorer && s.topScorer.goals > 0 ? '<div class="flex items-center gap-1.5"><span>⚽</span><span class="text-sm text-white">' + s.topScorer.name + ' — ' + s.topScorer.goals + ' goles</span></div>' : '';
+      const badge = isActive ? '<span class="text-[10px] bg-lime-400/10 text-lime-400 px-2 py-0.5 rounded-full font-semibold">EN CURSO</span>' : '<span class="text-[10px] bg-gray-600/20 text-gray-500 px-2 py-0.5 rounded-full font-semibold">ARCHIVADA</span>';
+      const champ = s.champion ? '<div class="flex items-center gap-1.5 mt-2"><span>🏆</span><span class="text-sm text-yellow-400 font-semibold">Liga: ' + s.champion + '</span></div>' : '';
+      const pChamp = s.playoff_champion ? '<div class="flex items-center gap-1.5"><span>🏆</span><span class="text-sm text-purple-400 font-semibold">Playoffs: ' + s.playoff_champion + '</span></div>' : '';
+      const sc = s.topScorer && s.topScorer.goals > 0 ? '<span>\u26bd ' + s.topScorer.name + ' (' + s.topScorer.goals + ')</span>' : '';
+      const as = s.topAssist && s.topAssist.assists > 0 ? '<span>\ud83c\udfaf ' + s.topAssist.name + ' (' + s.topAssist.assists + ')</span>' : '';
+      const rt = s.bestRating ? '<span>\u2b50 ' + s.bestRating.name + ' (' + s.bestRating.avg + ')</span>' : '';
+      const statsItems = [sc, as, rt].filter(Boolean).join('');
+      const statsRow = statsItems ? '<div class="flex flex-wrap gap-3 mt-2 text-xs text-gray-400">' + statsItems + '</div>' : '';
       const dates = s.archived_at ? 'Archivada: ' + new Date(s.archived_at).toLocaleDateString() : 'Inicio: ' + new Date(s.created_at).toLocaleDateString();
-      const viewBtn = isActive ? '' : '<button onclick="window._switchSeason(\'' + s.id + '\')" class="mt-3 text-xs text-lime-400 hover:text-lime-300 font-semibold">Ver temporada →</button>';
-
-      return '<div class="bg-pitch-800/60 border ' + (isActive ? 'border-lime-400/20' : 'border-white/5') + ' rounded-2xl p-5 mb-4">'
-        + '<div class="flex items-center justify-between mb-2">'
-        + '<h3 class="font-display text-xl text-white">' + s.name + '</h3>'
-        + badge + '</div>'
-        + champion + playoffChamp + topScorer
-        + '<div class="flex gap-4 mt-3 text-xs text-gray-500">'
-        + '<span>🏟 ' + s.teamCount + ' equipos</span>'
-        + '<span>📅 ' + s.matchCount + ' partidos</span>'
-        + '<span>📆 ' + dates + '</span>'
-        + '</div>' + viewBtn + '</div>';
+      const viewBtn = isActive ? '' : '<button onclick="window._switchSeason(\'' + s.id + '\')" class="mt-3 text-xs text-lime-400 hover:text-lime-300 font-semibold">Ver temporada \u2192</button>';
+      return '<div class="bg-pitch-800/60 border ' + (isActive ? 'border-lime-400/20' : 'border-white/5') + ' rounded-2xl p-5 mb-4"><div class="flex items-center justify-between mb-2"><h3 class="font-display text-xl text-white">' + s.name + '</h3>' + badge + '</div>' + champ + pChamp + statsRow + '<div class="flex gap-4 mt-3 text-xs text-gray-500"><span>\ud83c\udfdf ' + s.teamCount + ' equipos</span><span>\ud83d\udcc5 ' + s.matchCount + ' partidos</span><span>\ud83d\udcc6 ' + dates + '</span></div>' + viewBtn + '</div>';
     }).join('');
+
+    // Render combined leaderboards
+    const renderTop = (list, field, emoji) => list.length ? list.map((p,i) => '<div class="flex items-center justify-between py-1.5 border-b border-white/5 text-sm"><span class="text-gray-400">' + (i+1) + '. ' + p.name + '</span><span class="text-white font-semibold">' + (field === 'avg' ? p.avg : p[field]) + '</span></div>').join('') : '<p class="text-gray-600 text-sm">Sin datos</p>';
+
+    const combinedHTML = '<div class="grid md:grid-cols-3 gap-4">'
+      + '<div class="bg-pitch-800/60 border border-white/5 rounded-2xl p-5"><h4 class="font-display text-lg text-white mb-3">\u26bd GOLEADORES HIST\u00d3RICOS</h4>' + renderTop(topCScorer, 'goals', '') + '</div>'
+      + '<div class="bg-pitch-800/60 border border-white/5 rounded-2xl p-5"><h4 class="font-display text-lg text-white mb-3">\ud83c\udfaf ASISTIDORES HIST\u00d3RICOS</h4>' + renderTop(topCAssist, 'assists', '') + '</div>'
+      + '<div class="bg-pitch-800/60 border border-white/5 rounded-2xl p-5"><h4 class="font-display text-lg text-white mb-3">\u2b50 MEJORES RATINGS</h4>' + renderTop(topCRating, 'avg', '') + '</div>'
+      + '</div><p class="text-xs text-gray-600 mt-4 text-center">' + combinedList.length + ' jugadores \u00b7 ' + seasons.length + ' temporadas \u00b7 ' + seasonData.reduce((t,s) => t + s.matchCount, 0) + ' partidos totales</p>';
+
+    container.innerHTML = '<div class="flex gap-2 mb-6"><button id="hist-tab-seasons" class="px-4 py-2 rounded-xl text-sm font-semibold bg-white/10 text-white">Por Temporada</button><button id="hist-tab-combined" class="px-4 py-2 rounded-xl text-sm font-semibold text-gray-500 hover:text-white hover:bg-white/5">Todas las Temporadas</button></div><div id="hist-seasons-view">' + seasonCards + '</div><div id="hist-combined-view" class="hidden">' + combinedHTML + '</div>';
+
+    $('hist-tab-seasons').onclick = () => {
+      $('hist-seasons-view').classList.remove('hidden');
+      $('hist-combined-view').classList.add('hidden');
+      $('hist-tab-seasons').className = 'px-4 py-2 rounded-xl text-sm font-semibold bg-white/10 text-white';
+      $('hist-tab-combined').className = 'px-4 py-2 rounded-xl text-sm font-semibold text-gray-500 hover:text-white hover:bg-white/5';
+    };
+    $('hist-tab-combined').onclick = () => {
+      $('hist-seasons-view').classList.add('hidden');
+      $('hist-combined-view').classList.remove('hidden');
+      $('hist-tab-combined').className = 'px-4 py-2 rounded-xl text-sm font-semibold bg-white/10 text-white';
+      $('hist-tab-seasons').className = 'px-4 py-2 rounded-xl text-sm font-semibold text-gray-500 hover:text-white hover:bg-white/5';
+    };
   } catch(e) {
     console.error('[HISTORY] error:', e);
     container.innerHTML = '<div class="text-red-400 text-sm">Error al cargar historial: ' + e.message + '</div>';
@@ -730,11 +774,13 @@ window._switchSeason = async (seasonId) => {
   const league = state.activeLeague;
   if (!league) return;
 
-  // Update active season locally
+  const season = cache.seasons.find(s => s.id === seasonId);
+
+  // Update active season locally for viewing
   league.active_season_id = seasonId;
 
-  // Update in database (only admin)
-  if (league.admin_id === state.user?.id) {
+  // Only update in database if switching to an ACTIVE season (not just viewing archived)
+  if (season?.status === 'active' && league.admin_id === state.user?.id) {
     await supa.from('leagues').update({ active_season_id: seasonId }).eq('id', league.id);
   }
 
@@ -810,11 +856,9 @@ window._createNewSeason = async () => {
       }).eq('id', currentSeasonId);
     }
 
-    // Update league active season AND clear old schedule
-    const newSettings = { ...(league.settings || {}), schedule: [] };
-    await supa.from('leagues').update({ active_season_id: newSeason.id, settings: newSettings }).eq('id', league.id);
+    // Update league active season
+    await supa.from('leagues').update({ active_season_id: newSeason.id }).eq('id', league.id);
     league.active_season_id = newSeason.id;
-    league.settings = newSettings;
 
     // Import teams if requested
     if (importTeams && oldTeams.length) {
