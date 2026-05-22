@@ -69,33 +69,33 @@ async function _initFixtureSectionInner() {
   const hasSchedule = cache.schedule.length > 0;
 
   container.innerHTML = `
-    <div class="flex items-center justify-between mb-6">
+    <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-6">
       <div class="flex items-center gap-3">
         <span class="text-2xl">📅</span>
         <h2 class="font-display text-3xl tracking-wide text-white">FIXTURE</h2>
-        <button onclick="window._showMatchHistory()" class="text-xs text-gray-500 hover:text-lime-400 bg-white/5 border border-white/10 px-2 py-1 rounded-lg transition-all">🕹 Historial</button>
       </div>
-      <div class="flex gap-2">
-        ${hasSchedule ? `<button onclick="window._openPlayoffs()" class="bg-purple-500/10 text-purple-400 border border-purple-400/20 px-4 py-2 rounded-xl text-sm font-semibold hover:bg-purple-500/20 transition-all">🏆 Playoffs</button>` : ''}
-        ${hasSchedule ? `<button id="btn-clear-fixture" class="bg-red-500/10 text-red-400 border border-red-500/20 px-4 py-2 rounded-xl text-sm font-semibold hover:bg-red-500/20 transition-all">🗑 Borrar</button>` : ''}
-        <button id="btn-gen-fixture" class="bg-gradient-to-r from-lime-400 to-emerald-500 text-pitch-900 font-bold py-2 px-5 rounded-xl text-sm uppercase tracking-wider hover:from-lime-300 hover:to-emerald-400 transition-all shadow-lg shadow-lime-400/10 active:scale-[.98]">${hasSchedule ? '🔄 Regenerar' : '📅 Generar Fixture'}</button>
+      <div class="flex flex-wrap gap-2">
+        <button onclick="window._showMatchHistory()" class="text-xs text-gray-500 hover:text-lime-400 bg-white/5 border border-white/10 px-2 py-1 rounded-lg transition-all">🕹 Historial</button>
+        ${hasSchedule ? `<button onclick="window._openPlayoffs()" class="bg-purple-500/10 text-purple-400 border border-purple-400/20 px-3 py-1 rounded-lg text-xs font-semibold hover:bg-purple-500/20 transition-all">🏆 Playoffs</button>` : ''}
+        ${hasSchedule ? `<button id="btn-clear-fixture" class="bg-red-500/10 text-red-400 border border-red-500/20 px-3 py-1 rounded-lg text-xs font-semibold hover:bg-red-500/20 transition-all">🗑 Borrar</button>` : ''}
+        <button id="btn-gen-fixture" class="bg-gradient-to-r from-lime-400 to-emerald-500 text-pitch-900 font-bold py-1 px-4 rounded-lg text-xs uppercase tracking-wider hover:from-lime-300 hover:to-emerald-400 transition-all shadow-lg shadow-lime-400/10 active:scale-[.98]">${hasSchedule ? '🔄 Regenerar' : '📅 Generar'}</button>
       </div>
     </div>
 
     <!-- Summary -->
     ${hasSchedule ? `
-      <div class="grid grid-cols-3 gap-3 mb-6">
-        <div class="bg-pitch-800/60 border border-white/5 rounded-xl p-4 text-center">
-          <p class="font-display text-2xl text-white">${cache.schedule.length}</p>
-          <p class="text-xs text-gray-500 uppercase tracking-wider">Fechas</p>
+      <div class="grid grid-cols-3 gap-2 sm:gap-3 mb-6">
+        <div class="bg-pitch-800/60 border border-white/5 rounded-xl p-3 sm:p-4 text-center">
+          <p class="font-display text-xl sm:text-2xl text-white">${cache.schedule.length}</p>
+          <p class="text-[10px] sm:text-xs text-gray-500 uppercase tracking-wider">Fechas</p>
         </div>
-        <div class="bg-pitch-800/60 border border-white/5 rounded-xl p-4 text-center">
-          <p class="font-display text-2xl text-white">${cache.schedule.reduce((t, r) => t + r.fixtures.length, 0)}</p>
-          <p class="text-xs text-gray-500 uppercase tracking-wider">Partidos</p>
+        <div class="bg-pitch-800/60 border border-white/5 rounded-xl p-3 sm:p-4 text-center">
+          <p class="font-display text-xl sm:text-2xl text-white">${cache.schedule.reduce((t, r) => t + r.fixtures.length, 0)}</p>
+          <p class="text-[10px] sm:text-xs text-gray-500 uppercase tracking-wider">Partidos</p>
         </div>
-        <div class="bg-pitch-800/60 border border-white/5 rounded-xl p-4 text-center">
-          <p class="font-display text-2xl text-lime-400">${cache.matches.length}</p>
-          <p class="text-xs text-gray-500 uppercase tracking-wider">Jugados</p>
+        <div class="bg-pitch-800/60 border border-white/5 rounded-xl p-3 sm:p-4 text-center">
+          <p class="font-display text-xl sm:text-2xl text-lime-400">${cache.matches.length}</p>
+          <p class="text-[10px] sm:text-xs text-gray-500 uppercase tracking-wider">Jugados</p>
         </div>
       </div>
     ` : ''}
