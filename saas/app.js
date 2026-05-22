@@ -290,7 +290,7 @@ function renderHubLeagues() {
     html += state.leagues.map(l => {
       const planColors = { superadmin: 'bg-yellow-400/10 text-yellow-400', elite: 'bg-purple-400/10 text-purple-400', pro: 'bg-lime-400/10 text-lime-400', amateur: 'bg-gray-500/10 text-gray-500' };
       const planClass = planColors[l.plan_type] || planColors.amateur;
-      return '<div class="bg-pitch-800/60 border border-white/5 rounded-2xl p-5 mb-3 hover:border-lime-400/20 transition-all glow"><div class="flex items-center justify-between"><div class="flex-1 min-w-0"><div class="flex items-center gap-2 mb-1"><h3 class="font-display text-xl text-white truncate">' + l.name + '</h3><span class="text-[10px] uppercase px-2 py-0.5 rounded-full font-semibold ' + planClass + '">' + l.plan_type + '</span></div><div class="flex items-center gap-4 text-xs text-gray-500"><span>' + (l.is_public ? '🌐 Pública' : '🔒 Privada') + '</span></div></div><button onclick="window._manageLeague(\'' + l.id + '\')" class="bg-gradient-to-r from-lime-400 to-emerald-500 text-pitch-900 font-bold py-2 px-5 rounded-xl text-sm uppercase tracking-wider hover:from-lime-300 hover:to-emerald-400 transition-all shrink-0 ml-4">Gestionar \u2192</button></div></div>';
+      return '<div class="bg-pitch-800/60 border border-white/5 rounded-2xl p-5 mb-3 hover:border-lime-400/20 transition-all glow"><div class="flex items-center justify-between"><div class="flex-1 min-w-0"><div class="flex items-center gap-2 mb-1"><h3 class="font-display text-xl text-white truncate">' + l.name + '</h3><span class="text-[10px] uppercase px-2 py-0.5 rounded-full font-semibold ' + planClass + '">' + l.plan_type + '</span></div><div class="flex items-center gap-4 text-xs text-gray-500"><span>' + (l.is_public ? '🌐 Pública' : '🔒 Privada') + '</span></div></div><div class="flex items-center gap-2 shrink-0 ml-4"><button onclick="window._manageLeague(\'' + l.id + '\')" class="bg-gradient-to-r from-lime-400 to-emerald-500 text-pitch-900 font-bold py-2 px-5 rounded-xl text-sm uppercase tracking-wider hover:from-lime-300 hover:to-emerald-400 transition-all">Gestionar \u2192</button><button onclick="window._deleteLeagueFromHub(\'' + l.id + '\',\'' + l.name.replace(/'/g, "\\'") + '\')" class="bg-red-500/10 text-red-400 border border-red-500/20 py-2 px-3 rounded-xl text-sm hover:bg-red-500/20 transition-all" title="Eliminar liga">🗑</button></div></div></div>';
     }).join('');
   } else {
     html += '<div class="bg-pitch-800/40 border border-dashed border-white/10 rounded-xl p-4 mb-2 text-center text-sm text-gray-600">No tenés ligas. Creá tu primera liga arriba.</div>';
@@ -322,6 +322,21 @@ window._manageLeague = (leagueId) => {
     showAdInterstitial(() => setActiveLeague(league));
   } else {
     setActiveLeague(league);
+  }
+};
+
+window._deleteLeagueFromHub = async (leagueId, leagueName) => {
+  if (!confirm('¿Eliminar "' + leagueName + '"? Se borran TODOS los datos (equipos, jugadores, partidos, temporadas). No se puede deshacer.')) return;
+  if (!confirm('⚠️ ÚLTIMA CONFIRMACIÓN: ¿Borrar "' + leagueName + '" permanentemente?')) return;
+
+  try {
+    const { error } = await supa.from('leagues').delete().eq('id', leagueId);
+    if (error) throw error;
+    state.leagues = state.leagues.filter(l => l.id !== leagueId);
+    renderHubLeagues();
+    toast('🗑 Liga eliminada');
+  } catch(e) {
+    toast('⚠️ ' + e.message, true);
   }
 };
 
