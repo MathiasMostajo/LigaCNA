@@ -165,11 +165,8 @@ async function _initSettingsSectionInner() {
       state.leagues = state.leagues.filter(l => l.id !== league.id);
       state.activeLeague = null;
       cache.teams = []; cache.players = []; cache.matches = []; cache.schedule = [];
-      _bound.dash = false;
-      _bound.hub = false;
-      showScreen('hub');
-      initHubUI();
       toast('🗑 Liga eliminada');
+      setTimeout(() => { window.location.hash = ''; window.location.reload(); }, 500);
     } catch(e) { toast('⚠️ ' + e.message, true); }
   };
 }
