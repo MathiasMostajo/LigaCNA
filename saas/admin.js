@@ -73,6 +73,14 @@ async function _initSettingsSectionInner() {
       </div>
     </div>
 
+    <!-- Tiebreaker config -->
+    <div class="bg-pitch-800/60 border border-white/5 rounded-2xl p-5 mb-4">
+      <h3 class="font-display text-lg text-white mb-2">⚖️ Criterios de Desempate</h3>
+      <p class="text-xs text-gray-500 mb-4">Cuando dos equipos tienen los mismos puntos, se aplican estos criterios en orden. Usá ▲ ▼ para reordenar.</p>
+      <div id="tiebreaker-list"></div>
+      <button id="btn-save-tiebreakers" class="mt-3 bg-lime-400/10 text-lime-400 border border-lime-400/20 font-semibold py-2 px-4 rounded-xl text-sm hover:bg-lime-400/20 transition-all">💾 Guardar Criterios</button>
+    </div>
+
     <!-- Danger zone -->
     <div class="bg-pitch-800/60 border border-red-500/20 rounded-2xl p-5">
       <h3 class="font-display text-lg text-red-400 mb-3">⚠️ Zona Peligrosa</h3>
@@ -124,6 +132,98 @@ async function _initSettingsSectionInner() {
     }
 
     btn.disabled = false; btn.textContent = '💾 Guardar Cambios';
+  };
+
+  // Tiebreaker config
+  const allCriteria = [
+    { type: 'gd', label: 'Diferencia de goles', icon: '➖' },
+    { type: 'gf', label: 'Goles a favor', icon: '⚽' },
+    { type: 'ga', label: 'Goles en contra (menos es mejor)', icon: '🧤' },
+    { type: 'wins', label: 'Victorias', icon: '✅' },
+    { type: 'h2h', label: 'Resultado directo', icon: '⚔️', hasModes: true },
+  ];
+
+  let currentTiebreakers = [...(league.settings?.tiebreakers || [
+    { type: 'gd' }, { type: 'gf' }
+  ])];
+
+  function renderTiebreakerList() {
+    const el = $('tiebreaker-list');
+    if (!el) return;
+
+    // Enabled items first (in order), then disabled
+    const enabledTypes = currentTiebreakers.map(t => t.type);
+    const disabled = allCriteria.filter(c => !enabledTypes.includes(c.type));
+
+    el.innerHTML = currentTiebreakers.map((tb, i) => {
+      const crit = allCriteria.find(c => c.type === tb.type) || { label: tb.type, icon: '?' };
+      const h2hMode = tb.type === 'h2h' ? `
+        <select data-h2h-mode="${i}" class="ml-2 bg-pitch-900/60 border border-white/10 rounded-lg px-2 py-0.5 text-[10px] text-gray-400 outline-none">
+          <option value="aggregate" ${(tb.mode || 'aggregate') === 'aggregate' ? 'selected' : ''}>Global (suma goles)</option>
+          <option value="wins" ${tb.mode === 'wins' ? 'selected' : ''}>Solo victorias</option>
+        </select>
+      ` : '';
+
+      return `<div class="flex items-center gap-2 py-2 border-b border-white/5">
+        <span class="text-sm">${i + 1}.</span>
+        <span class="text-sm">${crit.icon}</span>
+        <span class="flex-1 text-sm text-white">${crit.label}</span>
+        ${h2hMode}
+        <button onclick="window._moveTiebreaker(${i}, -1)" class="text-gray-600 hover:text-white text-xs px-1" ${i === 0 ? 'disabled style="opacity:0.3"' : ''}>▲</button>
+        <button onclick="window._moveTiebreaker(${i}, 1)" class="text-gray-600 hover:text-white text-xs px-1" ${i === currentTiebreakers.length - 1 ? 'disabled style="opacity:0.3"' : ''}>▼</button>
+        <button onclick="window._removeTiebreaker(${i})" class="text-gray-600 hover:text-red-400 text-xs px-1">✕</button>
+      </div>`;
+    }).join('')
+
+    + (disabled.length ? `
+      <div class="mt-3 pt-3 border-t border-white/5">
+        <p class="text-[10px] text-gray-600 uppercase tracking-wider mb-2">Disponibles</p>
+        ${disabled.map(c => `
+          <button onclick="window._addTiebreaker('${c.type}')" class="inline-flex items-center gap-1 bg-white/5 border border-white/10 rounded-lg px-2 py-1 text-xs text-gray-500 hover:text-white hover:border-lime-400/20 transition-all mr-1 mb-1">
+            ${c.icon} ${c.label}
+          </button>
+        `).join('')}
+      </div>
+    ` : '');
+
+    // Bind h2h mode dropdowns
+    el.querySelectorAll('[data-h2h-mode]').forEach(sel => {
+      sel.onchange = (e) => {
+        const idx = parseInt(e.target.getAttribute('data-h2h-mode'));
+        currentTiebreakers[idx].mode = e.target.value;
+      };
+    });
+  }
+
+  window._moveTiebreaker = (index, direction) => {
+    const newIdx = index + direction;
+    if (newIdx < 0 || newIdx >= currentTiebreakers.length) return;
+    [currentTiebreakers[index], currentTiebreakers[newIdx]] = [currentTiebreakers[newIdx], currentTiebreakers[index]];
+    renderTiebreakerList();
+  };
+
+  window._removeTiebreaker = (index) => {
+    currentTiebreakers.splice(index, 1);
+    renderTiebreakerList();
+  };
+
+  window._addTiebreaker = (type) => {
+    const entry = { type };
+    if (type === 'h2h') entry.mode = 'aggregate';
+    currentTiebreakers.push(entry);
+    renderTiebreakerList();
+  };
+
+  renderTiebreakerList();
+
+  $('btn-save-tiebreakers').onclick = async () => {
+    try {
+      const settings = { ...(league.settings || {}), tiebreakers: currentTiebreakers };
+      const { error } = await supa.from('leagues').update({ settings }).eq('id', league.id);
+      if (error) throw error;
+      league.settings = settings;
+      toast('✅ Criterios de desempate guardados');
+    } catch(e) { toast('⚠️ ' + e.message, true); }
   };
 
   // Reset stats
