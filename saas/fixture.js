@@ -8,7 +8,7 @@ function getMatchResult(homeId, awayId) {
   // Only match the EXACT home/away pair — A vs B is different from B vs A
   return cache.matches.find(m => m.home_id === homeId && m.away_id === awayId);
 }
-function generateCalendar(teamIds) {
+function generateCalendar(teamIds, format = 'idayvuelta') {
   let teams = [...teamIds];
   const hasBye = teams.length % 2 !== 0;
   if (hasBye) teams.push('__BYE__');
@@ -32,17 +32,19 @@ function generateCalendar(teamIds) {
     rotation.splice(1, 0, last);
   }
 
-  const leg2Pairs = leg1Pairs.map(round =>
-    round.map(f => ({ home: f.away, away: f.home }))
-  );
-
-  const shift = Math.floor((n - 1) / 2);
-  const leg2Shifted = [...leg2Pairs.slice(shift), ...leg2Pairs.slice(0, shift)];
-
   const schedule = [];
   let rnum = 1;
   leg1Pairs.forEach(pairs => { schedule.push({ round: rnum++, fixtures: pairs }); });
-  leg2Shifted.forEach(pairs => { schedule.push({ round: rnum++, fixtures: pairs }); });
+
+  // Only add vuelta if format is idayvuelta
+  if (format === 'idayvuelta') {
+    const leg2Pairs = leg1Pairs.map(round =>
+      round.map(f => ({ home: f.away, away: f.home }))
+    );
+    const shift = Math.floor((n - 1) / 2);
+    const leg2Shifted = [...leg2Pairs.slice(shift), ...leg2Pairs.slice(0, shift)];
+    leg2Shifted.forEach(pairs => { schedule.push({ round: rnum++, fixtures: pairs }); });
+  }
 
   return schedule;
 }
@@ -119,13 +121,39 @@ async function _initFixtureSectionInner() {
     const activeTeams = cache.teams.filter(t => !t.is_bye && !t.replaced);
     if (activeTeams.length < 2) { toast('⚠️ Necesitás al menos 2 equipos activos', true); return; }
 
-    const doGen = async () => {
-      const schedule = generateCalendar(activeTeams.map(t => t.id));
+    // Show format selection modal
+    const modal = document.createElement('div');
+    modal.className = 'fixed inset-0 bg-black/70 z-[9999] flex items-center justify-center p-4';
+    modal.innerHTML = `
+      <div class="bg-pitch-800 border border-white/10 rounded-2xl p-6 w-full max-w-sm">
+        <h3 class="font-display text-xl text-white mb-4">📅 Formato del Fixture</h3>
+        <div class="space-y-3 mb-5">
+          <button id="fmt-ida" class="w-full bg-pitch-900/60 border border-white/10 rounded-xl p-4 text-left hover:border-lime-400/30 transition-all">
+            <p class="text-white font-semibold text-sm">Solo Ida</p>
+            <p class="text-xs text-gray-500">Cada equipo juega contra cada uno una vez</p>
+            <p class="text-[10px] text-gray-600 mt-1">${activeTeams.length} equipos → ${Math.floor((activeTeams.length - (activeTeams.length % 2 === 0 ? 0 : 1)) * ((activeTeams.length - (activeTeams.length % 2 === 0 ? 0 : 1)) - 1) / 2)} partidos</p>
+          </button>
+          <button id="fmt-idayvuelta" class="w-full bg-pitch-900/60 border border-lime-400/20 rounded-xl p-4 text-left hover:border-lime-400/30 transition-all">
+            <p class="text-white font-semibold text-sm">Ida y Vuelta</p>
+            <p class="text-xs text-gray-500">Cada equipo juega contra cada uno dos veces (local y visitante)</p>
+            <p class="text-[10px] text-gray-600 mt-1">${activeTeams.length} equipos → ${(activeTeams.length - (activeTeams.length % 2 === 0 ? 0 : 1)) * ((activeTeams.length - (activeTeams.length % 2 === 0 ? 0 : 1)) - 1)} partidos</p>
+          </button>
+        </div>
+        <button id="fmt-cancel" class="w-full text-sm text-gray-500 hover:text-white py-2">Cancelar</button>
+      </div>
+    `;
+    document.body.appendChild(modal);
+    modal.querySelector('#fmt-cancel').onclick = () => modal.remove();
+    modal.onclick = (e) => { if (e.target === modal) modal.remove(); };
+
+    const doGen = async (format) => {
+      modal.remove();
+      const schedule = generateCalendar(activeTeams.map(t => t.id), format);
       cache.schedule = schedule;
-      // Save schedule per-season in league settings
       const curSettings = { ...(state.activeLeague.settings || {}) };
       if (!curSettings.schedules) curSettings.schedules = {};
       curSettings.schedules[getSeasonId()] = schedule;
+      curSettings.fixtureFormat = format; // remember format
       const { error } = await supa.from('leagues').update({ settings: curSettings }).eq('id', state.activeLeague.id);
       if (error) { toast('⚠️ Error: ' + error.message, true); return; }
       state.activeLeague.settings = curSettings;
@@ -134,9 +162,14 @@ async function _initFixtureSectionInner() {
       toast(`📅 ${totalGames} partidos en ${schedule.length} fechas!`);
     };
 
-    if (hasSchedule) {
-      if (confirm('¿Regenerar fixture? Se borrará el actual.')) doGen();
-    } else doGen();
+    modal.querySelector('#fmt-ida').onclick = () => {
+      if (hasSchedule && !confirm('¿Regenerar fixture? Se borrará el actual.')) { modal.remove(); return; }
+      doGen('ida');
+    };
+    modal.querySelector('#fmt-idayvuelta').onclick = () => {
+      if (hasSchedule && !confirm('¿Regenerar fixture? Se borrará el actual.')) { modal.remove(); return; }
+      doGen('idayvuelta');
+    };
   };
 
   // Render playoffs if configured
@@ -653,7 +686,58 @@ function calculateStandings() {
   });
 
   Object.values(standings).forEach(s => { s.GD = s.GF - s.GA; });
-  return Object.values(standings).sort((a,b) => b.Pts - a.Pts || b.GD - a.GD || b.GF - a.GF);
+
+  // Get tiebreaker config from league settings
+  const tiebreakers = state.activeLeague?.settings?.tiebreakers || [
+    { type: 'gd' }, { type: 'gf' }
+  ];
+
+  // H2H helper: compare two teams based on their direct matches
+  function h2hCompare(a, b, mode) {
+    const directMatches = cache.matches.filter(m =>
+      (m.home_id === a.id && m.away_id === b.id) || (m.home_id === b.id && m.away_id === a.id)
+    );
+    if (!directMatches.length) return 0;
+
+    if (mode === 'wins') {
+      // Count W/L only
+      let aWins = 0, bWins = 0;
+      directMatches.forEach(m => {
+        if (m.home_goals > m.away_goals) { if (m.home_id === a.id) aWins++; else bWins++; }
+        else if (m.home_goals < m.away_goals) { if (m.away_id === a.id) aWins++; else bWins++; }
+      });
+      return bWins - aWins; // negative = a wins more (a goes higher)
+    } else {
+      // Aggregate: sum goals across all direct matches
+      let aGoals = 0, bGoals = 0;
+      directMatches.forEach(m => {
+        if (m.home_id === a.id) { aGoals += m.home_goals; bGoals += m.away_goals; }
+        else { bGoals += m.home_goals; aGoals += m.away_goals; }
+      });
+      const diff = (aGoals - bGoals) - (bGoals - aGoals);
+      if (diff !== 0) return -diff; // negative = a is better
+      return bGoals - aGoals; // more away goals = tiebreak (like UEFA)
+    }
+  }
+
+  return Object.values(standings).sort((a, b) => {
+    // Points always first
+    if (b.Pts !== a.Pts) return b.Pts - a.Pts;
+
+    // Apply configured tiebreakers in order
+    for (const tb of tiebreakers) {
+      let diff = 0;
+      switch (tb.type) {
+        case 'gd': diff = b.GD - a.GD; break;
+        case 'gf': diff = b.GF - a.GF; break;
+        case 'ga': diff = a.GA - b.GA; break; // fewer GA is better
+        case 'wins': diff = b.W - a.W; break;
+        case 'h2h': diff = h2hCompare(a, b, tb.mode || 'aggregate'); break;
+      }
+      if (diff !== 0) return diff;
+    }
+    return 0;
+  });
 }
 
 async function initStandingsSection() {
