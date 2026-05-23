@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="es" class="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Política de Privacidad — Inti Leagues</title>
+  <meta name="robots" content="index, follow">
+  <link rel="icon" href="./icon.png" type="image/png">
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: { extend: { colors: { pitch: { 900:'#0a0f0a', 800:'#0f1a0f' } } } }
+    }
+  </script>
+  <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Barlow+Condensed:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <style>body{font-family:'Barlow Condensed',sans-serif} h1,h2{font-family:'Bebas Neue',sans-serif}</style>
+</head>
+<body class="bg-pitch-900 text-gray-300 min-h-screen">
+  <nav class="border-b border-white/5 bg-pitch-800/50 sticky top-0 z-30">
+    <div class="max-w-3xl mx-auto flex items-center justify-between px-4 py-3">
+      <a href="./" class="flex items-center gap-2">
+        <img src="./icon.png" class="w-8 h-8 rounded-lg" alt="Inti Leagues">
+        <span style="font-family:'Bebas Neue'" class="text-xl tracking-wide text-white">INTI LEAGUES</span>
+      </a>
+      <a href="./" class="text-sm text-gray-500 hover:text-white transition-colors">← Volver</a>
+    </div>
+  </nav>
+
+  <main class="max-w-3xl mx-auto px-4 py-12">
+    <h1 class="text-4xl tracking-wide text-white mb-2">POLÍTICA DE PRIVACIDAD</h1>
+    <p class="text-sm text-gray-600 mb-8">Última actualización: Mayo 2026</p>
+
+    <div class="space-y-8 text-sm leading-relaxed">
+      <section>
+        <h2 class="text-xl tracking-wide text-white mb-3">1. INFORMACIÓN QUE RECOPILAMOS</h2>
+        <p class="mb-3">Cuando usás Inti Leagues, recopilamos la siguiente información:</p>
+        <p class="mb-2"><span class="text-white font-semibold">Datos de cuenta:</span> dirección de correo electrónico y contraseña cifrada al registrarte.</p>
+        <p class="mb-2"><span class="text-white font-semibold">Datos de liga:</span> nombres de ligas, equipos, jugadores, resultados de partidos, estadísticas y configuraciones que crees dentro de la plataforma.</p>
+        <p class="mb-2"><span class="text-white font-semibold">Imágenes:</span> capturas de pantalla subidas al Scanner IA para extraer resultados de partidos. Estas imágenes se procesan en tiempo real y no se almacenan permanentemente.</p>
+        <p class="mb-2"><span class="text-white font-semibold">Datos de uso:</span> información sobre cómo usás la plataforma recopilada a través de Google Analytics (páginas visitadas, duración de sesión, dispositivo, ubicación aproximada).</p>
+      </section>
+
+      <section>
+        <h2 class="text-xl tracking-wide text-white mb-3">2. CÓMO USAMOS TU INFORMACIÓN</h2>
+        <p class="mb-2">Usamos tu información para:</p>
+        <p class="mb-1">• Proveer y mantener el servicio de gestión de ligas</p>
+        <p class="mb-1">• Autenticar tu identidad y proteger tu cuenta</p>
+        <p class="mb-1">• Procesar imágenes con el Scanner IA para extraer resultados</p>
+        <p class="mb-1">• Mejorar la plataforma basándonos en datos de uso</p>
+        <p class="mb-1">• Mostrar publicidad relevante (plan Amateur)</p>
+        <p class="mb-1">• Comunicarnos contigo sobre cambios en el servicio</p>
+      </section>
+
+      <section>
+        <h2 class="text-xl tracking-wide text-white mb-3">3. ALMACENAMIENTO Y SEGURIDAD</h2>
+        <p class="mb-3">Tus datos se almacenan en servidores seguros de <span class="text-white">Supabase</span> (infraestructura de AWS). Las contraseñas se cifran y nunca se almacenan en texto plano.</p>
+        <p>Las imágenes subidas al Scanner IA se envían a la API de Anthropic (Claude) para procesamiento y no se almacenan después del análisis.</p>
+      </section>
+
+      <section>
+        <h2 class="text-xl tracking-wide text-white mb-3">4. SERVICIOS DE TERCEROS</h2>
+        <p class="mb-2">Utilizamos los siguientes servicios de terceros:</p>
+        <p class="mb-1">• <span class="text-white">Supabase</span> — base de datos y autenticación</p>
+        <p class="mb-1">• <span class="text-white">Vercel</span> — hosting de la aplicación</p>
+        <p class="mb-1">• <span class="text-white">Cloudflare</span> — DNS y protección</p>
+        <p class="mb-1">• <span class="text-white">Anthropic (Claude)</span> — procesamiento de imágenes con IA</p>
+        <p class="mb-1">• <span class="text-white">Google Analytics</span> — análisis de uso</p>
+        <p class="mb-1">• <span class="text-white">Google AdSense</span> — publicidad (plan Amateur)</p>
+        <p class="mt-3">Cada servicio tiene su propia política de privacidad. Te recomendamos revisarlas.</p>
+      </section>
+
+      <section>
+        <h2 class="text-xl tracking-wide text-white mb-3">5. COOKIES Y ALMACENAMIENTO LOCAL</h2>
+        <p>Inti Leagues utiliza almacenamiento local del navegador (localStorage) para mantener tu sesión activa y preferencias. No usamos cookies de rastreo propias. Google Analytics y Google AdSense pueden utilizar cookies según sus propias políticas.</p>
+      </section>
+
+      <section>
+        <h2 class="text-xl tracking-wide text-white mb-3">6. TUS DERECHOS</h2>
+        <p class="mb-2">Tenés derecho a:</p>
+        <p class="mb-1">• <span class="text-white">Acceder</span> a tus datos personales</p>
+        <p class="mb-1">• <span class="text-white">Eliminar</span> tu cuenta y todos los datos asociados</p>
+        <p class="mb-1">• <span class="text-white">Exportar</span> los datos de tus ligas</p>
+        <p class="mb-1">• <span class="text-white">Modificar</span> tu información de perfil</p>
+        <p class="mt-3">Para ejercer cualquiera de estos derechos, contactanos a <a href="mailto:contacto@intileagues.com" class="text-emerald-400 hover:text-emerald-300">contacto@intileagues.com</a>.</p>
+      </section>
+
+      <section>
+        <h2 class="text-xl tracking-wide text-white mb-3">7. MENORES DE EDAD</h2>
+        <p>Inti Leagues no está dirigido a menores de 13 años. No recopilamos intencionalmente información de menores de 13 años. Si descubrimos que hemos recopilado datos de un menor, los eliminaremos de inmediato.</p>
+      </section>
+
+      <section>
+        <h2 class="text-xl tracking-wide text-white mb-3">8. CAMBIOS EN ESTA POLÍTICA</h2>
+        <p>Podemos actualizar esta política periódicamente. Notificaremos cambios significativos a través de la plataforma o por correo electrónico. El uso continuado de Inti Leagues después de los cambios constituye aceptación de la política actualizada.</p>
+      </section>
+
+      <section>
+        <h2 class="text-xl tracking-wide text-white mb-3">9. CONTACTO</h2>
+        <p>Si tenés preguntas sobre esta política de privacidad, contactanos en:</p>
+        <p class="mt-2"><a href="mailto:contacto@intileagues.com" class="text-emerald-400 hover:text-emerald-300">contacto@intileagues.com</a></p>
+      </section>
+    </div>
+  </main>
+
+  <footer class="border-t border-white/5 mt-16 py-6 px-4">
+    <div class="max-w-3xl mx-auto flex items-center justify-between">
+      <span class="text-xs text-gray-700">Inti Leagues © 2026</span>
+      <div class="flex gap-4 text-xs text-gray-600">
+        <a href="./terms.html" class="hover:text-gray-400">Términos de Uso</a>
+        <a href="./privacy.html" class="text-white">Privacidad</a>
+      </div>
+    </div>
+  </footer>
+</body>
+</html>
