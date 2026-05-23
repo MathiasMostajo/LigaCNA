@@ -28,10 +28,10 @@ function toast(msg, isError = false) {
 // ─── Plan limits ─────────────────────────────────────────────
 function getPlanLimits(planType) {
   const plans = {
-    amateur:    { maxTeams: 12, maxPlayers: 15, hasAds: true,  hasScan: false },
-    pro:        { maxTeams: 18, maxPlayers: 20, hasAds: false, hasScan: true  },
-    elite:      { maxTeams: 999, maxPlayers: 999, hasAds: false, hasScan: true },
-    superadmin: { maxTeams: 999, maxPlayers: 999, hasAds: false, hasScan: true },
+    amateur:    { maxTeams: 12, maxPlayers: 15, maxLeagues: 3, hasAds: true,  hasScan: false, price: 'Gratis' },
+    pro:        { maxTeams: 20, maxPlayers: 25, maxLeagues: 5, hasAds: false, hasScan: true,  price: '$12/mes' },
+    elite:      { maxTeams: 999, maxPlayers: 999, maxLeagues: 999, hasAds: false, hasScan: true, price: '$25/mes' },
+    superadmin: { maxTeams: 999, maxPlayers: 999, maxLeagues: 999, hasAds: false, hasScan: true, price: 'Internal' },
   };
   return plans[planType] || plans.amateur;
 }
@@ -49,6 +49,13 @@ const cache = {
 // ─── Season helpers ──────────────────────────────────────────
 function getSeasonId() {
   return state.activeLeague?.active_season_id || null;
+}
+
+function isArchivedSeason() {
+  const seasonId = getSeasonId();
+  if (!seasonId) return false;
+  const season = cache.seasons.find(s => s.id === seasonId);
+  return season?.status === 'archived';
 }
 
 async function loadSeasons() {
@@ -138,6 +145,6 @@ function buildRatingChart(ratings) {
 
 export {
   $, showScreen, showLoading, toast, getPlanLimits,
-  cache, getSeasonId, loadSeasons, loadTeams, loadPlayers, loadMatches, tn,
+  cache, getSeasonId, isArchivedSeason, loadSeasons, loadTeams, loadPlayers, loadMatches, tn,
   buildRatingChart,
 };
