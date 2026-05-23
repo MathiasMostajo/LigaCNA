@@ -2,7 +2,7 @@
 // app.js v6 — Entry point (imports all modules)
 // ═══════════════════════════════════════════════════════════════
 import { supa, state, on, emit, signUp, signIn, signOut, createLeague, setActiveLeague, searchPublicLeagues, loadPublicLeague, loadMyMemberships, initAuth } from './auth.js';
-import { $, showScreen, showLoading, toast, getPlanLimits, cache, getSeasonId, loadSeasons, loadTeams, loadPlayers, loadMatches, tn } from './shared.js';
+import { $, showScreen, showLoading, toast, getPlanLimits, cache, getSeasonId, isArchivedSeason, loadSeasons, loadTeams, loadPlayers, loadMatches, tn } from './shared.js';
 import { initTeamsSection, renderTeamsList } from './teams.js';
 import { initFixtureSection, initStandingsSection, calculateStandings } from './fixture.js';
 import { initLeadersSection } from './leaders.js';
@@ -797,6 +797,23 @@ window._switchSeason = async (seasonId) => {
   // Only update in database if switching to an ACTIVE season (not just viewing archived)
   if (season?.status === 'active' && league.admin_id === state.user?.id) {
     await supa.from('leagues').update({ active_season_id: seasonId }).eq('id', league.id);
+  }
+
+  // Show/hide archived banner
+  let banner = document.getElementById('archived-season-banner');
+  if (season?.status === 'archived') {
+    if (!banner) {
+      banner = document.createElement('div');
+      banner.id = 'archived-season-banner';
+      banner.className = 'bg-yellow-500/10 border border-yellow-500/20 rounded-xl px-4 py-3 mb-4 flex items-center gap-2 text-sm text-yellow-400';
+      const mainContent = document.querySelector('#dash-main > .p-4, #dash-main > .lg\\:p-8');
+      if (mainContent) mainContent.prepend(banner);
+      else $('dash-main')?.prepend(banner);
+    }
+    banner.innerHTML = '📁 <span class="font-semibold">' + season.name + '</span> — Temporada archivada (solo lectura)';
+    banner.classList.remove('hidden');
+  } else if (banner) {
+    banner.classList.add('hidden');
   }
 
   // Clear caches and reload all sections
