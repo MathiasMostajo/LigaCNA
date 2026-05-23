@@ -2,7 +2,7 @@
 // fixture.js — Fixture generation, results, standings, H2H, match history
 // ═══════════════════════════════════════════════════════════════
 import { supa, state } from './auth.js';
-import { $, showScreen, showLoading, toast, cache, getSeasonId, loadTeams, loadPlayers, loadMatches, tn } from './shared.js';
+import { $, showScreen, showLoading, toast, cache, getSeasonId, isArchivedSeason, loadTeams, loadPlayers, loadMatches, tn } from './shared.js';
 
 function getMatchResult(homeId, awayId) {
   // Only match the EXACT home/away pair — A vs B is different from B vs A
@@ -490,6 +490,7 @@ async function reversePlayerStats(match) {
 
 // ─── Delete match ────────────────────────────────────────────
 window._deleteMatch = async (matchId) => {
+  if (isArchivedSeason()) { toast('📁 Temporada archivada — solo lectura', true); return; }
   const match = cache.matches.find(m => m.id === matchId);
   if (!match) return;
   if (!confirm(`¿Borrar ${tn(match.home_id)} ${match.home_goals}–${match.away_goals} ${tn(match.away_id)}? Se revierten todas las estadísticas. No se puede deshacer.`)) return;
@@ -515,6 +516,7 @@ window._deleteMatch = async (matchId) => {
 
 // ─── Edit match ──────────────────────────────────────────────
 window._editMatch = (matchId) => {
+  if (isArchivedSeason()) { toast('📁 Temporada archivada — solo lectura', true); return; }
   const match = cache.matches.find(m => m.id === matchId);
   if (!match) return;
 
