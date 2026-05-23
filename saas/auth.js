@@ -112,10 +112,17 @@ async function loadMyLeagues(userId) {
 
 async function createLeague(name) {
   const plan = state.profile?.plan_type || 'amateur';
-  const teamLimits = { amateur: 12, pro: 18, elite: 999, superadmin: 999 };
-  const playerCaps = { amateur: 15, pro: 20, elite: 999, superadmin: 999 };
+  const teamLimits = { amateur: 12, pro: 20, elite: 999, superadmin: 999 };
+  const playerCaps = { amateur: 15, pro: 25, elite: 999, superadmin: 999 };
+  const leagueLimits = { amateur: 3, pro: 5, elite: 999, superadmin: 999 };
   const maxTeams = teamLimits[plan] || 12;
   const maxPlayers = playerCaps[plan] || 15;
+  const maxLeagues = leagueLimits[plan] || 3;
+
+  // Check league count
+  if (state.leagues.length >= maxLeagues) {
+    throw new Error(`Tu plan ${plan.toUpperCase()} permite máximo ${maxLeagues} ligas activas. Eliminá una liga o mejorá tu plan.`);
+  }
 
   const { data, error } = await supa.from('leagues')
     .insert({ admin_id: state.user.id, name, max_teams: maxTeams, max_players_per_team: maxPlayers, plan_type: plan })
