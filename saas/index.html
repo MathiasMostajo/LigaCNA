@@ -3,14 +3,15 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Pro Leagues — Gestión de Torneos</title>
+  <title>Inti Leagues — Gestión de Torneos</title>
   <meta name="description" content="Plataforma SaaS para gestionar ligas de Pro Clubs y fútbol amateur. Scanner IA, tabla automática, estadísticas en tiempo real. Gratis para empezar.">
-  <meta property="og:title" content="Pro Leagues — Tu Liga, Tu Plataforma">
+  <meta property="og:title" content="Inti Leagues — Tu Liga, Tu Plataforma">
   <meta property="og:description" content="Gestioná torneos con scanner IA, fixture automático y estadísticas en vivo.">
   <meta property="og:type" content="website">
   <meta property="og:image" content="https://ligacna-saas.vercel.app/og-image.png">
   <meta name="twitter:card" content="summary_large_image">
   <meta name="theme-color" content="#0a0f0a">
+  <link rel="manifest" href="./manifest.json">
   <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>⚽</text></svg>">
   <script src="https://cdn.tailwindcss.com"></script>
   <script>
@@ -71,7 +72,7 @@
     <div class="max-w-6xl mx-auto flex items-center justify-between px-4 py-3">
       <div class="flex items-center gap-2">
         <div class="w-8 h-8 rounded-lg bg-gradient-to-br from-lime-400 to-emerald-600 flex items-center justify-center text-pitch-900 text-sm font-display font-bold">⚽</div>
-        <span class="font-display text-xl tracking-wide text-white">PRO LEAGUES</span>
+        <span class="font-display text-xl tracking-wide text-white">INTI LEAGUES</span>
       </div>
       <div class="flex items-center gap-3">
         <button id="btn-goto-dt" class="text-sm text-gray-400 hover:text-lime-400 font-semibold transition-colors border border-white/10 px-3 py-1.5 rounded-lg">🔑 Acceso rápido</button>
@@ -120,24 +121,24 @@
           <p class="font-display text-xl text-gray-400 mb-1">AMATEUR</p>
           <p class="font-display text-3xl text-white mb-3">Gratis</p>
           <div class="text-xs text-gray-500 space-y-1 mb-4">
-            <p>12 equipos</p><p>15 jugadores/equipo</p><p>3 scans IA trial</p><p>Con publicidad</p>
+            <p>12 equipos · 15 jug/equipo</p><p>3 ligas activas</p><p>3 scans IA</p><p>Con publicidad</p>
           </div>
           <button onclick="document.getElementById('btn-goto-login').click()" class="w-full bg-white/5 border border-white/10 text-gray-400 py-2 rounded-xl text-sm font-semibold hover:text-white transition-all">Empezar →</button>
         </div>
         <div class="bg-pitch-800/60 border border-lime-400/20 rounded-2xl p-5 text-center relative glow">
           <span class="absolute -top-2 left-1/2 -translate-x-1/2 bg-lime-400 text-pitch-900 text-[10px] font-bold px-3 py-0.5 rounded-full uppercase">Popular</span>
           <p class="font-display text-xl text-lime-400 mb-1">PRO</p>
-          <p class="font-display text-3xl text-white mb-3">$X<span class="text-sm text-gray-500">/mes</span></p>
+          <p class="font-display text-3xl text-white mb-3">$12<span class="text-sm text-gray-500">/mes</span></p>
           <div class="text-xs text-gray-500 space-y-1 mb-4">
-            <p>18 equipos</p><p>20 jugadores/equipo</p><p>Scanner IA ilimitado</p><p>Sin publicidad</p>
+            <p>20 equipos · 25 jug/equipo</p><p>5 ligas activas</p><p>Scanner IA ilimitado</p><p>Sin publicidad</p>
           </div>
           <button class="w-full bg-gradient-to-r from-lime-400 to-emerald-500 text-pitch-900 py-2 rounded-xl text-sm font-bold">Próximamente</button>
         </div>
         <div class="bg-pitch-800/40 border border-purple-400/20 rounded-2xl p-5 text-center">
           <p class="font-display text-xl text-purple-400 mb-1">ELITE</p>
-          <p class="font-display text-3xl text-white mb-3">$Y<span class="text-sm text-gray-500">/año</span></p>
+          <p class="font-display text-3xl text-white mb-3">$25<span class="text-sm text-gray-500">/mes</span></p>
           <div class="text-xs text-gray-500 space-y-1 mb-4">
-            <p>Equipos ilimitados</p><p>Jugadores ilimitados</p><p>Todo Pro incluido</p><p>White Label</p>
+            <p>Equipos ilimitados</p><p>Ligas ilimitadas</p><p>Todo Pro incluido</p><p>Sin publicidad</p>
           </div>
           <button class="w-full bg-purple-500/10 border border-purple-400/20 text-purple-400 py-2 rounded-xl text-sm font-bold">Próximamente</button>
         </div>
@@ -149,7 +150,7 @@
     <div class="max-w-4xl mx-auto flex flex-col md:flex-row items-center justify-between gap-4">
       <div class="flex items-center gap-2">
         <div class="w-6 h-6 rounded bg-gradient-to-br from-lime-400 to-emerald-600 flex items-center justify-center text-pitch-900 text-xs font-bold">⚽</div>
-        <span class="text-sm text-gray-600">Pro Leagues © 2026</span>
+        <span class="text-sm text-gray-600">Inti Leagues © 2026</span>
       </div>
       <div class="flex items-center gap-6 text-xs text-gray-600">
         <a href="#" class="hover:text-gray-400 transition-colors">Términos de Uso</a>
@@ -172,7 +173,7 @@
     <div class="text-center mb-10 slide-up">
       <div class="inline-flex items-center gap-3 mb-4">
         <div class="w-12 h-12 rounded-xl bg-gradient-to-br from-lime-400 to-emerald-600 flex items-center justify-center text-pitch-900 text-2xl font-display font-bold shadow-lg shadow-lime-400/20">⚽</div>
-        <div><h1 class="font-display text-4xl tracking-wide text-white leading-none">PRO LEAGUES</h1><p class="text-[10px] tracking-[.35em] uppercase text-lime-400/60 font-semibold">Gestión de torneos</p></div>
+        <div><h1 class="font-display text-4xl tracking-wide text-white leading-none">INTI LEAGUES</h1><p class="text-[10px] tracking-[.35em] uppercase text-lime-400/60 font-semibold">Gestión de torneos</p></div>
       </div>
     </div>
     <div class="bg-pitch-800/80 backdrop-blur-sm border border-white/5 rounded-2xl p-8 glow slide-up">
