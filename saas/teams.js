@@ -2,7 +2,7 @@
 // teams.js — Teams CRUD, players, team profiles, DT email management
 // ═══════════════════════════════════════════════════════════════
 import { supa, state } from './auth.js';
-import { $, showLoading, toast, getPlanLimits, cache, getSeasonId, loadTeams, loadPlayers } from './shared.js';
+import { $, showLoading, toast, getPlanLimits, cache, getSeasonId, isArchivedSeason, loadTeams, loadPlayers } from './shared.js';
 
 async function initTeamsSection() {
   try { await _initTeamsSectionInner(); } catch(e) { 
@@ -264,6 +264,7 @@ function renderPlayersHTML(players) {
 }
 
 window._editPlayerStats = (playerId) => {
+  if (isArchivedSeason()) { toast('📁 Temporada archivada — solo lectura', true); return; }
   const player = cache.players.find(p => p.id === playerId);
   if (!player) return;
 
@@ -346,6 +347,7 @@ window._closeTeamDetail = () => {
 
 // ─── Team Actions ────────────────────────────────────────────
 window._addPlayer = async (teamId) => {
+  if (isArchivedSeason()) { toast('📁 Temporada archivada — solo lectura', true); return; }
   const nameEl = $('new-player-name');
   const posEl = $('new-player-pos');
   const name = nameEl?.value.trim();
@@ -383,6 +385,7 @@ window._addPlayer = async (teamId) => {
 };
 
 window._removePlayer = async (playerId, playerName) => {
+  if (isArchivedSeason()) { toast('📁 Temporada archivada — solo lectura', true); return; }
   if (!confirm(`¿Eliminar a ${playerName}? Esto borra todas sus estadísticas.`)) return;
   try {
     const { error } = await supa.from('players').delete().eq('id', playerId);
