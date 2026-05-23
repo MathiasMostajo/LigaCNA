@@ -222,12 +222,15 @@ function initAuth() {
       return;
     }
 
-    // SIGNED_IN after initial load — skip if same user already loaded
+    // SIGNED_IN after initial load — skip if same user already loaded, otherwise load new user
     if (event === 'SIGNED_IN' && initialized) {
       if (state.user?.id === session?.user?.id && state.profile) {
         state.user = session.user;
         return;
       }
+      // New user logged in — load their data
+      await handleSession(session);
+      return;
     }
 
     // INITIAL_SESSION or first SIGNED_IN — load everything
