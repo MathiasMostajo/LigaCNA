@@ -2,7 +2,7 @@
 // admin.js — Settings, inbox, admin scanner, transfers, playoffs
 // ═══════════════════════════════════════════════════════════════
 import { supa, state } from './auth.js';
-import { $, showLoading, toast, getPlanLimits, cache, getSeasonId, loadTeams, loadPlayers, tn } from './shared.js';
+import { $, showLoading, toast, getPlanLimits, cache, getSeasonId, isArchivedSeason, loadTeams, loadPlayers, tn } from './shared.js';
 import { callAI, processResult, saveMatchStats, updatePlayerStats, approveSubmission, rejectSubmission, posToES } from './scanner.js';
 import { calculateStandings } from './fixture.js';
 
