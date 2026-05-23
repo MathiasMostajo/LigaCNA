@@ -636,16 +636,28 @@ window._showUpgradePage = () => {
     <div class="text-center">
       <div class="text-4xl mb-4">✨</div>
       <h3 class="font-display text-2xl text-white mb-2">Actualizar Plan</h3>
-      <p class="text-sm text-gray-500 mb-6">Desbloquea scanner IA ilimitado, más equipos y más jugadores</p>
+      <p class="text-sm text-gray-500 mb-6">Desbloquea más equipos, más ligas y scanner IA ilimitado</p>
 
       <div class="space-y-3 mb-6">
+        <div class="bg-pitch-900/40 border border-white/10 rounded-xl p-4 text-left">
+          <div class="flex items-center justify-between mb-2">
+            <span class="font-display text-lg text-gray-500">AMATEUR</span>
+            <span class="text-sm text-gray-600">Tu plan actual</span>
+          </div>
+          <div class="text-xs text-gray-600 space-y-1">
+            <p>12 equipos · 15 jugadores/equipo</p>
+            <p>3 ligas activas · 3 scans IA</p>
+            <p>Con publicidad</p>
+          </div>
+        </div>
         <div class="bg-pitch-900/40 border border-lime-400/20 rounded-xl p-4 text-left">
           <div class="flex items-center justify-between mb-2">
             <span class="font-display text-lg text-lime-400">PRO</span>
-            <span class="text-sm text-gray-400">Próximamente</span>
+            <span class="font-display text-lg text-white">$12<span class="text-xs text-gray-500">/mes</span></span>
           </div>
           <div class="text-xs text-gray-500 space-y-1">
-            <p>✅ 18 equipos · 20 jugadores/equipo</p>
+            <p>✅ 20 equipos · 25 jugadores/equipo</p>
+            <p>✅ 5 ligas activas</p>
             <p>✅ Scanner IA ilimitado</p>
             <p>✅ Sin publicidad</p>
           </div>
@@ -653,12 +665,12 @@ window._showUpgradePage = () => {
         <div class="bg-pitch-900/40 border border-purple-400/20 rounded-xl p-4 text-left">
           <div class="flex items-center justify-between mb-2">
             <span class="font-display text-lg text-purple-400">ELITE</span>
-            <span class="text-sm text-gray-400">Próximamente</span>
+            <span class="font-display text-lg text-white">$25<span class="text-xs text-gray-500">/mes</span></span>
           </div>
           <div class="text-xs text-gray-500 space-y-1">
             <p>✅ Todo incluido en Pro</p>
             <p>✅ Equipos y jugadores ilimitados</p>
-            <p>✅ White Label (sin branding)</p>
+            <p>✅ Ligas ilimitadas</p>
           </div>
         </div>
       </div>
