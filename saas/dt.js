@@ -2,7 +2,7 @@
 // dt.js — DT code entry, submission form, DT views, DT auth
 // ═══════════════════════════════════════════════════════════════
 import { supa, state, signOut, loadMyMemberships } from './auth.js';
-import { $, showScreen, showLoading, toast, getPlanLimits, cache, getSeasonId } from './shared.js';
+import { $, showScreen, showLoading, toast, getPlanLimits, cache, getSeasonId, isArchivedSeason } from './shared.js';
 import { callAI, processResult, saveSubmission, posToES } from './scanner.js';
 
 let _dtTeam = null;
