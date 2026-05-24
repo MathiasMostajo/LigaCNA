@@ -661,7 +661,7 @@ window._showUpgradePage = () => {
             <p>✅ Scanner IA ilimitado</p>
             <p>✅ Sin publicidad</p>
           </div>
-          ${isAmateur ? '<a href="mailto:contacto@intileagues.com?subject=Suscripción Pro" class="block w-full bg-gradient-to-r from-lime-400 to-emerald-500 text-pitch-900 font-bold py-2 rounded-xl text-sm uppercase tracking-wider hover:from-lime-300 hover:to-emerald-400 transition-all text-center">Contactanos →</a>' : ''}
+          
         </div>
         <div class="bg-pitch-900/40 border border-purple-400/20 rounded-xl p-4 text-left">
           <div class="flex items-center justify-between mb-2">
@@ -673,9 +673,10 @@ window._showUpgradePage = () => {
             <p>✅ Equipos y jugadores ilimitados</p>
             <p>✅ Ligas ilimitadas</p>
           </div>
-          <a href="mailto:contacto@intileagues.com?subject=Suscripción Elite" class="block w-full bg-purple-500/20 border border-purple-400/30 text-purple-400 font-bold py-2 rounded-xl text-sm uppercase tracking-wider hover:bg-purple-500/30 transition-all text-center">Contactanos →</a>
+          
         </div>
       </div>
+      <p class="text-xs text-gray-600 mt-4">¿Querés mejorar tu plan? Escribinos a <a href="mailto:contacto@intileagues.com" class="text-emerald-400 hover:text-emerald-300">contacto@intileagues.com</a></p>
     </div>
   `;
   $('result-form').classList.remove('hidden');
