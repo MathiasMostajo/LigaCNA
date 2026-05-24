@@ -179,7 +179,7 @@ async function handleSession(session) {
   state.user = session.user;
 
   // Load profile, leagues, and memberships IN PARALLEL (not sequential)
-  const defaultProfile = { id: session.user.id, email: session.user.email, role: 'user', plan_type: 'amateur', ai_trial_scans: 3 };
+  const defaultProfile = { id: session.user.id, email: session.user.email, role: 'user', plan_type: 'amateur', ai_trial_scans: 15 };
 
   const [profile, leagues, memberships] = await Promise.all([
     withTimeout(loadProfile(session.user.id), 8000, null),
