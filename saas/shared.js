@@ -143,8 +143,27 @@ function buildRatingChart(ratings) {
   </div>`;
 }
 
+// ─── Monthly scan reset ──────────────────────────────────────
+async function checkMonthlyScanReset() {
+  if (!state.user || !state.profile) return;
+  if (state.profile.plan_type !== 'amateur') return; // Pro/Elite have unlimited
+
+  const currentMonth = new Date().toISOString().slice(0, 7); // "2026-05"
+  if (state.profile.scans_reset_month !== currentMonth) {
+    // New month — reset scan counter
+    const { error } = await supa.from('profiles').update({
+      ai_trial_scans: 15,
+      scans_reset_month: currentMonth,
+    }).eq('id', state.user.id);
+    if (!error) {
+      state.profile.ai_trial_scans = 15;
+      state.profile.scans_reset_month = currentMonth;
+    }
+  }
+}
+
 export {
   $, showScreen, showLoading, toast, getPlanLimits,
   cache, getSeasonId, isArchivedSeason, loadSeasons, loadTeams, loadPlayers, loadMatches, tn,
-  buildRatingChart,
+  buildRatingChart, checkMonthlyScanReset,
 };
