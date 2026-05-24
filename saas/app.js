@@ -655,30 +655,53 @@ window._showUpgradePage = () => {
             <span class="font-display text-lg text-lime-400">PRO</span>
             <span class="font-display text-lg text-white">$12<span class="text-xs text-gray-500">/mes</span></span>
           </div>
-          <div class="text-xs text-gray-500 space-y-1">
+          <div class="text-xs text-gray-500 space-y-1 mb-3">
             <p>✅ 20 equipos · 25 jugadores/equipo</p>
             <p>✅ 5 ligas activas</p>
             <p>✅ Scanner IA ilimitado</p>
             <p>✅ Sin publicidad</p>
           </div>
+          <button onclick="window._startCheckout('price_1TaPpPPQh2QoF7OQwS6d7QZz')" class="w-full bg-gradient-to-r from-lime-400 to-emerald-500 text-pitch-900 font-bold py-2 rounded-xl text-sm uppercase tracking-wider hover:from-lime-300 hover:to-emerald-400 transition-all">Suscribirme al Pro →</button>
         </div>
         <div class="bg-pitch-900/40 border border-purple-400/20 rounded-xl p-4 text-left">
           <div class="flex items-center justify-between mb-2">
             <span class="font-display text-lg text-purple-400">ELITE</span>
             <span class="font-display text-lg text-white">$25<span class="text-xs text-gray-500">/mes</span></span>
           </div>
-          <div class="text-xs text-gray-500 space-y-1">
+          <div class="text-xs text-gray-500 space-y-1 mb-3">
             <p>✅ Todo incluido en Pro</p>
             <p>✅ Equipos y jugadores ilimitados</p>
             <p>✅ Ligas ilimitadas</p>
           </div>
+          <button onclick="window._startCheckout('price_1TaPptPQh2QoF7OQO2GGAycW')" class="w-full bg-purple-500/20 border border-purple-400/30 text-purple-400 font-bold py-2 rounded-xl text-sm uppercase tracking-wider hover:bg-purple-500/30 transition-all">Suscribirme al Elite →</button>
         </div>
       </div>
-
-      <p class="text-xs text-gray-600">Los pagos se habilitarán próximamente.<br>Contactanos para acceso anticipado.</p>
     </div>
   `;
   $('result-form').classList.remove('hidden');
+};
+
+window._startCheckout = async (priceId) => {
+  const { data: { session } } = await supa.auth.getSession();
+  if (!session) { toast('⚠️ Iniciá sesión primero', true); return; }
+
+  toast('Redirigiendo a Stripe...');
+
+  try {
+    const res = await fetch(supa.supabaseUrl + '/functions/v1/create-checkout', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer ' + session.access_token,
+      },
+      body: JSON.stringify({ priceId }),
+    });
+    const data = await res.json();
+    if (data.error) throw new Error(data.error);
+    if (data.url) window.location.href = data.url;
+  } catch(e) {
+    toast('⚠️ ' + e.message, true);
+  }
 };
 
 
