@@ -249,6 +249,15 @@ function initHubUI() {
     }
   }
 
+  // Upgrade button (visible for Amateur and Pro only)
+  const plan = state.profile?.plan_type || 'amateur';
+  const upgradeContainer = $('hub-upgrade-btn');
+  if (upgradeContainer && !state.isSuperadmin && plan !== 'elite') {
+    upgradeContainer.innerHTML = `<button onclick="window._showUpgradePage()" class="bg-gradient-to-r from-lime-400 to-emerald-500 text-pitch-900 font-bold py-2 px-5 rounded-xl text-sm uppercase tracking-wider hover:from-lime-300 hover:to-emerald-400 transition-all shadow-lg shadow-lime-400/10 active:scale-[.98]">⬆ Mejorar Plan</button>`;
+  } else if (upgradeContainer) {
+    upgradeContainer.innerHTML = '';
+  }
+
   // Render leagues AND DT memberships
   renderHubLeagues();
   renderHubMemberships();
@@ -543,6 +552,32 @@ initAuth();
 // Hash routing for shareable URLs
 function handleHashRoute() {
   const hash = window.location.hash;
+
+  // Handle upgrade success/cancel
+  if (hash === '#/upgrade/success') {
+    window.location.hash = '';
+    setTimeout(() => {
+      // Reload profile to get updated plan
+      if (state.user) {
+        supa.from('profiles').select('*').eq('id', state.user.id).single().then(({ data }) => {
+          if (data) {
+            state.profile = data;
+            toast('🎉 ¡Pago exitoso! Tu plan se actualizó a ' + (data.plan_type || '').toUpperCase());
+            _bound.hub = false;
+            initHubUI();
+          }
+        });
+      }
+    }, 500);
+    return;
+  }
+
+  if (hash === '#/upgrade/cancel') {
+    window.location.hash = '';
+    toast('Pago cancelado');
+    return;
+  }
+
   if (!hash.startsWith('#/liga/')) return;
 
   // Don't interfere if user is already managing a league in dashboard
@@ -631,7 +666,12 @@ function renderTrialBanner() {
 // STRIPE PLACEHOLDER + UPGRADE BUTTON
 // ═══════════════════════════════════════════════════════════════
 window._showUpgradePage = () => {
+  const currentPlan = state.profile?.plan_type || 'amateur';
   const body = $('result-form-body');
+
+  const isAmateur = currentPlan === 'amateur';
+  const isPro = currentPlan === 'pro';
+
   body.innerHTML = `
     <div class="text-center">
       <div class="text-4xl mb-4">✨</div>
@@ -639,10 +679,10 @@ window._showUpgradePage = () => {
       <p class="text-sm text-gray-500 mb-6">Desbloquea más equipos, más ligas y scanner IA ilimitado</p>
 
       <div class="space-y-3 mb-6">
-        <div class="bg-pitch-900/40 border border-white/10 rounded-xl p-4 text-left">
+        <div class="bg-pitch-900/40 border ${isAmateur ? 'border-white/20' : 'border-white/5'} rounded-xl p-4 text-left">
           <div class="flex items-center justify-between mb-2">
             <span class="font-display text-lg text-gray-500">AMATEUR</span>
-            <span class="text-sm text-gray-600">Tu plan actual</span>
+            ${isAmateur ? '<span class="text-[10px] bg-white/10 text-gray-400 px-2 py-0.5 rounded-full font-semibold">Tu plan actual</span>' : '<span class="text-sm text-gray-700">Gratis</span>'}
           </div>
           <div class="text-xs text-gray-600 space-y-1">
             <p>12 equipos · 15 jugadores/equipo</p>
@@ -650,18 +690,18 @@ window._showUpgradePage = () => {
             <p>Con publicidad</p>
           </div>
         </div>
-        <div class="bg-pitch-900/40 border border-lime-400/20 rounded-xl p-4 text-left">
+        <div class="bg-pitch-900/40 border ${isPro ? 'border-lime-400/30' : 'border-lime-400/20'} rounded-xl p-4 text-left">
           <div class="flex items-center justify-between mb-2">
             <span class="font-display text-lg text-lime-400">PRO</span>
-            <span class="font-display text-lg text-white">$12<span class="text-xs text-gray-500">/mes</span></span>
+            ${isPro ? '<span class="text-[10px] bg-lime-400/10 text-lime-400 px-2 py-0.5 rounded-full font-semibold">Tu plan actual</span>' : '<span class="font-display text-lg text-white">$12<span class="text-xs text-gray-500">/mes</span></span>'}
           </div>
-          <div class="text-xs text-gray-500 space-y-1 mb-3">
+          <div class="text-xs text-gray-500 space-y-1 ${isAmateur ? 'mb-3' : ''}">
             <p>✅ 20 equipos · 25 jugadores/equipo</p>
             <p>✅ 5 ligas activas</p>
             <p>✅ Scanner IA ilimitado</p>
             <p>✅ Sin publicidad</p>
           </div>
-          <button onclick="window._startCheckout('price_1TaPpPPQh2QoF7OQwS6d7QZz')" class="w-full bg-gradient-to-r from-lime-400 to-emerald-500 text-pitch-900 font-bold py-2 rounded-xl text-sm uppercase tracking-wider hover:from-lime-300 hover:to-emerald-400 transition-all">Suscribirme al Pro →</button>
+          ${isAmateur ? '<button onclick="window._startCheckout(\'price_1TaPpPPQh2QoF7OQwS6d7QZz\')" class="w-full bg-gradient-to-r from-lime-400 to-emerald-500 text-pitch-900 font-bold py-2 rounded-xl text-sm uppercase tracking-wider hover:from-lime-300 hover:to-emerald-400 transition-all">Suscribirme al Pro →</button>' : ''}
         </div>
         <div class="bg-pitch-900/40 border border-purple-400/20 rounded-xl p-4 text-left">
           <div class="flex items-center justify-between mb-2">
