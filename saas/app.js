@@ -326,12 +326,8 @@ window._manageLeague = (leagueId) => {
   });
   _bound.dash = false;
 
-  // Show interstitial ad for Amateur plan (non-superadmin)
-  if (league.plan_type === 'amateur' && !state.isSuperadmin) {
-    showAdInterstitial(() => setActiveLeague(league));
-  } else {
-    setActiveLeague(league);
-  }
+  // Go directly to league (ads disabled until AdSense approved)
+  setActiveLeague(league);
 };
 
 window._deleteLeagueFromHub = async (leagueId, leagueName) => {
@@ -348,42 +344,6 @@ window._deleteLeagueFromHub = async (leagueId, leagueName) => {
     toast('⚠️ ' + e.message, true);
   }
 };
-
-function showAdInterstitial(onComplete) {
-  // Create fullscreen interstitial
-  const overlay = document.createElement('div');
-  overlay.id = 'ad-interstitial';
-  overlay.style.cssText = 'position:fixed;inset:0;z-index:9999;background:#0a0f0a;display:flex;flex-direction:column;align-items:center;justify-content:center;';
-
-  let seconds = 5;
-  overlay.innerHTML = `
-    <div style="max-width:400px;text-align:center;padding:20px;">
-      <div style="border:2px dashed rgba(255,255,255,.1);border-radius:16px;padding:40px 20px;margin-bottom:24px;background:rgba(255,255,255,.02);">
-        <p style="color:rgba(255,255,255,.3);font-size:14px;font-family:'Barlow Condensed',sans-serif;letter-spacing:2px;text-transform:uppercase;">Espacio publicitario</p>
-        <p style="color:rgba(255,255,255,.15);font-size:12px;margin-top:8px;">Tu anuncio aquí — contacta al administrador</p>
-      </div>
-      <p style="color:rgba(255,255,255,.4);font-size:13px;font-family:'Barlow Condensed',sans-serif;">
-        Cargando liga en <span id="ad-countdown" style="color:#00ff87;font-weight:700;font-size:18px;">${seconds}</span> segundos
-      </p>
-      <p style="color:rgba(255,255,255,.2);font-size:11px;margin-top:12px;">
-        ✨ <a href="#" onclick="event.preventDefault();clearInterval(timer);overlay.remove();window._showUpgradePage()" style="color:#00ff87;text-decoration:underline;">Actualizá a Pro</a> para eliminar anuncios
-      </p>
-    </div>
-  `;
-
-  document.body.appendChild(overlay);
-
-  const timer = setInterval(() => {
-    seconds--;
-    const el = document.getElementById('ad-countdown');
-    if (el) el.textContent = seconds;
-    if (seconds <= 0) {
-      clearInterval(timer);
-      overlay.remove();
-      onComplete();
-    }
-  }, 1000);
-}
 
 // ═══════════════════════════════════════════════════════════════
 // STATE 4: LEAGUE DASHBOARD
@@ -686,7 +646,7 @@ window._showUpgradePage = () => {
           </div>
           <div class="text-xs text-gray-600 space-y-1">
             <p>12 equipos · 15 jugadores/equipo</p>
-            <p>3 ligas activas · 3 scans IA</p>
+            <p>3 ligas activas · 15 scans IA/mes</p>
             <p>Con publicidad</p>
           </div>
         </div>
@@ -701,7 +661,7 @@ window._showUpgradePage = () => {
             <p>✅ Scanner IA ilimitado</p>
             <p>✅ Sin publicidad</p>
           </div>
-          ${isAmateur ? '<button onclick="window._startCheckout(\'price_1TaPpPPQh2QoF7OQwS6d7QZz\')" class="w-full bg-gradient-to-r from-lime-400 to-emerald-500 text-pitch-900 font-bold py-2 rounded-xl text-sm uppercase tracking-wider hover:from-lime-300 hover:to-emerald-400 transition-all">Suscribirme al Pro →</button>' : ''}
+          ${isAmateur ? '<a href="mailto:contacto@intileagues.com?subject=Suscripción Pro" class="block w-full bg-gradient-to-r from-lime-400 to-emerald-500 text-pitch-900 font-bold py-2 rounded-xl text-sm uppercase tracking-wider hover:from-lime-300 hover:to-emerald-400 transition-all text-center">Contactanos →</a>' : ''}
         </div>
         <div class="bg-pitch-900/40 border border-purple-400/20 rounded-xl p-4 text-left">
           <div class="flex items-center justify-between mb-2">
@@ -713,7 +673,7 @@ window._showUpgradePage = () => {
             <p>✅ Equipos y jugadores ilimitados</p>
             <p>✅ Ligas ilimitadas</p>
           </div>
-          <button onclick="window._startCheckout('price_1TaPptPQh2QoF7OQO2GGAycW')" class="w-full bg-purple-500/20 border border-purple-400/30 text-purple-400 font-bold py-2 rounded-xl text-sm uppercase tracking-wider hover:bg-purple-500/30 transition-all">Suscribirme al Elite →</button>
+          <a href="mailto:contacto@intileagues.com?subject=Suscripción Elite" class="block w-full bg-purple-500/20 border border-purple-400/30 text-purple-400 font-bold py-2 rounded-xl text-sm uppercase tracking-wider hover:bg-purple-500/30 transition-all text-center">Contactanos →</a>
         </div>
       </div>
     </div>
