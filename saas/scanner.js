@@ -2,6 +2,7 @@
 // scanner.js — AI Scanner Module (position-aware, multi-league)
 // ═══════════════════════════════════════════════════════════════
 import { supa, state } from './auth.js';
+import { checkMonthlyScanReset } from './shared.js';
 
 // ─── AI Prompt — position extraction is MANDATORY ────────────
 function buildPrompt(players) {
@@ -36,6 +37,9 @@ Return ONLY this JSON (no markdown, no backticks):
 
 // ─── Call AI via Edge Function (API key stays server-side) ──
 async function callAI(images, players) {
+  // Reset monthly scan counter if needed
+  await checkMonthlyScanReset();
+
   // Get current user's JWT for server-side auth
   const { data: { session } } = await supa.auth.getSession();
   if (!session) throw new Error('No active session');
