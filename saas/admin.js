@@ -73,6 +73,18 @@ async function _initSettingsSectionInner() {
       </div>
     </div>
 
+    <!-- Inscription fee -->
+    <div class="bg-pitch-800/60 border border-white/5 rounded-2xl p-5 mb-4">
+      <h3 class="font-display text-lg text-white mb-2">💰 Precio de Inscripción</h3>
+      <p class="text-xs text-gray-500 mb-3">Establecé un monto que cada equipo debe pagar para participar. Podés marcar quién pagó desde la pestaña Equipos.</p>
+      <div class="flex items-center gap-3">
+        <span class="text-white font-semibold">$</span>
+        <input type="number" id="set-inscription-fee" min="0" step="0.01" value="${league.settings?.inscriptionFee || 0}" class="w-32 bg-pitch-900/60 border border-white/10 rounded-xl px-3 py-2 text-white text-center outline-none focus:border-lime-400/40 text-sm" placeholder="0.00">
+        <span class="text-xs text-gray-500">USD</span>
+        <button id="btn-save-fee" class="bg-lime-400/10 text-lime-400 border border-lime-400/20 font-semibold py-2 px-4 rounded-xl text-sm hover:bg-lime-400/20 transition-all">💾 Guardar</button>
+      </div>
+    </div>
+
     <!-- Tiebreaker config -->
     <div class="bg-pitch-800/60 border border-white/5 rounded-2xl p-5 mb-4">
       <h3 class="font-display text-lg text-white mb-2">⚖️ Criterios de Desempate</h3>
@@ -99,10 +111,11 @@ async function _initSettingsSectionInner() {
 
     try {
       const requirePhotos = $('set-require-photos')?.checked || false;
+      const inscriptionFee = parseFloat($('set-inscription-fee')?.value) || 0;
       const updates = {
         max_players_per_team: parseInt($('set-max-players').value) || 15,
         is_public: $('set-is-public').checked,
-        settings: { ...(league.settings || {}), requirePhotos },
+        settings: { ...(league.settings || {}), requirePhotos, inscriptionFee },
       };
       // Enforce player limit by plan
       const saveLimits = getPlanLimits(league.plan_type);
@@ -223,6 +236,18 @@ async function _initSettingsSectionInner() {
       if (error) throw error;
       league.settings = settings;
       toast('✅ Criterios de desempate guardados');
+    } catch(e) { toast('⚠️ ' + e.message, true); }
+  };
+
+  // Inscription fee save (quick save)
+  $('btn-save-fee').onclick = async () => {
+    const fee = parseFloat($('set-inscription-fee')?.value) || 0;
+    try {
+      const settings = { ...(league.settings || {}), inscriptionFee: fee };
+      const { error } = await supa.from('leagues').update({ settings }).eq('id', league.id);
+      if (error) throw error;
+      league.settings = settings;
+      toast('✅ Precio de inscripción: $' + fee.toFixed(2));
     } catch(e) { toast('⚠️ ' + e.message, true); }
   };
 
