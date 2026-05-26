@@ -85,7 +85,7 @@ function showDTSubmissionForm() {
   const content = $('dt-content');
   const team = _dtTeam;
   const league = _dtLeague;
-  const canScan = ['pro', 'elite', 'superadmin'].includes(league.plan_type);
+  const canScan = ['pro', 'elite', 'superadmin'].includes(league.plan_type); // DTs only scan in paid plans
   _dtPhotos = [];
 
   // Add navigation tabs for DT
@@ -181,27 +181,20 @@ function showDTSubmissionForm() {
       </div>
     </div>
 
-    <!-- AI Auto-fill button -->
-    <div class="bg-pitch-800/60 border ${canScan ? 'border-purple-400/20' : 'border-white/5'} rounded-2xl p-5 mb-4">
+    ${canScan ? `
+    <!-- AI Auto-fill button (Pro/Elite only) -->
+    <div class="bg-pitch-800/60 border border-purple-400/20 rounded-2xl p-5 mb-4">
       <div class="flex items-center justify-between">
         <div>
-          <h3 class="text-sm font-semibold ${canScan ? 'text-purple-400' : 'text-gray-600'}">🤖 Auto-llenar con IA</h3>
-          <p class="text-xs ${canScan ? 'text-gray-500' : 'text-gray-700'}">${canScan ? 'La IA lee tus fotos y rellena todo automáticamente' : 'Función disponible en plan Pro — contactá a tu admin'}</p>
+          <h3 class="text-sm font-semibold text-purple-400">🤖 Auto-llenar con IA</h3>
+          <p class="text-xs text-gray-500">La IA lee tus fotos y rellena todo automáticamente</p>
         </div>
-        <button id="btn-dt-ai" ${canScan ? '' : 'disabled'} onclick="window._dtRunAI()"
-          class="px-5 py-2.5 rounded-xl text-sm font-bold transition-all ${canScan
-            ? 'bg-gradient-to-r from-purple-500 to-indigo-500 text-white hover:from-purple-400 hover:to-indigo-400 shadow-lg shadow-purple-500/10'
-            : 'bg-pitch-700 text-gray-600 cursor-not-allowed'}">
+        <button id="btn-dt-ai" onclick="window._dtRunAI()"
+          class="px-5 py-2.5 rounded-xl text-sm font-bold transition-all bg-gradient-to-r from-purple-500 to-indigo-500 text-white hover:from-purple-400 hover:to-indigo-400 shadow-lg shadow-purple-500/10">
           🤖 Escanear
         </button>
       </div>
     </div>
-
-    <!-- Ad banner for amateur leagues -->
-    ${league.plan_type === 'amateur' ? `
-      <div class="bg-pitch-800/40 border border-dashed border-white/10 rounded-xl p-3 mb-4 text-center">
-        <p class="text-[10px] text-gray-700 uppercase tracking-wider">Espacio publicitario</p>
-      </div>
     ` : ''}
 
     <!-- Submit button -->
