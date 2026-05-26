@@ -143,21 +143,24 @@ function buildRatingChart(ratings) {
   </div>`;
 }
 
-// ─── Monthly scan reset ──────────────────────────────────────
+// ─── Monthly scan reset (uses SERVER time, not client) ───────
 async function checkMonthlyScanReset() {
   if (!state.user || !state.profile) return;
-  if (state.profile.plan_type !== 'amateur') return; // Pro/Elite have unlimited
+  if (state.profile.plan_type !== 'amateur') return;
 
-  const currentMonth = new Date().toISOString().slice(0, 7); // "2026-05"
-  if (state.profile.scans_reset_month !== currentMonth) {
-    // New month — reset scan counter
-    const { error } = await supa.from('profiles').update({
+  // Get server time from Supabase (not hackeable)
+  const { data, error } = await supa.rpc('get_server_month');
+  if (error || !data) return;
+
+  const serverMonth = data; // "2026-05"
+  if (state.profile.scans_reset_month !== serverMonth) {
+    const { error: updateErr } = await supa.from('profiles').update({
       ai_trial_scans: 15,
-      scans_reset_month: currentMonth,
+      scans_reset_month: serverMonth,
     }).eq('id', state.user.id);
-    if (!error) {
+    if (!updateErr) {
       state.profile.ai_trial_scans = 15;
-      state.profile.scans_reset_month = currentMonth;
+      state.profile.scans_reset_month = serverMonth;
     }
   }
 }
