@@ -128,7 +128,20 @@ function renderTeamsList() {
     return;
   }
 
-  el.innerHTML = cache.teams.filter(t => !t.is_bye).map(t => {
+  const activeTeams = cache.teams.filter(t => !t.is_bye);
+  const fee = state.activeLeague?.settings?.inscriptionFee || 0;
+  const paidCount = activeTeams.filter(t => t.paid).length;
+  const totalCollected = paidCount * fee;
+
+  const summaryHtml = fee > 0 ? `
+    <div class="bg-pitch-800/60 border border-white/5 rounded-xl p-3 mb-4 flex flex-wrap items-center gap-4 text-xs">
+      <span class="text-gray-500">💰 Inscripción: <span class="text-white font-semibold">$${fee.toFixed(2)}</span></span>
+      <span class="text-gray-500">✅ Pagaron: <span class="text-lime-400 font-semibold">${paidCount}/${activeTeams.length}</span></span>
+      <span class="text-gray-500">💵 Recaudado: <span class="text-white font-semibold">$${totalCollected.toFixed(2)}</span></span>
+    </div>
+  ` : '';
+
+  el.innerHTML = summaryHtml + activeTeams.map(t => {
     const shieldHtml = t.shield_url
       ? `<img src="${t.shield_url}" class="w-10 h-10 rounded-full object-cover border border-white/10 shrink-0">`
       : `<div class="w-10 h-10 rounded-full bg-pitch-700 border border-white/10 flex items-center justify-center text-lg font-display text-lime-400 shrink-0">${t.name.charAt(0)}</div>`;
