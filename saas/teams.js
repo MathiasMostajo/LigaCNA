@@ -492,7 +492,7 @@ window._uploadShield = async (teamId, event) => {
           ctx.fillRect(0, 0, 200, 200);
           const scale = Math.min(200 / img.width, 200 / img.height);
           const w2 = img.width * scale, h2 = img.height * scale;
-          ctx.drawImage(img, (200 - w) / 2, (200 - h) / 2, w, h);
+          ctx.drawImage(img, (200 - w2) / 2, (200 - h2) / 2, w2, h2);
           resolve(canvas.toDataURL('image/jpeg', 0.8));
         };
         img.onerror = () => reject(new Error('No se pudo leer la imagen'));
