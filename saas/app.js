@@ -74,14 +74,7 @@ window._viewPublicLeague = async (slug) => {
       return;
     }
 
-    // Load public data
-    const [teamsRes, matchesRes, playersRes] = await Promise.all([
-      supa.from('teams').select('*').eq('league_id', league.id).eq('is_bye', false).eq('replaced', false),
-      supa.from('matches').select('*').eq('league_id', league.id).order('created_at', { ascending: false }).limit(20),
-      supa.from('players').select('*').eq('league_id', league.id).order('goals', { ascending: false }).limit(20),
-    ]);
-
-    // Load all players (not just top 20) for public view
+    // Load all public data
     const [teamsRes, matchesRes, playersRes] = await Promise.all([
       supa.from('teams').select('*').eq('league_id', league.id).eq('is_bye', false).eq('replaced', false),
       supa.from('matches').select('*').eq('league_id', league.id).order('round'),
