@@ -224,9 +224,9 @@ function renderFixtureRounds() {
             const ag = res.home_id === f.home ? res.away_goals : res.home_goals;
             return `<div class="bg-pitch-800/40 border border-white/5 rounded-lg p-3 flex items-center justify-between">
               <div class="flex items-center gap-2 flex-1 min-w-0">
-                <span class="text-sm text-white truncate flex-1 text-right">${homeName}</span>
+                <span class="text-sm text-white truncate flex-1 text-right cursor-pointer hover:text-lime-400 transition-colors" onclick="window._viewTeamProfile('${f.home}')">${homeName}</span>
                 <span class="font-display text-lg text-lime-400 px-2">${hg} – ${ag}</span>
-                <span class="text-sm text-white truncate flex-1">${awayName}</span>
+                <span class="text-sm text-white truncate flex-1 cursor-pointer hover:text-lime-400 transition-colors" onclick="window._viewTeamProfile('${f.away}')">${awayName}</span>
               </div>
               <button onclick="window._viewMatchDetail('${res.id}')" class="text-xs text-blue-400 hover:text-blue-300 ml-1 shrink-0">📊</button>
               <button onclick="window._showH2H('${f.home}','${f.away}')" class="text-xs text-purple-400 hover:text-purple-300 ml-1 shrink-0">⚔️</button>
@@ -234,9 +234,9 @@ function renderFixtureRounds() {
           } else {
             return `<div class="bg-pitch-800/40 border border-white/5 rounded-lg p-3 flex items-center justify-between">
               <div class="flex items-center gap-2 flex-1 min-w-0">
-                <span class="text-sm text-white truncate flex-1 text-right">${homeName}</span>
+                <span class="text-sm text-white truncate flex-1 text-right cursor-pointer hover:text-lime-400 transition-colors" onclick="window._viewTeamProfile('${f.home}')">${homeName}</span>
                 <span class="font-display text-lg text-gray-600 px-2">vs</span>
-                <span class="text-sm text-white truncate flex-1">${awayName}</span>
+                <span class="text-sm text-white truncate flex-1 cursor-pointer hover:text-lime-400 transition-colors" onclick="window._viewTeamProfile('${f.away}')">${awayName}</span>
               </div>
               <button onclick="window._showH2H('${f.home}','${f.away}')" class="text-xs text-purple-400 hover:text-purple-300 ml-1 shrink-0">⚔️</button>
               <button onclick="window._showResultForm('${f.home}','${f.away}',${round.round})" class="text-xs bg-lime-400/10 text-lime-400 border border-lime-400/20 px-3 py-1 rounded-lg hover:bg-lime-400/20 transition-all ml-1 shrink-0">✏️</button>
