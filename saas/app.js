@@ -81,8 +81,46 @@ window._viewPublicLeague = async (slug) => {
       supa.from('players').select('*').eq('league_id', league.id).order('goals', { ascending: false }).limit(20),
     ]);
 
+    // Load all players (not just top 20) for public view
+    const [teamsRes, matchesRes, playersRes] = await Promise.all([
+      supa.from('teams').select('*').eq('league_id', league.id).eq('is_bye', false).eq('replaced', false),
+      supa.from('matches').select('*').eq('league_id', league.id).order('round'),
+      supa.from('players').select('*').eq('league_id', league.id).order('goals', { ascending: false }),
+    ]);
+
     const teams = teamsRes.data || [], matches = matchesRes.data || [], players = playersRes.data || [];
     const tn = id => teams.find(t => t.id === id)?.name || '?';
+    const teamLink = (id) => `<span class="cursor-pointer hover:text-lime-400 transition-colors" onclick="window._viewPublicTeam('${id}')">${tn(id)}</span>`;
+
+    // Build standings
+    const standings = {};
+    teams.forEach(t => { standings[t.id] = { id:t.id, name:t.name, shield_url:t.shield_url, P:0,W:0,D:0,L:0,GF:0,GA:0,GD:0,Pts:0 }; });
+    matches.forEach(m => {
+      const h = standings[m.home_id], a = standings[m.away_id];
+      if (!h || !a) return;
+      h.P++; a.P++;
+      h.GF += m.home_goals; h.GA += m.away_goals;
+      a.GF += m.away_goals; a.GA += m.home_goals;
+      if (m.home_goals > m.away_goals) { h.W++; h.Pts+=3; a.L++; }
+      else if (m.home_goals < m.away_goals) { a.W++; a.Pts+=3; h.L++; }
+      else { h.D++; a.D++; h.Pts++; a.Pts++; }
+    });
+    Object.values(standings).forEach(s => { s.GD = s.GF - s.GA; });
+    const sorted = Object.values(standings).sort((a,b) => b.Pts - a.Pts || b.GD - a.GD || b.GF - a.GF);
+
+    // Build leaders
+    const scorers = [...players].filter(p => p.goals > 0).sort((a,b) => b.goals - a.goals).slice(0, 15);
+    const assisters = [...players].filter(p => p.assists > 0).sort((a,b) => b.assists - a.assists).slice(0, 15);
+    const ratingPlayers = players.filter(p => p.ratings?.length >= 3).map(p => ({
+      ...p, avg: (p.ratings.reduce((a,b) => a + Number(b), 0) / p.ratings.length).toFixed(1)
+    })).sort((a,b) => b.avg - a.avg).slice(0, 15);
+
+    // Load seasons for history
+    const { data: seasons } = await supa.from('seasons').select('*').eq('league_id', league.id).order('created_at', { ascending: false });
+
+    const pubTabClass = (active) => active
+      ? 'px-3 py-1.5 rounded-lg text-xs font-semibold bg-lime-400/10 text-lime-400 border border-lime-400/20 shrink-0'
+      : 'px-3 py-1.5 rounded-lg text-xs font-semibold bg-pitch-800 text-gray-500 border border-white/5 shrink-0 hover:text-white hover:border-white/10';
 
     content.innerHTML = `
       <div class="flex items-center justify-between mb-4">
@@ -94,44 +132,141 @@ window._viewPublicLeague = async (slug) => {
       </div>
 
       <!-- Public view tabs -->
-      <div class="flex gap-1 mb-4 overflow-x-auto pb-1">
-        <button onclick="document.querySelectorAll('[data-pub-section]').forEach(s=>s.classList.add('hidden'));document.getElementById('pub-tabla').classList.remove('hidden')" class="px-3 py-1.5 rounded-lg text-xs font-semibold bg-lime-400/10 text-lime-400 border border-lime-400/20 shrink-0">📊 Tabla</button>
-        <button onclick="document.querySelectorAll('[data-pub-section]').forEach(s=>s.classList.add('hidden'));document.getElementById('pub-fixture').classList.remove('hidden')" class="px-3 py-1.5 rounded-lg text-xs font-semibold bg-pitch-800 text-gray-500 border border-white/5 shrink-0">📅 Fixture</button>
-        <button onclick="document.querySelectorAll('[data-pub-section]').forEach(s=>s.classList.add('hidden'));document.getElementById('pub-goleadores').classList.remove('hidden')" class="px-3 py-1.5 rounded-lg text-xs font-semibold bg-pitch-800 text-gray-500 border border-white/5 shrink-0">⚽ Goleadores</button>
+      <div id="pub-tabs" class="flex gap-1 mb-4 overflow-x-auto pb-1">
+        <button data-pub-tab="tabla" class="${pubTabClass(true)}">📊 Tabla</button>
+        <button data-pub-tab="fixture" class="${pubTabClass(false)}">📅 Fixture</button>
+        <button data-pub-tab="equipos" class="${pubTabClass(false)}">🏟 Equipos</button>
+        <button data-pub-tab="lideres" class="${pubTabClass(false)}">⭐ Líderes</button>
+        <button data-pub-tab="historial" class="${pubTabClass(false)}">📜 Historial</button>
       </div>
 
-      <!-- Ad banner for public view -->
-      <div class="bg-pitch-800/40 border border-dashed border-white/10 rounded-xl p-3 mb-4 text-center">
-        <p class="text-[10px] text-gray-700 uppercase tracking-wider">Espacio publicitario</p>
-      </div>
-      <!-- Standings -->
+      <!-- TABLA -->
       <div id="pub-tabla" data-pub-section class="bg-pitch-800/60 border border-white/5 rounded-2xl p-5 mb-4">
-        <h3 class="font-display text-lg text-lime-400 mb-3">📊 TABLA</h3>
         <div class="overflow-x-auto">
           <table class="w-full text-sm">
-            <thead><tr class="text-gray-500 text-xs uppercase"><th class="text-left py-2">#</th><th class="text-left">Equipo</th><th>PJ</th><th>G</th><th>E</th><th>P</th><th>GF</th><th>GC</th><th>Pts</th></tr></thead>
-            <tbody>${buildPublicStandings(teams, matches)}</tbody>
+            <thead><tr class="text-gray-500 text-xs uppercase"><th class="text-left py-2">#</th><th class="text-left">Equipo</th><th>PJ</th><th>G</th><th>E</th><th>P</th><th>GF</th><th>GC</th><th>DG</th><th>Pts</th></tr></thead>
+            <tbody>${sorted.map((s, i) => `<tr class="border-b border-white/5">
+              <td class="py-2 text-gray-600">${i + 1}</td>
+              <td class="font-medium text-white cursor-pointer hover:text-lime-400 transition-colors" onclick="window._viewPublicTeam('${s.id}')">${s.name}</td>
+              <td class="text-center text-gray-400">${s.P}</td>
+              <td class="text-center text-gray-400">${s.W}</td>
+              <td class="text-center text-gray-400">${s.D}</td>
+              <td class="text-center text-gray-400">${s.L}</td>
+              <td class="text-center text-gray-400">${s.GF}</td>
+              <td class="text-center text-gray-400">${s.GA}</td>
+              <td class="text-center ${s.GD > 0 ? 'text-lime-400' : s.GD < 0 ? 'text-red-400' : 'text-gray-500'}">${s.GD > 0 ? '+' : ''}${s.GD}</td>
+              <td class="text-center font-bold text-white">${s.Pts}</td>
+            </tr>`).join('')}</tbody>
           </table>
         </div>
       </div>
-      <!-- Top scorers -->
-      <div id="pub-goleadores" data-pub-section class="hidden bg-pitch-800/60 border border-white/5 rounded-2xl p-5 mb-4">
-        <h3 class="font-display text-lg text-lime-400 mb-3">⚽ GOLEADORES</h3>
-        ${players.filter(p=>p.goals>0).slice(0,10).map((p,i) => `<div class="flex items-center justify-between py-2 border-b border-white/5 text-sm">
-          <div class="flex items-center gap-2"><span class="text-gray-600 w-5">${i+1}</span><span class="text-white font-medium">${p.name}</span><span class="text-gray-600 text-xs">${tn(p.team_id)}</span></div>
-          <div class="flex gap-3"><span>⚽ ${p.goals}</span><span class="text-gray-600">🎯 ${p.assists}</span></div>
-        </div>`).join('') || '<p class="text-gray-600 text-sm">Sin datos</p>'}
+
+      <!-- FIXTURE -->
+      <div id="pub-fixture" data-pub-section class="hidden bg-pitch-800/60 border border-white/5 rounded-2xl p-5 mb-4">
+        ${matches.length ? matches.map(m => `<div class="flex items-center justify-between py-2.5 border-b border-white/5 text-sm">
+          <span class="text-white flex-1 text-right cursor-pointer hover:text-lime-400 transition-colors" onclick="window._viewPublicTeam('${m.home_id}')">${tn(m.home_id)}</span>
+          <span class="font-display text-lg text-lime-400 mx-4">${m.home_goals} – ${m.away_goals}</span>
+          <span class="text-white flex-1 cursor-pointer hover:text-lime-400 transition-colors" onclick="window._viewPublicTeam('${m.away_id}')">${tn(m.away_id)}</span>
+        </div>`).join('') : '<p class="text-gray-600 text-sm text-center py-4">Sin partidos</p>'}
       </div>
-      <!-- Recent matches / Fixture -->
-      <div id="pub-fixture" data-pub-section class="hidden bg-pitch-800/60 border border-white/5 rounded-2xl p-5">
-        <h3 class="font-display text-lg text-lime-400 mb-3">📅 PARTIDOS</h3>
-        ${matches.slice(0,10).map(m => `<div class="flex items-center justify-between py-2 border-b border-white/5 text-sm">
-          <span class="text-white">${tn(m.home_id)}</span>
-          <span class="font-display text-lg text-lime-400">${m.home_goals} – ${m.away_goals}</span>
-          <span class="text-white">${tn(m.away_id)}</span>
-        </div>`).join('') || '<p class="text-gray-600 text-sm">Sin partidos</p>'}
+
+      <!-- EQUIPOS -->
+      <div id="pub-equipos" data-pub-section class="hidden">
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          ${teams.map(t => {
+            const shield = t.shield_url
+              ? '<img src="' + t.shield_url + '" class="w-10 h-10 rounded-full object-cover border border-white/10">'
+              : '<div class="w-10 h-10 rounded-full bg-pitch-700 border border-white/10 flex items-center justify-center text-lg font-display text-lime-400">' + t.name.charAt(0) + '</div>';
+            const teamPlayers = players.filter(p => p.team_id === t.id);
+            const st = standings[t.id] || {};
+            return '<div class="bg-pitch-800/60 border border-white/5 rounded-xl p-4 cursor-pointer hover:border-lime-400/20 transition-all" onclick="window._viewPublicTeam(\'' + t.id + '\')">'
+              + '<div class="flex items-center gap-3">' + shield
+              + '<div class="flex-1 min-w-0"><h4 class="font-display text-lg text-white truncate">' + t.name + '</h4>'
+              + '<p class="text-xs text-gray-500">' + teamPlayers.length + ' jugadores · ' + (st.W || 0) + 'G ' + (st.D || 0) + 'E ' + (st.L || 0) + 'P</p></div></div></div>';
+          }).join('')}
+        </div>
+      </div>
+
+      <!-- LÍDERES -->
+      <div id="pub-lideres" data-pub-section class="hidden">
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
+          <div class="bg-pitch-800/60 border border-white/5 rounded-2xl p-5">
+            <h4 class="font-display text-lg text-white mb-3">⚽ GOLEADORES</h4>
+            ${scorers.length ? scorers.map((p, i) => '<div class="flex items-center justify-between py-1.5 border-b border-white/5 text-sm"><span class="text-gray-400">' + (i+1) + '. ' + p.name + ' <span class="text-gray-600 text-xs">' + tn(p.team_id) + '</span></span><span class="text-white font-semibold">' + p.goals + '</span></div>').join('') : '<p class="text-gray-600 text-sm">Sin datos</p>'}
+          </div>
+          <div class="bg-pitch-800/60 border border-white/5 rounded-2xl p-5">
+            <h4 class="font-display text-lg text-white mb-3">🎯 ASISTIDORES</h4>
+            ${assisters.length ? assisters.map((p, i) => '<div class="flex items-center justify-between py-1.5 border-b border-white/5 text-sm"><span class="text-gray-400">' + (i+1) + '. ' + p.name + ' <span class="text-gray-600 text-xs">' + tn(p.team_id) + '</span></span><span class="text-white font-semibold">' + p.assists + '</span></div>').join('') : '<p class="text-gray-600 text-sm">Sin datos</p>'}
+          </div>
+          <div class="bg-pitch-800/60 border border-white/5 rounded-2xl p-5">
+            <h4 class="font-display text-lg text-white mb-3">⭐ RATING</h4>
+            ${ratingPlayers.length ? ratingPlayers.map((p, i) => '<div class="flex items-center justify-between py-1.5 border-b border-white/5 text-sm"><span class="text-gray-400">' + (i+1) + '. ' + p.name + ' <span class="text-gray-600 text-xs">' + tn(p.team_id) + '</span></span><span class="text-yellow-400 font-semibold">' + p.avg + '</span></div>').join('') : '<p class="text-gray-600 text-sm">Min. 3 partidos</p>'}
+          </div>
+        </div>
+      </div>
+
+      <!-- HISTORIAL -->
+      <div id="pub-historial" data-pub-section class="hidden">
+        ${(seasons || []).map(s => {
+          const badge = s.status === 'active'
+            ? '<span class="text-[10px] bg-lime-400/10 text-lime-400 px-2 py-0.5 rounded-full font-semibold">EN CURSO</span>'
+            : '<span class="text-[10px] bg-gray-600/20 text-gray-500 px-2 py-0.5 rounded-full font-semibold">ARCHIVADA</span>';
+          const champ = s.champion ? '<span class="text-sm text-yellow-400">🏆 Liga: ' + s.champion + '</span>' : '';
+          const pChamp = s.playoff_champion ? '<span class="text-sm text-purple-400">🏆 Playoffs: ' + s.playoff_champion + '</span>' : '';
+          return '<div class="bg-pitch-800/60 border border-white/5 rounded-xl p-4 mb-3"><div class="flex items-center justify-between mb-1"><h4 class="font-display text-lg text-white">' + s.name + '</h4>' + badge + '</div><div class="flex flex-wrap gap-3">' + champ + pChamp + '</div></div>';
+        }).join('') || '<p class="text-gray-600 text-sm text-center py-4">Sin temporadas</p>'}
       </div>
     `;
+
+    // Tab switching with highlight
+    const activeClass = 'px-3 py-1.5 rounded-lg text-xs font-semibold bg-lime-400/10 text-lime-400 border border-lime-400/20 shrink-0';
+    const inactiveClass = 'px-3 py-1.5 rounded-lg text-xs font-semibold bg-pitch-800 text-gray-500 border border-white/5 shrink-0 hover:text-white hover:border-white/10';
+
+    document.querySelectorAll('#pub-tabs button').forEach(btn => {
+      btn.onclick = () => {
+        const tab = btn.getAttribute('data-pub-tab');
+        document.querySelectorAll('[data-pub-section]').forEach(s => s.classList.add('hidden'));
+        document.getElementById('pub-' + tab)?.classList.remove('hidden');
+        document.querySelectorAll('#pub-tabs button').forEach(b => {
+          b.className = b === btn ? activeClass : inactiveClass;
+        });
+      };
+    });
+
+    // Public team detail view
+    window._viewPublicTeam = (teamId) => {
+      const team = teams.find(t => t.id === teamId);
+      if (!team) return;
+      const teamMatches = matches.filter(m => m.home_id === teamId || m.away_id === teamId);
+      const played = teamMatches.filter(m => m.home_goals !== undefined && m.home_goals !== null);
+      const teamPlayers = players.filter(p => p.team_id === teamId).sort((a,b) => (b.goals||0) - (a.goals||0));
+      const st = standings[teamId] || {};
+
+      const shield = team.shield_url
+        ? '<img src="' + team.shield_url + '" class="w-16 h-16 rounded-full object-cover border-2 border-lime-400/20">'
+        : '<div class="w-16 h-16 rounded-full bg-pitch-700 border-2 border-lime-400/20 flex items-center justify-center text-2xl font-display text-lime-400">' + team.name.charAt(0) + '</div>';
+
+      const body = $('result-form-body');
+      body.innerHTML = '<div class="text-center mb-4">' + shield + '<h3 class="font-display text-2xl text-white mt-2">' + team.name + '</h3>'
+        + '<p class="text-sm text-gray-500">' + (st.W||0) + 'G ' + (st.D||0) + 'E ' + (st.L||0) + 'P · ' + (st.Pts||0) + ' pts · GD ' + (st.GD > 0 ? '+' : '') + (st.GD||0) + '</p></div>'
+        + '<h4 class="font-display text-sm text-gray-400 mb-2 mt-4">📅 PARTIDOS (' + played.length + ')</h4>'
+        + (played.length ? played.map(m => {
+            const isHome = m.home_id === teamId;
+            const result = isHome ? (m.home_goals > m.away_goals ? 'W' : m.home_goals < m.away_goals ? 'L' : 'D') : (m.away_goals > m.home_goals ? 'W' : m.away_goals < m.home_goals ? 'L' : 'D');
+            const color = result === 'W' ? 'text-lime-400' : result === 'L' ? 'text-red-400' : 'text-gray-400';
+            return '<div class="flex items-center justify-between py-1.5 border-b border-white/5 text-sm"><span class="' + color + ' font-semibold w-5">' + result + '</span><span class="text-white flex-1 text-center">' + tn(m.home_id) + ' ' + m.home_goals + '–' + m.away_goals + ' ' + tn(m.away_id) + '</span></div>';
+          }).join('') : '<p class="text-gray-600 text-xs">Sin partidos</p>')
+        + '<h4 class="font-display text-sm text-gray-400 mb-2 mt-4">👥 PLANTEL (' + teamPlayers.length + ')</h4>'
+        + (teamPlayers.length ? teamPlayers.map(p => {
+            const avg = p.ratings?.length ? (p.ratings.reduce((a,b) => a+Number(b),0)/p.ratings.length).toFixed(1) : '-';
+            return '<div class="flex items-center gap-2 py-1.5 border-b border-white/5 text-sm"><span class="text-gray-600 text-[10px] w-7">' + (p.pos||'?') + '</span><span class="text-white flex-1">' + p.name + '</span><span class="text-gray-500">⚽' + (p.goals||0) + '</span><span class="text-gray-500">🎯' + (p.assists||0) + '</span><span class="text-yellow-400/60">⭐' + avg + '</span></div>';
+          }).join('') : '<p class="text-gray-600 text-xs">Sin jugadores</p>');
+
+      const titleEl = $('modal-title');
+      if (titleEl) titleEl.textContent = team.name;
+      $('result-form').classList.remove('hidden');
+    };
+
     window.scrollTo(0, 0);
   } catch(e) {
     toast('Error: ' + e.message, true);
