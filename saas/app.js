@@ -74,12 +74,17 @@ window._viewPublicLeague = async (slug) => {
       return;
     }
 
-    // Load all public data
-    const [teamsRes, matchesRes, playersRes] = await Promise.all([
-      supa.from('teams').select('*').eq('league_id', league.id).eq('is_bye', false).eq('replaced', false),
-      supa.from('matches').select('*').eq('league_id', league.id).order('round'),
-      supa.from('players').select('*').eq('league_id', league.id).order('goals', { ascending: false }),
-    ]);
+    // Load all public data (filtered by active season)
+    const seasonFilter = league.active_season_id || null;
+    let teamsQ = supa.from('teams').select('*').eq('league_id', league.id).eq('is_bye', false).eq('replaced', false);
+    let matchesQ = supa.from('matches').select('*').eq('league_id', league.id).order('round');
+    let playersQ = supa.from('players').select('*').eq('league_id', league.id).order('goals', { ascending: false });
+    if (seasonFilter) {
+      teamsQ = teamsQ.eq('season_id', seasonFilter);
+      matchesQ = matchesQ.eq('season_id', seasonFilter);
+      playersQ = playersQ.eq('season_id', seasonFilter);
+    }
+    const [teamsRes, matchesRes, playersRes] = await Promise.all([teamsQ, matchesQ, playersQ]);
 
     const teams = teamsRes.data || [], matches = matchesRes.data || [], players = playersRes.data || [];
     const tn = id => teams.find(t => t.id === id)?.name || '?';
