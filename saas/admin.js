@@ -512,7 +512,13 @@ async function initAdminScannerSection() {
   if (!cache.teams.length) await loadTeams();
   if (!cache.players.length) await loadPlayers();
 
-  const canScan = ['pro', 'elite', 'superadmin'].includes(state.activeLeague.plan_type);
+  const plan = state.activeLeague.plan_type;
+  const isPaid = ['pro', 'elite', 'superadmin'].includes(plan);
+  const scansRemaining = state.profile?.ai_trial_scans || 0;
+  const canScan = isPaid || scansRemaining > 0;
+  const scanLabel = isPaid
+    ? '🤖 Escanear con IA'
+    : (scansRemaining > 0 ? `🤖 Escanear con IA (${scansRemaining} restantes este mes)` : '🔒 Sin scans disponibles — se renuevan el próximo mes');
 
   container.innerHTML = `
     <div class="flex items-center gap-3 mb-6">
@@ -566,7 +572,7 @@ async function initAdminScannerSection() {
       class="w-full py-4 rounded-xl text-sm font-bold uppercase tracking-wider transition-all mb-4 ${canScan
         ? 'bg-gradient-to-r from-purple-500 to-indigo-500 text-white hover:from-purple-400 hover:to-indigo-400 shadow-lg shadow-purple-500/10 active:scale-[.98]'
         : 'bg-pitch-700 text-gray-600 cursor-not-allowed'}">
-      ${canScan ? '🤖 Escanear con IA' : '🔒 Scanner disponible en plan Pro'}
+      ${canScan ? scanLabel : '🔒 Sin scans disponibles — se renuevan el próximo mes'}
     </button>
 
     <!-- Manual result entry -->
@@ -668,13 +674,22 @@ window._adminRunScan = async () => {
     }
 
     toast('✅ Escaneo completado — verificá y guardá');
+
+    // Decrement scan counter for Amateur
+    if (!['pro', 'elite', 'superadmin'].includes(state.activeLeague.plan_type) && state.profile) {
+      state.profile.ai_trial_scans = Math.max(0, (state.profile.ai_trial_scans || 0) - 1);
+      await supa.from('profiles').update({ ai_trial_scans: state.profile.ai_trial_scans }).eq('id', state.user.id);
+    }
   } catch(e) {
     console.error('Admin scan error:', e);
     toast('⚠️ ' + e.message, true);
   }
 
   btn.disabled = false;
-  btn.innerHTML = '🤖 Escanear con IA';
+  const remaining = state.profile?.ai_trial_scans || 0;
+  const isPaidPlan = ['pro', 'elite', 'superadmin'].includes(state.activeLeague?.plan_type);
+  btn.innerHTML = isPaidPlan ? '🤖 Escanear con IA' : (remaining > 0 ? `🤖 Escanear con IA (${remaining} restantes)` : '🔒 Sin scans disponibles');
+  if (!isPaidPlan && remaining <= 0) btn.disabled = true;
 };
 
 window._adminSaveManual = async () => {
