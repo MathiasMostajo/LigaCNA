@@ -633,6 +633,7 @@ window._adminRunScan = async () => {
     if (!res.ok || data.error) throw new Error(data.message || data.error);
 
     const result = data.result;
+    console.log('[SCAN] Full result:', JSON.stringify(result, null, 2));
 
     // Fill in score
     if (result.score) {
@@ -684,12 +685,19 @@ window._adminRunScan = async () => {
     // Show scan details
     const resultsDiv = $('as-scan-results');
     if (resultsDiv && result.stats) {
+      const detectedHome = result.score?.home || '(no detectado)';
+      const detectedAway = result.score?.away || '(no detectado)';
       resultsDiv.innerHTML = `<div class="bg-pitch-800/60 border border-lime-400/20 rounded-2xl p-5 glow">
         <h3 class="font-display text-lg text-lime-400 mb-3">✅ Resultado del escaneo</h3>
+        <div class="bg-pitch-900/40 rounded-xl p-3 mb-3 text-xs">
+          <p class="text-gray-400">🏠 Local detectado: <span class="text-white font-semibold">${detectedHome}</span></p>
+          <p class="text-gray-400">✈️ Visitante detectado: <span class="text-white font-semibold">${detectedAway}</span></p>
+          <p class="text-gray-600 mt-1">Marcador: ${result.score?.homeGoals ?? 0} – ${result.score?.awayGoals ?? 0}</p>
+        </div>
         <div class="space-y-1">
           ${result.stats.map(sp => `<div class="flex items-center gap-2 py-1.5 border-b border-white/5 text-sm">
             <span class="text-xs text-gray-500 w-8">${sp.pos || sp.position || '?'}</span>
-            <span class="flex-1 text-white">${sp.name}</span>
+            <span class="flex-1 text-white">${sp.name} <span class="text-[10px] text-gray-600">(${sp.team})</span></span>
             ${sp.goals ? '<span>⚽' + sp.goals + '</span>' : ''}
             ${sp.assists ? '<span>🎯' + sp.assists + '</span>' : ''}
             ${sp.rating ? '<span class="text-yellow-400">⭐' + sp.rating + '</span>' : ''}
@@ -697,7 +705,6 @@ window._adminRunScan = async () => {
         </div>
       </div>`;
       resultsDiv.classList.remove('hidden');
-      // Store result for saving
       window._lastScanResult = result;
     }
 
