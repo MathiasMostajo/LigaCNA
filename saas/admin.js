@@ -641,45 +641,46 @@ window._adminRunScan = async () => {
       if ($('as-ag')) $('as-ag').value = result.score.awayGoals ?? 0;
     }
 
-    // Auto-select teams by matching PLAYERS to their registered teams
-    if (result.stats && result.stats.length) {
-      const norm = s => (s || '').toLowerCase().trim().replace(/\s+/g, '');
-      const homeVotes = {};
-      const awayVotes = {};
+    // Auto-select teams: try BOTH name matching and player matching
+    if (result.score || result.stats) {
+      const norm = s => (s || '').toLowerCase().trim().replace(/[^a-z0-9]/g, '');
+      const activeTeams = cache.teams.filter(t => !t.is_bye && !t.replaced);
+      console.log('[SCAN] Teams in system:', activeTeams.map(t => t.name));
+      console.log('[SCAN] Detected: home=', result.score?.home, 'away=', result.score?.away);
 
-      result.stats.forEach(sp => {
-        const spName = norm(sp.name);
-        const player = cache.players.find(p => {
-          const pn = norm(p.name);
-          return pn === spName || pn.includes(spName) || spName.includes(pn);
-        });
-        if (player && player.team_id) {
-          if (sp.team === 'home') homeVotes[player.team_id] = (homeVotes[player.team_id] || 0) + 1;
-          else if (sp.team === 'away') awayVotes[player.team_id] = (awayVotes[player.team_id] || 0) + 1;
-        }
-      });
+      let homeMatch = null, awayMatch = null;
 
-      const topHome = Object.entries(homeVotes).sort((a,b) => b[1] - a[1])[0];
-      const topAway = Object.entries(awayVotes).sort((a,b) => b[1] - a[1])[0];
+      // 1. Match by team name (fuzzy)
+      if (result.score?.home) {
+        const dh = norm(result.score.home);
+        homeMatch = activeTeams.find(t => { const n = norm(t.name); return n === dh || n.includes(dh) || dh.includes(n); });
+      }
+      if (result.score?.away) {
+        const da = norm(result.score.away);
+        awayMatch = activeTeams.find(t => { const n = norm(t.name); return n === da || n.includes(da) || da.includes(n); });
+      }
 
-      if (topHome && $('as-home')) $('as-home').value = topHome[0];
-      if (topAway && $('as-away')) $('as-away').value = topAway[0];
-
-      // Fallback: match by team name if player matching failed
-      if (!topHome && result.score) {
-        cache.teams.forEach(t => {
-          if (norm(t.name).includes(norm(result.score.home)) || norm(result.score.home).includes(norm(t.name))) {
-            if ($('as-home')) $('as-home').value = t.id;
+      // 2. If name match failed, match by players
+      if ((!homeMatch || !awayMatch) && result.stats?.length) {
+        const homeVotes = {}, awayVotes = {};
+        result.stats.forEach(sp => {
+          const spName = norm(sp.name);
+          const player = cache.players.find(p => { const pn = norm(p.name); return pn === spName || pn.includes(spName) || spName.includes(pn); });
+          if (player?.team_id) {
+            if (sp.team === 'home') homeVotes[player.team_id] = (homeVotes[player.team_id] || 0) + 1;
+            else if (sp.team === 'away') awayVotes[player.team_id] = (awayVotes[player.team_id] || 0) + 1;
           }
         });
+        const topHome = Object.entries(homeVotes).sort((a,b) => b[1] - a[1])[0];
+        const topAway = Object.entries(awayVotes).sort((a,b) => b[1] - a[1])[0];
+        if (!homeMatch && topHome) homeMatch = activeTeams.find(t => t.id === topHome[0]);
+        if (!awayMatch && topAway) awayMatch = activeTeams.find(t => t.id === topAway[0]);
       }
-      if (!topAway && result.score) {
-        cache.teams.forEach(t => {
-          if (norm(t.name).includes(norm(result.score.away)) || norm(result.score.away).includes(norm(t.name))) {
-            if ($('as-away')) $('as-away').value = t.id;
-          }
-        });
-      }
+
+      console.log('[SCAN] Matched: home=', homeMatch?.name, 'away=', awayMatch?.name);
+
+      if (homeMatch && $('as-home')) $('as-home').value = homeMatch.id;
+      if (awayMatch && $('as-away')) $('as-away').value = awayMatch.id;
     }
 
     // Show scan details
