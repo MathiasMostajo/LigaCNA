@@ -111,7 +111,7 @@ async function saveSubmission(scanResult, images, teamCode, teamName) {
     .from('submissions')
     .insert({
       league_id: state.league.id,
-      season_id: state.league?.active_season_id || null,
+      season_id: state.activeLeague?.active_season_id || state.league?.active_season_id || null,
       team_code: teamCode,
       team_name: teamName,
       scan_result: scanResult,
@@ -171,7 +171,7 @@ async function saveMatchStats(homeId, awayId, homeGoals, awayGoals, playerStats,
       .from('matches')
       .insert({
         league_id: leagueId,
-        season_id: state.league?.active_season_id || null,
+        season_id: state.activeLeague?.active_season_id || state.league?.active_season_id || null,
         home_id: homeId,
         away_id: awayId,
         home_goals: homeGoals,
