@@ -528,7 +528,10 @@ async function initAdminScannerSection() {
 
     <!-- Teams selection -->
     <div class="bg-pitch-800/60 border border-white/5 rounded-2xl p-5 mb-4">
-      <h3 class="text-xs text-gray-500 uppercase tracking-wider font-semibold mb-3">📊 Partido a escanear</h3>
+      <div class="flex items-center justify-between mb-3">
+        <h3 class="text-xs text-gray-500 uppercase tracking-wider font-semibold">📊 Partido a escanear</h3>
+        <button onclick="window._swapTeams()" class="text-xs text-lime-400 hover:text-lime-300 border border-lime-400/20 rounded-lg px-2 py-1 transition-all">🔄 Invertir</button>
+      </div>
       <div class="grid grid-cols-2 gap-3 mb-4">
         <div>
           <label class="block text-xs text-gray-500 mb-1">🏠 Local</label>
@@ -592,6 +595,25 @@ async function initAdminScannerSection() {
     <div id="as-scan-results" class="hidden"></div>
   `;
 }
+
+window._swapTeams = () => {
+  const homeEl = $('as-home'), awayEl = $('as-away');
+  const hgEl = $('as-hg'), agEl = $('as-ag');
+  if (homeEl && awayEl) {
+    const tmp = homeEl.value; homeEl.value = awayEl.value; awayEl.value = tmp;
+  }
+  if (hgEl && agEl) {
+    const tmp = hgEl.value; hgEl.value = agEl.value; agEl.value = tmp;
+  }
+  // Also swap in the stored scan result so player stats save correctly
+  if (window._lastScanResult?.stats) {
+    window._lastScanResult.stats.forEach(sp => {
+      if (sp.team === 'home') sp.team = 'away';
+      else if (sp.team === 'away') sp.team = 'home';
+    });
+  }
+  toast('🔄 Equipos invertidos');
+};
 
 window._asPhotoChange = (key, event) => {
   const file = event.target.files[0];
