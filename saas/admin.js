@@ -2,7 +2,7 @@
 // admin.js — Settings, inbox, admin scanner, transfers, playoffs
 // ═══════════════════════════════════════════════════════════════
 import { supa, state } from './auth.js';
-import { $, showLoading, toast, getPlanLimits, cache, getSeasonId, isArchivedSeason, loadTeams, loadPlayers, tn } from './shared.js';
+import { $, showLoading, toast, getPlanLimits, cache, getSeasonId, isArchivedSeason, loadTeams, loadPlayers, loadMatches, tn } from './shared.js';
 import { callAI, processResult, saveMatchStats, updatePlayerStats, approveSubmission, rejectSubmission, posToES } from './scanner.js';
 import { calculateStandings } from './fixture.js';
 
@@ -640,17 +640,45 @@ window._adminRunScan = async () => {
       if ($('as-ag')) $('as-ag').value = result.score.awayGoals ?? 0;
     }
 
-    // Try to auto-select teams
-    if (result.score) {
-      const norm = s => (s || '').toLowerCase().trim();
-      cache.teams.forEach(t => {
-        if (norm(t.name).includes(norm(result.score.home)) || norm(result.score.home).includes(norm(t.name))) {
-          if ($('as-home')) $('as-home').value = t.id;
-        }
-        if (norm(t.name).includes(norm(result.score.away)) || norm(result.score.away).includes(norm(t.name))) {
-          if ($('as-away')) $('as-away').value = t.id;
+    // Auto-select teams by matching PLAYERS to their registered teams
+    if (result.stats && result.stats.length) {
+      const norm = s => (s || '').toLowerCase().trim().replace(/\s+/g, '');
+      const homeVotes = {};
+      const awayVotes = {};
+
+      result.stats.forEach(sp => {
+        const spName = norm(sp.name);
+        const player = cache.players.find(p => {
+          const pn = norm(p.name);
+          return pn === spName || pn.includes(spName) || spName.includes(pn);
+        });
+        if (player && player.team_id) {
+          if (sp.team === 'home') homeVotes[player.team_id] = (homeVotes[player.team_id] || 0) + 1;
+          else if (sp.team === 'away') awayVotes[player.team_id] = (awayVotes[player.team_id] || 0) + 1;
         }
       });
+
+      const topHome = Object.entries(homeVotes).sort((a,b) => b[1] - a[1])[0];
+      const topAway = Object.entries(awayVotes).sort((a,b) => b[1] - a[1])[0];
+
+      if (topHome && $('as-home')) $('as-home').value = topHome[0];
+      if (topAway && $('as-away')) $('as-away').value = topAway[0];
+
+      // Fallback: match by team name if player matching failed
+      if (!topHome && result.score) {
+        cache.teams.forEach(t => {
+          if (norm(t.name).includes(norm(result.score.home)) || norm(result.score.home).includes(norm(t.name))) {
+            if ($('as-home')) $('as-home').value = t.id;
+          }
+        });
+      }
+      if (!topAway && result.score) {
+        cache.teams.forEach(t => {
+          if (norm(t.name).includes(norm(result.score.away)) || norm(result.score.away).includes(norm(t.name))) {
+            if ($('as-away')) $('as-away').value = t.id;
+          }
+        });
+      }
     }
 
     // Show scan details
