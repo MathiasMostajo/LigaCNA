@@ -762,6 +762,7 @@ window._adminSaveManual = async () => {
 
     const { error } = await supa.from('matches').insert({
       league_id: state.activeLeague.id,
+      season_id: getSeasonId(),
       home_id: homeId, away_id: awayId,
       home_goals: hg, away_goals: ag,
       player_stats: ps,
