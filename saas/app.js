@@ -5,6 +5,7 @@ import { supa, state, on, emit, signUp, signIn, signOut, createLeague, setActive
 import { $, showScreen, showLoading, toast, getPlanLimits, cache, getSeasonId, isArchivedSeason, loadSeasons, loadTeams, loadPlayers, loadMatches, tn } from './shared.js';
 import { initTeamsSection, renderTeamsList } from './teams.js';
 import { initFixtureSection, initStandingsSection, calculateStandings } from './fixture.js';
+import { initGroupsSection } from './groups.js';
 import { initLeadersSection } from './leaders.js';
 import { initSettingsSection, initInboxSection, initAdminScannerSection, initTransfersSection, initPlayoffsSection, renderPlayoffsBracket } from './admin.js';
 import { dtState, initPublicDTButton, showDTCodeEntry, showDTSubmissionForm, showDTAuthenticatedView, showDTConfirmation, renderHubMemberships } from './dt.js';
@@ -566,6 +567,7 @@ function initDashboard() {
       if (section === 'scanner') initAdminScannerSection();
       if (section === 'teams') initTeamsSection();
       if (section === 'fixture') { initFixtureSection().then(() => { if (state.activeLeague.settings?.playoffs) renderPlayoffsBracket(); }); }
+      if (section === 'groups') initGroupsSection();
       if (section === 'standings') initStandingsSection();
       if (section === 'leaders') initLeadersSection();
       if (section === 'transfers') initTransfersSection();
