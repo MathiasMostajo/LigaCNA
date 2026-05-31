@@ -48,7 +48,7 @@ function showDTCodeEntry() {
 
     try {
       // Search for team with this code across ALL public leagues
-      const { data: teams, error } = await supa.from('teams').select('*, leagues!inner(id, name, plan_type, max_players_per_team, settings, is_public)')
+      const { data: teams, error } = await supa.from('teams').select('*, leagues!inner(id, name, plan_type, max_players_per_team, settings, is_public, active_season_id)')
         .eq('code', code).limit(1);
 
       if (error) throw error;
