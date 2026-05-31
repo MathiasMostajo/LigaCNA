@@ -4,8 +4,7 @@
 import { supa, state, on, emit, signUp, signIn, signOut, createLeague, setActiveLeague, searchPublicLeagues, loadPublicLeague, loadMyMemberships, initAuth } from './auth.js';
 import { $, showScreen, showLoading, toast, getPlanLimits, cache, getSeasonId, isArchivedSeason, loadSeasons, loadTeams, loadPlayers, loadMatches, tn } from './shared.js';
 import { initTeamsSection, renderTeamsList } from './teams.js';
-import { initFixtureSection, initStandingsSection, calculateStandings } from './fixture.js';
-import { initGroupsSection } from './groups.js';
+import { initFixtureSection, initStandingsSection, calculateStandings, initGroupsSection } from './fixture.js';
 import { initLeadersSection } from './leaders.js';
 import { initSettingsSection, initInboxSection, initAdminScannerSection, initTransfersSection, initPlayoffsSection, renderPlayoffsBracket } from './admin.js';
 import { dtState, initPublicDTButton, showDTCodeEntry, showDTSubmissionForm, showDTAuthenticatedView, showDTConfirmation, renderHubMemberships } from './dt.js';
