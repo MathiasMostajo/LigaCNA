@@ -128,8 +128,14 @@ async function createLeague(name) {
     .insert({ admin_id: state.user.id, name, max_teams: maxTeams, max_players_per_team: maxPlayers, plan_type: plan })
     .select().single();
   if (error) throw error;
-  state.leagues.push(data);
-  return data;
+
+  // The auto_create_season trigger creates "Temporada 1" and sets active_season_id.
+  // Re-fetch to get the updated active_season_id (trigger runs after insert).
+  const { data: fullLeague } = await supa.from('leagues').select('*').eq('id', data.id).single();
+  const finalLeague = fullLeague || data;
+
+  state.leagues.push(finalLeague);
+  return finalLeague;
 }
 
 function setActiveLeague(league) {
