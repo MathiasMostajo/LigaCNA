@@ -490,6 +490,7 @@ async function reversePlayerStats(match) {
     const newGoals = Math.max(0, (player.goals || 0) - (st.goals || 0));
     const newAssists = Math.max(0, (player.assists || 0) - (st.assists || 0));
     const newMP = Math.max(0, (player.matches_played || 0) - 1);
+    const newCS = Math.max(0, (player.cs || 0) - (st.cs ? 1 : 0));
 
     // Remove the rating entry (remove first matching value)
     const newRatings = [...(player.ratings || [])];
@@ -499,13 +500,14 @@ async function reversePlayerStats(match) {
     }
 
     const { error } = await supa.from('players').update({
-      goals: newGoals, assists: newAssists, matches_played: newMP, ratings: newRatings,
+      goals: newGoals, assists: newAssists, matches_played: newMP, cs: newCS, ratings: newRatings,
     }).eq('id', pid);
 
     if (!error) {
       player.goals = newGoals;
       player.assists = newAssists;
       player.matches_played = newMP;
+      player.cs = newCS;
       player.ratings = newRatings;
     }
   }
