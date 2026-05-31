@@ -441,7 +441,7 @@ function renderHubLeagues() {
   el.innerHTML = html;
 }
 
-window._manageLeague = (leagueId) => {
+window._manageLeague = async (leagueId) => {
   const league = state.leagues.find(l => l.id === leagueId);
   if (!league) return;
   // Clear all caches AND section content when switching leagues
@@ -451,6 +451,23 @@ window._manageLeague = (leagueId) => {
   cache.schedule = [];
   cache.seasons = [];
   cache.activeTeamId = null;
+
+  // Ensure league has active_season_id (fixes data-loss bug for new leagues)
+  if (!league.active_season_id) {
+    const { data: seasons } = await supa.from('seasons').select('*').eq('league_id', league.id).order('created_at').limit(1);
+    if (seasons && seasons.length) {
+      league.active_season_id = seasons[0].id;
+      await supa.from('leagues').update({ active_season_id: seasons[0].id }).eq('id', league.id);
+    } else {
+      // No season exists — create one
+      const { data: newSeason } = await supa.from('seasons').insert({ league_id: league.id, name: 'Temporada 1', status: 'active' }).select().single();
+      if (newSeason) {
+        league.active_season_id = newSeason.id;
+        await supa.from('leagues').update({ active_season_id: newSeason.id }).eq('id', league.id);
+      }
+    }
+  }
+
   // Reset all section HTML so they reload fresh for the new league
   document.querySelectorAll('[data-section]').forEach(el => {
     const section = el.getAttribute('data-section');
