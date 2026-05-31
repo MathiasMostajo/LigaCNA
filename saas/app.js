@@ -4,9 +4,10 @@
 import { supa, state, on, emit, signUp, signIn, signOut, createLeague, setActiveLeague, searchPublicLeagues, loadPublicLeague, loadMyMemberships, initAuth } from './auth.js';
 import { $, showScreen, showLoading, toast, getPlanLimits, cache, getSeasonId, isArchivedSeason, loadSeasons, loadTeams, loadPlayers, loadMatches, tn } from './shared.js';
 import { initTeamsSection, renderTeamsList } from './teams.js';
-import { initFixtureSection, initStandingsSection, calculateStandings, initGroupsSection } from './fixture.js';
+import { initFixtureSection, initStandingsSection, calculateStandings, initGroupsSection, getGroupConfig } from './fixture.js';
 import { initLeadersSection } from './leaders.js';
 import { initSettingsSection, initInboxSection, initAdminScannerSection, initTransfersSection, initPlayoffsSection, renderPlayoffsBracket } from './admin.js';
+window._renderPlayoffsBracketGlobal = renderPlayoffsBracket;
 import { dtState, initPublicDTButton, showDTCodeEntry, showDTSubmissionForm, showDTAuthenticatedView, showDTConfirmation, renderHubMemberships } from './dt.js';
 
 let _bound = { login: false, hub: false, dash: false, public: false };
@@ -565,8 +566,14 @@ function initDashboard() {
       if (section === 'inbox') initInboxSection();
       if (section === 'scanner') initAdminScannerSection();
       if (section === 'teams') initTeamsSection();
-      if (section === 'fixture') { initFixtureSection().then(() => { if (state.activeLeague.settings?.playoffs) renderPlayoffsBracket(); }); }
-      if (section === 'groups') initGroupsSection();
+      if (section === 'fixture') {
+        // If groups are configured for this season, show the groups view
+        if (getGroupConfig && getGroupConfig()) {
+          initGroupsSection();
+        } else {
+          initFixtureSection().then(() => { if (state.activeLeague.settings?.playoffs) renderPlayoffsBracket(); });
+        }
+      }
       if (section === 'standings') initStandingsSection();
       if (section === 'leaders') initLeadersSection();
       if (section === 'transfers') initTransfersSection();
