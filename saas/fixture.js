@@ -226,6 +226,7 @@ function renderFixtureRounds() {
         <div class="flex items-center gap-3">
           <span id="chev-${ri}" class="text-gray-500 transition-transform rotate-[-90deg]">▼</span>
           <span class="font-display text-lg text-white">FECHA ${round.round}</span>
+          ${round.group ? `<span class="text-[10px] bg-lime-400/10 text-lime-400 px-2 py-0.5 rounded-full font-semibold">GRUPO ${round.group}</span>` : ''}
           <span class="text-xs text-gray-500">${played}/${total} partidos</span>
         </div>
         <div class="flex items-center gap-2">
@@ -692,9 +693,12 @@ window._editMatch = (matchId) => {
 // ═══════════════════════════════════════════════════════════════
 // STANDINGS MODULE
 // ═══════════════════════════════════════════════════════════════
-function calculateStandings() {
+function calculateStandings(teamSubset) {
   const standings = {};
-  cache.teams.filter(t => !t.is_bye && !t.replaced).forEach(t => {
+  const teamPool = teamSubset
+    ? cache.teams.filter(t => !t.is_bye && !t.replaced && teamSubset.includes(t.id))
+    : cache.teams.filter(t => !t.is_bye && !t.replaced);
+  teamPool.forEach(t => {
     standings[t.id] = { id: t.id, name: t.name, shield_url: t.shield_url, P:0, W:0, D:0, L:0, GF:0, GA:0, GD:0, Pts:0, form: [] };
   });
 
