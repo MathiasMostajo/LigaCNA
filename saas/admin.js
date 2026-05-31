@@ -1079,7 +1079,6 @@ function renderPlayoffsBracket() {
   const playoffs = state.activeLeague.settings?.playoffs;
   if (!playoffs) return;
 
-  // Find or create playoffs display in fixture section
   let container = $('playoffs-bracket');
   if (!container) {
     const fixtureSection = document.querySelector('[data-section="fixture"]');
@@ -1091,42 +1090,126 @@ function renderPlayoffsBracket() {
     container = div;
   }
 
-  const round = playoffs.rounds[0];
+  // Find the champion if final is done
+  let championHtml = '';
+  const lastRound = playoffs.rounds[playoffs.rounds.length - 1];
+  if (lastRound && lastRound.matches.length === 1 && lastRound.matches[0].played) {
+    const f = lastRound.matches[0];
+    const champ = f.homeGoals > f.awayGoals ? f.homeName : f.awayName;
+    championHtml = `<div class="bg-gradient-to-r from-yellow-400/10 to-amber-500/10 border border-yellow-400/30 rounded-xl p-4 mb-4 text-center">
+      <p class="text-xs text-yellow-400/70 uppercase tracking-wider mb-1">🏆 Campeón</p>
+      <p class="font-display text-2xl text-yellow-400">${champ}</p>
+    </div>`;
+  }
+
+  let roundsHtml = '';
+  playoffs.rounds.forEach((round, roundIdx) => {
+    const isCurrentRound = roundIdx === playoffs.rounds.length - 1;
+    roundsHtml += `
+      <div class="mb-4">
+        <h4 class="font-display text-lg text-lime-400 mb-2">${round.name}</h4>
+        <div class="space-y-2">
+          ${round.matches.map((m, i) => `
+            <div class="bg-pitch-800/60 border border-white/5 rounded-xl p-3 flex items-center justify-between">
+              <div class="flex items-center gap-2 flex-1">
+                <span class="text-sm flex-1 text-right truncate ${m.played && m.homeGoals > m.awayGoals ? 'text-lime-400 font-bold' : 'text-white'}">${m.homeName || 'Por definir'}</span>
+                ${m.played
+                  ? `<span class="font-display text-lg text-lime-400 px-2">${m.homeGoals} – ${m.awayGoals}</span>`
+                  : `<span class="text-gray-600 px-2">vs</span>`}
+                <span class="text-sm flex-1 truncate ${m.played && m.awayGoals > m.homeGoals ? 'text-lime-400 font-bold' : 'text-white'}">${m.awayName || 'Por definir'}</span>
+              </div>
+              ${(!m.played && isCurrentRound && m.homeName && m.awayName && m.homeName !== 'BYE' && m.awayName !== 'BYE')
+                ? `<button onclick="window._playoffResult(${roundIdx},${i})" class="text-xs bg-lime-400/10 text-lime-400 border border-lime-400/20 px-3 py-1 rounded-lg ml-2">✏️</button>`
+                : ''}
+            </div>
+          `).join('')}
+        </div>
+      </div>
+    `;
+  });
+
   container.innerHTML = `
     <div class="flex items-center justify-between mb-4">
       <div class="flex items-center gap-3">
         <span class="text-xl">🏆</span>
-        <h3 class="font-display text-xl text-white">${round?.name || 'PLAYOFFS'}</h3>
+        <h3 class="font-display text-xl text-white">PLAYOFFS</h3>
       </div>
       <button onclick="window._clearPlayoffs()" class="text-xs text-red-400 hover:text-red-300">🗑 Borrar</button>
     </div>
+    ${championHtml}
     ${playoffs.directToFinal?.length ? `<p class="text-xs text-yellow-400 mb-2">⭐ Directo a la Final: ${playoffs.directToFinal.map(t => t.name).join(', ')}</p>` : ''}
     ${playoffs.directToSemi?.length ? `<p class="text-xs text-yellow-400 mb-2">⭐ Directo a Semis: ${playoffs.directToSemi.map(t => t.name).join(', ')}</p>` : ''}
-    <div class="space-y-2">
-      ${round.matches.map((m, i) => `
-        <div class="bg-pitch-800/60 border border-white/5 rounded-xl p-3 flex items-center justify-between">
-          <div class="flex items-center gap-2 flex-1">
-            <span class="text-sm text-white flex-1 text-right truncate">${m.homeName}</span>
-            ${m.played
-              ? `<span class="font-display text-lg text-lime-400 px-2">${m.homeGoals} – ${m.awayGoals}</span>`
-              : `<span class="text-gray-600 px-2">vs</span>`}
-            <span class="text-sm text-white flex-1 truncate">${m.awayName}</span>
-          </div>
-          ${!m.played ? `<button onclick="window._playoffResult(${i})" class="text-xs bg-lime-400/10 text-lime-400 border border-lime-400/20 px-3 py-1 rounded-lg ml-2">✏️</button>` : ''}
-        </div>
-      `).join('')}
-    </div>
+    ${roundsHtml}
   `;
 }
 
-window._playoffResult = (matchIdx) => {
+function getNextRoundName(numMatches) {
+  // numMatches = matches in the NEXT round
+  if (numMatches === 1) return 'Final';
+  if (numMatches === 2) return 'Semifinal';
+  if (numMatches === 4) return 'Cuartos de Final';
+  if (numMatches === 8) return 'Octavos de Final';
+  return `Ronda de ${numMatches * 2}`;
+}
+
+// Check if current round is complete and generate next round
+function advancePlayoffRound(playoffs) {
+  const currentRound = playoffs.rounds[playoffs.rounds.length - 1];
+
+  // Already at final and it's done
+  if (currentRound.matches.length === 1) return false;
+
+  // Check all matches in current round are played
+  const allPlayed = currentRound.matches.every(m =>
+    m.played || !m.homeName || !m.awayName || m.homeName === 'BYE' || m.awayName === 'BYE'
+  );
+  if (!allPlayed) return false;
+
+  // Collect winners
+  const winners = [];
+  currentRound.matches.forEach(m => {
+    if (m.homeName === 'BYE' || !m.awayName) { winners.push({ id: m.homeId, name: m.homeName }); return; }
+    if (m.awayName === 'BYE' || !m.homeName) { winners.push({ id: m.awayId, name: m.awayName }); return; }
+    if (m.played) {
+      if (m.homeGoals > m.awayGoals) winners.push({ id: m.homeId, name: m.homeName });
+      else winners.push({ id: m.awayId, name: m.awayName });
+    }
+  });
+
+  // Add directToSemi/directToFinal teams at appropriate stage
+  if (playoffs.directToSemi?.length && winners.length === playoffs.directToSemi.length) {
+    // This was a quarterfinal feeding into semis with bye teams
+    playoffs.directToSemi.forEach(t => winners.push({ id: t.id, name: t.name }));
+    delete playoffs.directToSemi;
+  }
+
+  if (winners.length < 2) return false;
+
+  // Build next round matches (pair winners sequentially)
+  const nextMatches = [];
+  for (let i = 0; i < winners.length; i += 2) {
+    const home = winners[i];
+    const away = winners[i + 1] || null;
+    nextMatches.push({
+      homeId: home?.id || null, homeName: home?.name || 'BYE',
+      awayId: away?.id || null, awayName: away?.name || 'BYE',
+      homeGoals: null, awayGoals: null, played: false,
+    });
+  }
+
+  playoffs.rounds.push({ name: getNextRoundName(nextMatches.length), matches: nextMatches });
+  return true;
+}
+
+window._playoffResult = (roundIdx, matchIdx) => {
   const playoffs = state.activeLeague.settings?.playoffs;
   if (!playoffs) return;
-  const m = playoffs.rounds[0].matches[matchIdx];
+  const round = playoffs.rounds[roundIdx];
+  const m = round.matches[matchIdx];
 
   const body = $('result-form-body');
   body.innerHTML = `
-    <h3 class="font-display text-lg text-white text-center mb-4">🏆 ${playoffs.rounds[0].name}</h3>
+    <h3 class="font-display text-lg text-white text-center mb-4">🏆 ${round.name}</h3>
     <div class="grid grid-cols-3 gap-3 items-center text-center mb-4">
       <p class="text-sm text-white font-medium">${m.homeName}</p>
       <span class="text-gray-600">vs</span>
@@ -1137,18 +1220,25 @@ window._playoffResult = (matchIdx) => {
       <span class="text-gray-500 text-xl text-center">–</span>
       <input type="number" id="po-ag" min="0" value="0" style="width:100%;box-sizing:border-box;" class="bg-pitch-900/60 border border-white/10 rounded-xl px-3 py-3 text-white text-center font-display text-2xl outline-none focus:border-lime-400/40">
     </div>
-    <button onclick="window._savePlayoffResult(${matchIdx})" class="w-full bg-gradient-to-r from-lime-400 to-emerald-500 text-pitch-900 font-bold py-3 rounded-xl text-sm uppercase tracking-wider">✅ Guardar</button>
+    <p class="text-[10px] text-gray-600 text-center mb-3">No hay empates en eliminatorias — el de mayor marcador avanza</p>
+    <button onclick="window._savePlayoffResult(${roundIdx},${matchIdx})" class="w-full bg-gradient-to-r from-lime-400 to-emerald-500 text-pitch-900 font-bold py-3 rounded-xl text-sm uppercase tracking-wider">✅ Guardar</button>
   `;
   $('result-form').classList.remove('hidden');
 };
 
-window._savePlayoffResult = async (matchIdx) => {
+window._savePlayoffResult = async (roundIdx, matchIdx) => {
   const hg = parseInt($('po-hg')?.value ?? 0);
   const ag = parseInt($('po-ag')?.value ?? 0);
+  if (hg === ag) { toast('⚠️ No puede haber empate en eliminatorias', true); return; }
+
   const playoffs = state.activeLeague.settings.playoffs;
-  playoffs.rounds[0].matches[matchIdx].homeGoals = hg;
-  playoffs.rounds[0].matches[matchIdx].awayGoals = ag;
-  playoffs.rounds[0].matches[matchIdx].played = true;
+  const m = playoffs.rounds[roundIdx].matches[matchIdx];
+  m.homeGoals = hg;
+  m.awayGoals = ag;
+  m.played = true;
+
+  // Try to advance to next round if this round is complete
+  advancePlayoffRound(playoffs);
 
   const settings = { ...state.activeLeague.settings, playoffs };
   await supa.from('leagues').update({ settings }).eq('id', state.activeLeague.id);
