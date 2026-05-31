@@ -250,9 +250,11 @@ window._generateGroupKnockout = async () => {
     const home = seeded[i] || null;
     const away = seeded[bracketSize - 1 - i] || null;
     matches.push({
-      home: home ? { id: home.id, name: home.name } : null,
-      away: away ? { id: away.id, name: away.name } : null,
-      homeGoals: null, awayGoals: null,
+      homeId: home ? home.id : null,
+      homeName: home ? home.name : 'BYE',
+      awayId: away ? away.id : null,
+      awayName: away ? away.name : 'BYE',
+      homeGoals: null, awayGoals: null, played: false,
     });
   }
 
