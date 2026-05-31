@@ -11,6 +11,7 @@ window._renderPlayoffsBracketGlobal = renderPlayoffsBracket;
 import { dtState, initPublicDTButton, showDTCodeEntry, showDTSubmissionForm, showDTAuthenticatedView, showDTConfirmation, renderHubMemberships } from './dt.js';
 
 let _bound = { login: false, hub: false, dash: false, public: false };
+let _pendingJoinCode = null; // DT invite link code, processed after auth
 
 function initPublicUI() {
   if (_bound.public) return; _bound.public = true;
@@ -645,6 +646,13 @@ on('auth:logout', () => {
 });
 
 on('auth:ready', () => {
+  // If there's a pending DT join (came from invite link before login), process it
+  if (_pendingJoinCode) {
+    const code = _pendingJoinCode;
+    _pendingJoinCode = null;
+    handleJoinLink(code);
+    return;
+  }
   showScreen('hub');
   _bound.hub = false;
   initHubUI();
@@ -668,6 +676,62 @@ on('league:selected', () => {
 initAuth();
 
 // Hash routing for shareable URLs
+
+async function handleJoinLink(code) {
+  // Look up the team by code
+  const { data: team, error } = await supa.from('teams')
+    .select('*, leagues!inner(id, name, is_public, active_season_id)')
+    .eq('code', code).maybeSingle();
+
+  if (error || !team) {
+    window.location.hash = '';
+    toast('⚠️ Link de invitación inválido o equipo no encontrado', true);
+    return;
+  }
+
+  // Not logged in → save the code and send to signup
+  if (!state.user) {
+    _pendingJoinCode = code;
+    window.location.hash = '';
+    showScreen('auth');
+    toast(`Creá tu cuenta o iniciá sesión para unirte a ${team.name}`);
+    return;
+  }
+
+  // Logged in → create membership
+  await joinTeamAsDT(team);
+}
+
+async function joinTeamAsDT(team) {
+  window.location.hash = '';
+
+  // Check if already a member
+  const { data: existing } = await supa.from('team_members')
+    .select('id').eq('team_id', team.id).eq('user_id', state.user.id).maybeSingle();
+
+  if (existing) {
+    toast(`Ya estás vinculado a ${team.name}`);
+  } else {
+    const { error } = await supa.from('team_members').insert({
+      team_id: team.id,
+      league_id: team.leagues.id,
+      user_id: state.user.id,
+      email: state.user.email,
+    });
+    if (error) {
+      toast('⚠️ No se pudo vincular: ' + error.message, true);
+      return;
+    }
+    toast(`✅ Te uniste a ${team.name} como DT`);
+  }
+
+  // Reload memberships and go to hub
+  state.memberships = await loadMyMemberships(state.user.id, state.user.email);
+  _bound.hub = false;
+  showScreen('hub');
+  initHubUI();
+}
+
 function handleHashRoute() {
   const hash = window.location.hash;
 
@@ -693,6 +757,14 @@ function handleHashRoute() {
   if (hash === '#/upgrade/cancel') {
     window.location.hash = '';
     toast('Pago cancelado');
+    return;
+  }
+
+  // Handle DT invite link: #/join/CODE
+  if (hash.startsWith('#/join/')) {
+    const code = hash.replace('#/join/', '').trim().toUpperCase();
+    if (!code) return;
+    handleJoinLink(code);
     return;
   }
 
