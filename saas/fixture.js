@@ -177,16 +177,38 @@ async function _initFixtureSectionInner() {
 
   if ($('btn-clear-fixture')) {
     $('btn-clear-fixture').onclick = async () => {
-      if (!confirm('¿Borrar fixture? Los resultados no se tocan.')) return;
+      if (!confirm('¿Borrar el fixture?')) return;
+
+      const playedMatches = cache.matches.length;
+      let deleteResults = false;
+      if (playedMatches > 0) {
+        deleteResults = confirm(`Hay ${playedMatches} partidos jugados.\n\n¿Querés borrar TAMBIÉN los resultados y revertir las estadísticas?\n\n• Aceptar = borra fixture Y resultados\n• Cancelar = borra solo el fixture, deja los resultados`);
+      }
+
+      // Clear schedule
       cache.schedule = [];
       const curSettings2 = { ...(state.activeLeague.settings || {}) };
       if (curSettings2.schedules) delete curSettings2.schedules[getSeasonId()];
-      delete curSettings2.schedule; // clean old format
+      delete curSettings2.schedule;
       const { error } = await supa.from('leagues').update({ settings: curSettings2 }).eq('id', state.activeLeague.id);
       if (error) { toast('⚠️ Error: ' + error.message, true); return; }
       state.activeLeague.settings = curSettings2;
+
+      // Delete results if requested
+      if (deleteResults) {
+        for (const m of cache.matches) {
+          await reversePlayerStats(m);
+        }
+        const seasonId = getSeasonId();
+        let delQuery = supa.from('matches').delete().eq('league_id', state.activeLeague.id);
+        if (seasonId) delQuery = delQuery.eq('season_id', seasonId);
+        await delQuery;
+        cache.matches = [];
+        await loadPlayers();
+      }
+
       initFixtureSection();
-      toast('🗑 Fixture borrado');
+      toast(deleteResults ? '🗑 Fixture y resultados borrados' : '🗑 Fixture borrado');
     };
   }
 }
