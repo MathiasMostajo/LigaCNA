@@ -2,7 +2,7 @@
 // teams.js — Teams CRUD, players, team profiles, DT email management
 // ═══════════════════════════════════════════════════════════════
 import { supa, state } from './auth.js';
-import { $, showLoading, toast, getPlanLimits, cache, getSeasonId, isArchivedSeason, loadTeams, loadPlayers } from './shared.js';
+import { $, showLoading, toast, getPlanLimits, cache, getSeasonId, isArchivedSeason, loadTeams, loadPlayers, loadMatches, tn } from './shared.js';
 
 async function initTeamsSection() {
   try { await _initTeamsSectionInner(); } catch(e) { 
