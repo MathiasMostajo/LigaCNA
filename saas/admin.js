@@ -64,10 +64,10 @@ async function _initSettingsSectionInner() {
       <div id="settings-msg" class="hidden mt-3 text-sm text-center py-2 px-4 rounded-lg"></div>
     </div>
 
-    <!-- Team codes -->
+    <!-- DT invite links -->
     <div class="bg-pitch-800/60 border border-white/5 rounded-2xl p-5 mb-4">
-      <h3 class="font-display text-lg text-white mb-3">🔑 Códigos de DT</h3>
-      <p class="text-xs text-gray-500 mb-3">Compartí estos códigos con los DTs para que puedan subir capturas</p>
+      <h3 class="font-display text-lg text-white mb-3">🔗 Links de Invitación para DTs</h3>
+      <p class="text-xs text-gray-500 mb-3">Compartí el link de cada equipo por WhatsApp. El DT lo abre, crea cuenta (o inicia sesión) y queda vinculado a su equipo automáticamente para subir resultados.</p>
       <div class="space-y-2" id="team-codes-list">
         ${renderTeamCodes()}
       </div>
@@ -299,13 +299,14 @@ async function _initSettingsSectionInner() {
 function renderTeamCodes() {
   if (!cache.teams.length) return '<p class="text-gray-600 text-sm">Sin equipos</p>';
 
+  const base = window.location.origin;
   return cache.teams.filter(t => !t.is_bye && !t.replaced).map(t => {
-    return `<div class="flex items-center justify-between py-2 px-3 bg-pitch-900/30 rounded-lg">
-      <span class="text-sm text-white font-medium">${t.name}</span>
-      <div class="flex items-center gap-2">
-        <code class="text-xs text-lime-400 bg-lime-400/10 px-2 py-1 rounded font-mono">${t.code || '—'}</code>
-        ${t.code ? `<button onclick="navigator.clipboard.writeText('${t.code}');window._settingsToast('📋 Copiado')" class="text-xs text-gray-500 hover:text-white transition-colors">📋</button>` : ''}
-      </div>
+    const link = `${base}/#/join/${t.code}`;
+    return `<div class="flex items-center justify-between py-2 px-3 bg-pitch-900/30 rounded-lg gap-2">
+      <span class="text-sm text-white font-medium truncate">${t.name}</span>
+      ${t.code
+        ? `<button onclick="navigator.clipboard.writeText('${link}');window._settingsToast('🔗 Link copiado')" class="shrink-0 text-xs bg-lime-400/10 text-lime-400 border border-lime-400/20 px-3 py-1.5 rounded-lg hover:bg-lime-400/20 transition-all font-semibold">🔗 Copiar link</button>`
+        : '<span class="text-xs text-yellow-500">Sin código</span>'}
     </div>`;
   }).join('');
 }
