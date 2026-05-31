@@ -1017,9 +1017,21 @@ window._switchSeason = async (seasonId) => {
     el.innerHTML = '<div class="flex items-center gap-3 mb-6"><h2 class="font-display text-3xl tracking-wide text-white">' + (titles[section] || section) + '</h2></div><div class="text-center py-8 text-gray-600">Cargando...</div>';
   });
 
-  // Reload the currently visible section
+  // Reload the currently visible section, but jump to Tabla if coming from History
+  // (viewing a season from History should show that season's data clearly)
   const activeNav = document.querySelector('[data-nav].bg-white\\/10');
-  if (activeNav) activeNav.click();
+  const onHistory = activeNav?.dataset.nav === 'history';
+  if (onHistory) {
+    const standingsNav = document.querySelector('[data-nav="standings"]');
+    if (standingsNav) standingsNav.click();
+    else if (activeNav) activeNav.click();
+  } else if (activeNav) {
+    activeNav.click();
+  }
+
+  // Sync the season dropdown to reflect the viewed season
+  const dropdown = $('season-dropdown');
+  if (dropdown) dropdown.value = seasonId;
 
   const seasonName = cache.seasons.find(s => s.id === seasonId)?.name || '';
   toast(`📅 ${seasonName}`);
