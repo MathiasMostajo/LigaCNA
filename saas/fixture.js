@@ -138,6 +138,11 @@ async function _initFixtureSectionInner() {
             <p class="text-xs text-gray-500">Cada equipo juega contra cada uno dos veces (local y visitante)</p>
             <p class="text-[10px] text-gray-600 mt-1">${activeTeams.length} equipos → ${(activeTeams.length - (activeTeams.length % 2 === 0 ? 0 : 1)) * ((activeTeams.length - (activeTeams.length % 2 === 0 ? 0 : 1)) - 1)} partidos</p>
           </button>
+          <button id="fmt-grupos" class="w-full bg-pitch-900/60 border border-purple-400/20 rounded-xl p-4 text-left hover:border-purple-400/30 transition-all">
+            <p class="text-white font-semibold text-sm">🏆 Grupos + Eliminatorias</p>
+            <p class="text-xs text-gray-500">Estilo Mundial: fase de grupos y luego llaves</p>
+            <p class="text-[10px] text-gray-600 mt-1">Repartís los equipos en grupos al azar</p>
+          </button>
         </div>
         <button id="fmt-cancel" class="w-full text-sm text-gray-500 hover:text-white py-2">Cancelar</button>
       </div>
@@ -169,6 +174,12 @@ async function _initFixtureSectionInner() {
     modal.querySelector('#fmt-idayvuelta').onclick = () => {
       if (hasSchedule && !confirm('¿Regenerar fixture? Se borrará el actual.')) { modal.remove(); return; }
       doGen('idayvuelta');
+    };
+    modal.querySelector('#fmt-grupos').onclick = () => {
+      if (hasSchedule && !confirm('¿Cambiar a formato de grupos? Se borrará el fixture actual.')) { modal.remove(); return; }
+      modal.remove();
+      // Open group setup inside the fixture section
+      window._openGroupSetup();
     };
   };
 
@@ -1030,7 +1041,8 @@ async function saveGroupConfig(config) {
 
 // ─── Setup screen ────────────────────────────────────────────
 async function initGroupsSection() {
-  const container = document.querySelector('[data-section="groups"]');
+  // Groups now render inside the Fixture section
+  const container = document.querySelector('[data-section="fixture"]');
   if (!container) return;
 
   if (!cache.teams.length) await loadTeams();
@@ -1043,9 +1055,12 @@ async function initGroupsSection() {
   if (!config) {
     // Setup view
     container.innerHTML = `
-      <div class="flex items-center gap-3 mb-6">
-        <span class="text-2xl">🏆</span>
-        <h2 class="font-display text-3xl tracking-wide text-white">GRUPOS + ELIMINATORIAS</h2>
+      <div class="flex items-center justify-between mb-6">
+        <div class="flex items-center gap-3">
+          <span class="text-2xl">🏆</span>
+          <h2 class="font-display text-3xl tracking-wide text-white">GRUPOS</h2>
+        </div>
+        <button onclick="window._exitGroupMode()" class="text-xs text-gray-500 hover:text-white bg-white/5 border border-white/10 px-3 py-1 rounded-lg transition-all">← Volver a Fixture</button>
       </div>
       <div class="bg-pitch-800/60 border border-white/5 rounded-2xl p-5 mb-4">
         <p class="text-sm text-gray-400 mb-4">Formato estilo Mundial: los equipos se reparten en grupos, juegan todos contra todos dentro de su grupo, y los mejores avanzan a una fase eliminatoria.</p>
@@ -1062,6 +1077,7 @@ async function initGroupsSection() {
               <option value="ida">Solo Ida (cada par juega 1 vez)</option>
               <option value="idayvuelta">Ida y Vuelta (cada par juega 2 veces)</option>
             </select>
+          </div>
           </div>
           <div>
             <label class="block text-xs text-gray-500 mb-1 uppercase tracking-wider">Clasifican por grupo</label>
@@ -1090,6 +1106,7 @@ function renderGroupsView(container, config, archived) {
         <h2 class="font-display text-3xl tracking-wide text-white">GRUPOS</h2>
       </div>
       <div class="flex flex-wrap gap-2">
+        <button onclick="window._viewGroupFixture()" class="bg-white/5 text-gray-400 border border-white/10 px-3 py-1 rounded-lg text-xs font-semibold hover:text-white transition-all">📅 Ver Partidos</button>
         <button onclick="window._generateGroupKnockout()" ${archived ? 'disabled' : ''} class="bg-purple-500/10 text-purple-400 border border-purple-400/20 px-3 py-1 rounded-lg text-xs font-semibold hover:bg-purple-500/20 transition-all ${archived ? 'opacity-40' : ''}">🏆 Generar Eliminatorias</button>
         <button onclick="window._resetGroups()" ${archived ? 'disabled' : ''} class="bg-red-500/10 text-red-400 border border-red-500/20 px-3 py-1 rounded-lg text-xs font-semibold hover:bg-red-500/20 transition-all ${archived ? 'opacity-40' : ''}">🗑 Borrar Grupos</button>
       </div>
@@ -1266,11 +1283,31 @@ window._generateGroupKnockout = async () => {
     settings.playoffs = bracket;
     await supa.from('leagues').update({ settings }).eq('id', state.activeLeague.id);
     state.activeLeague.settings = settings;
-    toast('🏆 Eliminatorias generadas — vé a Fixture → Playoffs');
+    toast('🏆 Eliminatorias generadas — abajo aparece el bracket');
+    // Show playoffs bracket immediately
+    if (window._renderPlayoffsBracketGlobal) window._renderPlayoffsBracketGlobal();
   } catch(e) {
     toast('⚠️ ' + e.message, true);
   }
 };
 
+// Open group setup from the fixture format modal
+window._openGroupSetup = () => {
+  initGroupsSection();
+};
+
+// Exit group mode back to normal fixture
+window._exitGroupMode = () => {
+  initFixtureSection().then(() => {
+    if (state.activeLeague?.settings?.playoffs && window._renderPlayoffsBracketGlobal) window._renderPlayoffsBracketGlobal();
+  });
+};
+
+// View the group fixture (the matches) — renders normal fixture view
+window._viewGroupFixture = () => {
+  initFixtureSection().then(() => {
+    if (state.activeLeague?.settings?.playoffs && window._renderPlayoffsBracketGlobal) window._renderPlayoffsBracketGlobal();
+  });
+};
 
 export { initFixtureSection, initStandingsSection, calculateStandings, generateCalendar, initHistorySection, initGroupsSection, getGroupConfig };
