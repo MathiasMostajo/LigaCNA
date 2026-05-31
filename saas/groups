@@ -1,0 +1,273 @@
+// ═══════════════════════════════════════════════════════════════
+// groups.js — Group stage + knockout format
+// ═══════════════════════════════════════════════════════════════
+import { supa, state } from './auth.js';
+import { $, toast, cache, getSeasonId, loadTeams, loadMatches, isArchivedSeason } from './shared.js';
+import { calculateStandings, generateCalendar } from './fixture.js';
+
+const GROUP_LABELS = 'ABCDEFGHIJKL'.split('');
+
+// Get group config from settings (per season)
+function getGroupConfig() {
+  const seasonId = getSeasonId();
+  const all = state.activeLeague?.settings?.groupStages || {};
+  return all[seasonId] || null;
+}
+
+async function saveGroupConfig(config) {
+  const seasonId = getSeasonId();
+  const settings = { ...(state.activeLeague.settings || {}) };
+  settings.groupStages = { ...(settings.groupStages || {}) };
+  if (config === null) {
+    delete settings.groupStages[seasonId];
+  } else {
+    settings.groupStages[seasonId] = config;
+  }
+  const { error } = await supa.from('leagues').update({ settings }).eq('id', state.activeLeague.id);
+  if (error) throw error;
+  state.activeLeague.settings = settings;
+}
+
+// ─── Setup screen ────────────────────────────────────────────
+async function initGroupsSection() {
+  const container = document.querySelector('[data-section="groups"]');
+  if (!container) return;
+
+  if (!cache.teams.length) await loadTeams();
+  await loadMatches();
+
+  const config = getGroupConfig();
+  const archived = isArchivedSeason();
+  const activeTeams = cache.teams.filter(t => !t.is_bye && !t.replaced);
+
+  if (!config) {
+    // Setup view
+    container.innerHTML = `
+      <div class="flex items-center gap-3 mb-6">
+        <span class="text-2xl">🏆</span>
+        <h2 class="font-display text-3xl tracking-wide text-white">GRUPOS + ELIMINATORIAS</h2>
+      </div>
+      <div class="bg-pitch-800/60 border border-white/5 rounded-2xl p-5 mb-4">
+        <p class="text-sm text-gray-400 mb-4">Formato estilo Mundial: los equipos se reparten en grupos, juegan todos contra todos dentro de su grupo, y los mejores avanzan a una fase eliminatoria.</p>
+        <p class="text-xs text-gray-500 mb-4">Tenés <span class="text-white font-semibold">${activeTeams.length} equipos</span> disponibles.</p>
+
+        <div class="space-y-4">
+          <div>
+            <label class="block text-xs text-gray-500 mb-1 uppercase tracking-wider">Cantidad de grupos</label>
+            <input type="number" id="gs-num-groups" min="2" max="12" value="${Math.min(4, Math.floor(activeTeams.length / 2))}" class="w-32 bg-pitch-900/60 border border-white/10 rounded-xl px-3 py-2.5 text-white text-center outline-none focus:border-lime-400/40">
+          </div>
+          <div>
+            <label class="block text-xs text-gray-500 mb-1 uppercase tracking-wider">Formato dentro del grupo</label>
+            <select id="gs-format" class="w-full bg-pitch-900/60 border border-white/10 rounded-xl px-3 py-2.5 text-white text-sm outline-none focus:border-lime-400/40">
+              <option value="ida">Solo Ida (cada par juega 1 vez)</option>
+              <option value="idayvuelta">Ida y Vuelta (cada par juega 2 veces)</option>
+            </select>
+          </div>
+          <div>
+            <label class="block text-xs text-gray-500 mb-1 uppercase tracking-wider">Clasifican por grupo</label>
+            <input type="number" id="gs-advance" min="1" max="4" value="2" class="w-32 bg-pitch-900/60 border border-white/10 rounded-xl px-3 py-2.5 text-white text-center outline-none focus:border-lime-400/40">
+            <p class="text-[10px] text-gray-600 mt-1">Cuántos equipos de cada grupo pasan a eliminatorias</p>
+          </div>
+        </div>
+
+        <button onclick="window._drawGroups()" ${archived ? 'disabled' : ''} class="w-full mt-5 bg-gradient-to-r from-lime-400 to-emerald-500 text-pitch-900 font-bold py-3 rounded-xl text-sm uppercase tracking-wider hover:from-lime-300 hover:to-emerald-400 transition-all ${archived ? 'opacity-40 cursor-not-allowed' : ''}">🎲 Sortear Grupos</button>
+      </div>
+    `;
+    return;
+  }
+
+  // Groups exist — show them with standings
+  renderGroupsView(container, config, archived);
+}
+
+function renderGroupsView(container, config, archived) {
+  const groupKeys = Object.keys(config.groups);
+
+  let html = `
+    <div class="flex items-center justify-between mb-6">
+      <div class="flex items-center gap-3">
+        <span class="text-2xl">🏆</span>
+        <h2 class="font-display text-3xl tracking-wide text-white">GRUPOS</h2>
+      </div>
+      <div class="flex flex-wrap gap-2">
+        <button onclick="window._generateGroupKnockout()" ${archived ? 'disabled' : ''} class="bg-purple-500/10 text-purple-400 border border-purple-400/20 px-3 py-1 rounded-lg text-xs font-semibold hover:bg-purple-500/20 transition-all ${archived ? 'opacity-40' : ''}">🏆 Generar Eliminatorias</button>
+        <button onclick="window._resetGroups()" ${archived ? 'disabled' : ''} class="bg-red-500/10 text-red-400 border border-red-500/20 px-3 py-1 rounded-lg text-xs font-semibold hover:bg-red-500/20 transition-all ${archived ? 'opacity-40' : ''}">🗑 Borrar Grupos</button>
+      </div>
+    </div>
+    <p class="text-xs text-gray-500 mb-4">Clasifican los primeros <span class="text-lime-400 font-semibold">${config.advancePerGroup}</span> de cada grupo. Los partidos se cargan normalmente desde Escáner IA o manualmente.</p>
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+  `;
+
+  groupKeys.forEach(gk => {
+    const teamIds = config.groups[gk];
+    const standings = calculateStandings(teamIds);
+    html += `
+      <div class="bg-pitch-800/60 border border-white/5 rounded-2xl p-5">
+        <h3 class="font-display text-xl text-lime-400 mb-3">Grupo ${gk}</h3>
+        <div class="overflow-x-auto">
+          <table class="w-full text-sm">
+            <thead><tr class="text-gray-500 text-xs uppercase">
+              <th class="text-left py-2 w-6">#</th><th class="text-left">Equipo</th>
+              <th class="text-center px-1">PJ</th><th class="text-center px-1">G</th><th class="text-center px-1">E</th><th class="text-center px-1">P</th>
+              <th class="text-center px-1">DG</th><th class="text-center px-1">Pts</th>
+            </tr></thead>
+            <tbody>
+              ${standings.map((s, i) => {
+                const qualifies = i < config.advancePerGroup;
+                return `<tr class="border-b border-white/5 ${qualifies ? 'bg-lime-400/5' : ''}">
+                  <td class="py-2 ${qualifies ? 'text-lime-400 font-bold' : 'text-gray-600'}">${i + 1}</td>
+                  <td class="font-medium text-white cursor-pointer hover:text-lime-400 transition-colors" onclick="window._viewTeamProfile('${s.id}')">${s.name}</td>
+                  <td class="text-center text-gray-400 px-1">${s.P}</td>
+                  <td class="text-center text-gray-400 px-1">${s.W}</td>
+                  <td class="text-center text-gray-400 px-1">${s.D}</td>
+                  <td class="text-center text-gray-400 px-1">${s.L}</td>
+                  <td class="text-center px-1 ${s.GD > 0 ? 'text-lime-400' : s.GD < 0 ? 'text-red-400' : 'text-gray-500'}">${s.GD > 0 ? '+' : ''}${s.GD}</td>
+                  <td class="text-center font-bold text-white px-1">${s.Pts}</td>
+                </tr>`;
+              }).join('')}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    `;
+  });
+
+  html += `</div>`;
+  container.innerHTML = html;
+}
+
+// ─── Draw groups (random) ────────────────────────────────────
+window._drawGroups = async () => {
+  const numGroups = parseInt($('gs-num-groups').value) || 4;
+  const format = $('gs-format').value || 'ida';
+  const advance = parseInt($('gs-advance').value) || 2;
+
+  const activeTeams = cache.teams.filter(t => !t.is_bye && !t.replaced);
+  if (activeTeams.length < numGroups * 2) {
+    toast(`⚠️ Necesitás al menos ${numGroups * 2} equipos para ${numGroups} grupos`, true);
+    return;
+  }
+  if (advance >= Math.ceil(activeTeams.length / numGroups)) {
+    toast('⚠️ "Clasifican por grupo" debe ser menor al tamaño del grupo', true);
+    return;
+  }
+
+  // Shuffle teams randomly
+  const shuffled = [...activeTeams].sort(() => Math.random() - 0.5);
+
+  // Distribute round-robin style into groups
+  const groups = {};
+  for (let i = 0; i < numGroups; i++) groups[GROUP_LABELS[i]] = [];
+  shuffled.forEach((team, idx) => {
+    const gk = GROUP_LABELS[idx % numGroups];
+    groups[gk].push(team.id);
+  });
+
+  // Generate fixtures per group, merge into one schedule with group tags
+  const schedule = [];
+  let globalRound = 1;
+  Object.keys(groups).forEach(gk => {
+    const groupSchedule = generateCalendar(groups[gk], format);
+    groupSchedule.forEach(round => {
+      schedule.push({
+        round: globalRound++,
+        group: gk,
+        fixtures: round.fixtures,
+      });
+    });
+  });
+
+  const config = { numGroups, format, advancePerGroup: advance, groups };
+
+  try {
+    await saveGroupConfig(config);
+
+    // Save the schedule to the fixture system
+    const seasonId = getSeasonId();
+    const settings = { ...(state.activeLeague.settings || {}) };
+    settings.schedules = { ...(settings.schedules || {}) };
+    settings.schedules[seasonId] = schedule;
+    settings.fixtureFormat = format;
+    await supa.from('leagues').update({ settings }).eq('id', state.activeLeague.id);
+    state.activeLeague.settings = settings;
+    cache.schedule = schedule;
+
+    toast('🎲 Grupos sorteados');
+    initGroupsSection();
+  } catch(e) {
+    toast('⚠️ ' + e.message, true);
+  }
+};
+
+// ─── Reset groups ────────────────────────────────────────────
+window._resetGroups = async () => {
+  if (!confirm('¿Borrar los grupos y su fixture? Los resultados ya cargados no se tocan.')) return;
+  try {
+    await saveGroupConfig(null);
+    // Clear the schedule too
+    const seasonId = getSeasonId();
+    const settings = { ...(state.activeLeague.settings || {}) };
+    if (settings.schedules) delete settings.schedules[seasonId];
+    await supa.from('leagues').update({ settings }).eq('id', state.activeLeague.id);
+    state.activeLeague.settings = settings;
+    cache.schedule = [];
+    toast('🗑 Grupos borrados');
+    initGroupsSection();
+  } catch(e) {
+    toast('⚠️ ' + e.message, true);
+  }
+};
+
+// ─── Generate knockout from group winners ────────────────────
+window._generateGroupKnockout = async () => {
+  const config = getGroupConfig();
+  if (!config) return;
+
+  // Collect qualified teams from each group
+  const qualified = [];
+  Object.keys(config.groups).forEach(gk => {
+    const standings = calculateStandings(config.groups[gk]);
+    for (let i = 0; i < config.advancePerGroup && i < standings.length; i++) {
+      qualified.push({ ...standings[i], group: gk, groupPos: i + 1 });
+    }
+  });
+
+  if (qualified.length < 2) {
+    toast('⚠️ No hay suficientes equipos clasificados todavía', true);
+    return;
+  }
+
+  // Seed: group winners first, then runners-up, etc. (snake seeding)
+  // Cross brackets: 1A vs 2B, 1B vs 2A style
+  const winners = qualified.filter(q => q.groupPos === 1);
+  const others = qualified.filter(q => q.groupPos !== 1);
+  const seeded = [...winners, ...others];
+
+  // Build single-elim bracket
+  const bracketSize = Math.pow(2, Math.ceil(Math.log2(seeded.length)));
+  const matches = [];
+  for (let i = 0; i < bracketSize / 2; i++) {
+    const home = seeded[i] || null;
+    const away = seeded[bracketSize - 1 - i] || null;
+    matches.push({
+      home: home ? { id: home.id, name: home.name } : null,
+      away: away ? { id: away.id, name: away.name } : null,
+      homeGoals: null, awayGoals: null,
+    });
+  }
+
+  const roundName = bracketSize >= 16 ? 'Octavos' : bracketSize >= 8 ? 'Cuartos' : bracketSize >= 4 ? 'Semifinal' : 'Final';
+  const bracket = { format: 'groups', rounds: [{ name: roundName, matches }] };
+
+  try {
+    const settings = { ...(state.activeLeague.settings || {}) };
+    settings.playoffs = bracket;
+    await supa.from('leagues').update({ settings }).eq('id', state.activeLeague.id);
+    state.activeLeague.settings = settings;
+    toast('🏆 Eliminatorias generadas — vé a Fixture → Playoffs');
+  } catch(e) {
+    toast('⚠️ ' + e.message, true);
+  }
+};
+
+export { initGroupsSection, getGroupConfig };
