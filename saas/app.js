@@ -678,51 +678,38 @@ initAuth();
 // Hash routing for shareable URLs
 
 async function handleJoinLink(code) {
-  // Look up the team by code
-  const { data: team, error } = await supa.from('teams')
-    .select('*, leagues!inner(id, name, is_public, active_season_id)')
-    .eq('code', code).maybeSingle();
-
-  if (error || !team) {
-    window.location.hash = '';
-    toast('⚠️ Link de invitación inválido o equipo no encontrado', true);
-    return;
-  }
-
-  // Not logged in → save the code and send to signup
+  // Not logged in → save the code and send to signup first
   if (!state.user) {
     _pendingJoinCode = code;
     window.location.hash = '';
     showScreen('auth');
-    toast(`Creá tu cuenta o iniciá sesión para unirte a ${team.name}`);
+    toast('Creá tu cuenta o iniciá sesión para unirte a tu equipo');
     return;
   }
 
-  // Logged in → create membership
-  await joinTeamAsDT(team);
-}
-
-async function joinTeamAsDT(team) {
   window.location.hash = '';
+  toast('Vinculándote a tu equipo...');
 
-  // Check if already a member
-  const { data: existing } = await supa.from('team_members')
-    .select('id').eq('team_id', team.id).eq('user_id', state.user.id).maybeSingle();
+  // Use server-side RPC (bypasses RLS safely)
+  const { data, error } = await supa.rpc('join_team_by_code', { p_code: code });
 
-  if (existing) {
-    toast(`Ya estás vinculado a ${team.name}`);
+  if (error) {
+    toast('⚠️ Error: ' + error.message, true);
+    return;
+  }
+
+  if (!data || !data.success) {
+    const reason = data?.error === 'team_not_found' ? 'Link inválido o equipo no encontrado'
+      : data?.error === 'not_authenticated' ? 'Iniciá sesión primero'
+      : 'No se pudo unir al equipo';
+    toast('⚠️ ' + reason, true);
+    return;
+  }
+
+  if (data.already_member) {
+    toast(`Ya estás vinculado a ${data.team_name}`);
   } else {
-    const { error } = await supa.from('team_members').insert({
-      team_id: team.id,
-      league_id: team.leagues.id,
-      user_id: state.user.id,
-      email: state.user.email,
-    });
-    if (error) {
-      toast('⚠️ No se pudo vincular: ' + error.message, true);
-      return;
-    }
-    toast(`✅ Te uniste a ${team.name} como DT`);
+    toast(`✅ Te uniste a ${data.team_name} como DT`);
   }
 
   // Reload memberships and go to hub
