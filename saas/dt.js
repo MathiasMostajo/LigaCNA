@@ -248,9 +248,12 @@ function renderDTPlayerFields(level) {
 }
 
 async function loadDTTeamDropdowns() {
-  // Load all teams in this league
-  const { data: teams } = await supa.from('teams').select('id, name')
+  // Load all teams in this league (active season only)
+  const _sid = _dtLeague.active_season_id || null;
+  let _tq = supa.from('teams').select('id, name')
     .eq('league_id', _dtLeague.id).eq('is_bye', false).eq('replaced', false);
+  if (_sid) _tq = _tq.eq('season_id', _sid);
+  const { data: teams } = await _tq;
   if (!teams) return;
 
   const opts = teams.map(t => `<option value="${t.id}" ${t.id === _dtTeam.id ? 'selected' : ''}>${t.name}</option>`).join('');
@@ -537,8 +540,12 @@ window._dtViewStandings = async () => {
   showLoading(content, 'Cargando tabla...');
 
   const leagueId = _dtLeague.id;
-  const { data: teams } = await supa.from('teams').select('*').eq('league_id', leagueId).eq('is_bye', false).eq('replaced', false);
-  const { data: matches } = await supa.from('matches').select('*').eq('league_id', leagueId);
+  const seasonId = _dtLeague.active_season_id || null;
+  let teamsQ = supa.from('teams').select('*').eq('league_id', leagueId).eq('is_bye', false).eq('replaced', false);
+  let matchesQ = supa.from('matches').select('*').eq('league_id', leagueId);
+  if (seasonId) { teamsQ = teamsQ.eq('season_id', seasonId); matchesQ = matchesQ.eq('season_id', seasonId); }
+  const { data: teams } = await teamsQ;
+  const { data: matches } = await matchesQ;
 
   if (!teams?.length) { content.innerHTML = '<p class="text-gray-500 text-center py-8">Sin equipos</p>'; return; }
 
@@ -580,8 +587,12 @@ window._dtViewFixture = async () => {
   const leagueId = _dtLeague.id;
   const { data: leagueData } = await supa.from('leagues').select('settings').eq('id', leagueId).single();
   const schedule = leagueData?.settings?.schedule || [];
-  const { data: teams } = await supa.from('teams').select('id, name').eq('league_id', leagueId);
-  const { data: matches } = await supa.from('matches').select('*').eq('league_id', leagueId);
+  const _sid1 = _dtLeague.active_season_id || null;
+  let _tq1 = supa.from('teams').select('id, name').eq('league_id', leagueId);
+  let _mq1 = supa.from('matches').select('*').eq('league_id', leagueId);
+  if (_sid1) { _tq1 = _tq1.eq('season_id', _sid1); _mq1 = _mq1.eq('season_id', _sid1); }
+  const { data: teams } = await _tq1;
+  const { data: matches } = await _mq1;
 
   const getName = id => teams?.find(t => t.id === id)?.name || '?';
   const getResult = (hid, aid) => matches?.find(m => m.home_id === hid && m.away_id === aid);
@@ -619,8 +630,12 @@ window._dtViewLeaders = async () => {
   showLoading(content, 'Cargando líderes...');
 
   const leagueId = _dtLeague.id;
-  const { data: players } = await supa.from('players').select('*').eq('league_id', leagueId).order('goals', { ascending: false });
-  const { data: teams } = await supa.from('teams').select('id, name').eq('league_id', leagueId);
+  const _sid2 = _dtLeague.active_season_id || null;
+  let _pq2 = supa.from('players').select('*').eq('league_id', leagueId).order('goals', { ascending: false });
+  let _tq2 = supa.from('teams').select('id, name').eq('league_id', leagueId);
+  if (_sid2) { _pq2 = _pq2.eq('season_id', _sid2); _tq2 = _tq2.eq('season_id', _sid2); }
+  const { data: players } = await _pq2;
+  const { data: teams } = await _tq2;
   const getName = id => teams?.find(t => t.id === id)?.name || '?';
 
   const topScorers = (players || []).filter(p => p.goals > 0).slice(0, 15);
