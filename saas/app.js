@@ -332,7 +332,32 @@ function initLoginUI() {
     submitBtn.disabled = true; const orig = submitBtn.textContent;
     submitBtn.innerHTML = '<svg class="animate-spin h-5 w-5 mx-auto" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" fill="none"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>';
     try {
-      if (isRegister) { await signUp(email, password); showError('✅ Revisá tu email para confirmar', false); }
+      if (isRegister) {
+        await signUp(email, password);
+        // Show prominent confirmation screen
+        const card = submitBtn.closest('div');
+        const container = $('auth-title')?.parentElement;
+        if (container) {
+          container.innerHTML = `
+            <div class="text-center py-6">
+              <div class="text-5xl mb-4">📧</div>
+              <h2 class="font-display text-2xl text-white mb-3">¡Casi listo!</h2>
+              <p class="text-sm text-gray-400 mb-2">Te enviamos un email de confirmación a:</p>
+              <p class="text-sm text-lime-400 font-semibold mb-4">${email}</p>
+              <div class="bg-pitch-900/40 border border-white/10 rounded-xl p-4 text-left mb-4">
+                <p class="text-xs text-gray-400 mb-2">Para activar tu cuenta:</p>
+                <ol class="text-xs text-gray-500 space-y-1 list-decimal list-inside">
+                  <li>Abrí el email de Inti Leagues</li>
+                  <li>Clickeá el link de confirmación</li>
+                  <li>Volvé acá e iniciá sesión</li>
+                </ol>
+              </div>
+              <p class="text-[11px] text-gray-600 mb-4">¿No lo ves? Revisá la carpeta de spam o correo no deseado.</p>
+              <button onclick="window.location.reload()" class="text-sm text-lime-400 hover:text-lime-300 font-semibold">← Volver al inicio</button>
+            </div>
+          `;
+        }
+      }
       else { await signIn(email, password); }
     } catch(e) { showError(e.message); }
     finally { submitBtn.disabled = false; submitBtn.textContent = orig; }
