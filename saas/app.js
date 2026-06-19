@@ -772,6 +772,28 @@ function handleHashRoute() {
     return;
   }
 
+  // Inscription payment redirects
+  if (hash === '#/inscription/success') {
+    window.location.hash = '';
+    toast('🎉 ¡Pago de inscripción exitoso!');
+    // Refresh memberships so the DT sees the updated paid status
+    if (state.user) {
+      setTimeout(async () => {
+        state.memberships = await loadMyMemberships(state.user.id, state.user.email);
+        _bound.hub = false;
+        showScreen('hub');
+        initHubUI();
+      }, 800);
+    }
+    return;
+  }
+
+  if (hash === '#/inscription/cancel') {
+    window.location.hash = '';
+    toast('Pago de inscripción cancelado');
+    return;
+  }
+
   // Handle DT invite link: #/join/CODE
   if (hash.startsWith('#/join/')) {
     const code = hash.replace('#/join/', '').trim().toUpperCase();
