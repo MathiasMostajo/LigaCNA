@@ -102,6 +102,44 @@ function showDTSubmissionForm() {
     ? `<img src="${team.shield_url}" class="w-12 h-12 rounded-full object-cover border-2 border-lime-400/20">`
     : `<div class="w-12 h-12 rounded-full bg-pitch-700 border-2 border-lime-400/20 flex items-center justify-center text-xl font-display text-lime-400">${team.name.charAt(0)}</div>`;
 
+  // Inscription payment card (only if league has a fee configured)
+  const fee = league.settings?.inscriptionFee || 0;
+  let inscriptionHtml = '';
+  if (fee > 0) {
+    if (team.paid) {
+      inscriptionHtml = `
+        <div class="bg-emerald-500/5 border border-emerald-400/20 rounded-2xl p-4 mb-4">
+          <div class="flex items-center justify-between">
+            <div class="flex items-center gap-2">
+              <span class="text-xl">✅</span>
+              <div>
+                <p class="text-sm text-emerald-400 font-semibold">Inscripción pagada</p>
+                <p class="text-[11px] text-gray-500">Tu equipo está inscripto</p>
+              </div>
+            </div>
+            <button onclick="window._dtViewReceipt('${team.id}')" class="text-xs bg-emerald-500/10 text-emerald-400 border border-emerald-400/20 px-3 py-1.5 rounded-lg hover:bg-emerald-500/20 transition-all font-semibold">📄 Comprobante</button>
+          </div>
+        </div>`;
+    } else {
+      inscriptionHtml = `
+        <div class="bg-gradient-to-r from-lime-400/5 to-emerald-500/5 border border-lime-400/20 rounded-2xl p-4 mb-4">
+          <div class="flex items-center justify-between flex-wrap gap-3">
+            <div class="flex items-center gap-2">
+              <span class="text-xl">💰</span>
+              <div>
+                <p class="text-sm text-white font-semibold">Inscripción pendiente</p>
+                <p class="text-[11px] text-gray-500">Pagá para inscribir tu equipo en la liga</p>
+              </div>
+            </div>
+            <div class="flex items-center gap-3">
+              <span class="font-display text-2xl text-lime-400">$${fee.toFixed(2)}</span>
+              <button onclick="window._dtPayInscription('${team.id}')" class="bg-gradient-to-r from-lime-400 to-emerald-500 text-pitch-900 font-bold py-2 px-4 rounded-xl text-sm hover:from-lime-300 hover:to-emerald-400 transition-all">Pagar ahora →</button>
+            </div>
+          </div>
+        </div>`;
+    }
+  }
+
   content.innerHTML = `
     ${tabsHtml}
 
@@ -113,6 +151,8 @@ function showDTSubmissionForm() {
         <p class="text-xs text-gray-500">${league.name} · ${_dtPlayers.length} jugadores</p>
       </div>
     </div>
+
+    ${inscriptionHtml}
 
     <!-- STEP 1: Score (always visible) -->
     <div class="bg-pitch-800/60 border border-white/5 rounded-2xl p-5 mb-4">
@@ -751,6 +791,61 @@ window._dtLogout = async () => {
   _dtTeam = null; _dtLeague = null; _dtPlayers = []; _dtPhotos = [];
   try { await signOut(); } catch(e) {}
   showScreen('public');
+};
+
+// ─── Inscription payment ─────────────────────────────────────
+window._dtPayInscription = async (teamId) => {
+  const { data: { session } } = await supa.auth.getSession();
+  if (!session) { toast('⚠️ Iniciá sesión primero', true); return; }
+
+  toast('Redirigiendo al pago...');
+  try {
+    const res = await fetch(supa.supabaseUrl + '/functions/v1/create-inscription-checkout', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer ' + session.access_token,
+      },
+      body: JSON.stringify({ teamId }),
+    });
+    const data = await res.json();
+    if (data.error) throw new Error(data.error);
+    if (data.url) window.location.href = data.url;
+  } catch(e) {
+    toast('⚠️ ' + e.message, true);
+  }
+};
+
+window._dtViewReceipt = async (teamId) => {
+  const { data, error } = await supa.rpc('get_payment_receipt', { p_team_id: teamId });
+  if (error || !data?.success) { toast('⚠️ No se encontró el comprobante', true); return; }
+
+  const date = data.paid_at ? new Date(data.paid_at).toLocaleString('es-AR', { dateStyle: 'long', timeStyle: 'short' }) : '—';
+  const body = $('result-form-body');
+  body.innerHTML = `
+    <div class="text-center mb-4">
+      <div class="text-4xl mb-2">🧾</div>
+      <h3 class="font-display text-xl text-white">Comprobante de Pago</h3>
+      <p class="text-xs text-gray-500">Inscripción confirmada</p>
+    </div>
+    <div class="bg-pitch-900/40 border border-white/10 rounded-xl p-4 space-y-3">
+      <div class="flex justify-between text-sm"><span class="text-gray-500">Equipo</span><span class="text-white font-medium">${data.team_name}</span></div>
+      <div class="flex justify-between text-sm"><span class="text-gray-500">Liga</span><span class="text-white font-medium">${data.league_name}</span></div>
+      <div class="flex justify-between text-sm"><span class="text-gray-500">Monto</span><span class="text-lime-400 font-bold">$${Number(data.amount).toFixed(2)} USD</span></div>
+      <div class="flex justify-between text-sm"><span class="text-gray-500">Fecha</span><span class="text-white">${date}</span></div>
+      <div class="flex justify-between text-sm"><span class="text-gray-500">Email</span><span class="text-white text-xs">${data.email || '—'}</span></div>
+      <div class="border-t border-white/10 pt-3">
+        <p class="text-[10px] text-gray-600 mb-1">ID de transacción</p>
+        <p class="text-[10px] text-gray-400 font-mono break-all">${data.payment_id || '—'}</p>
+      </div>
+    </div>
+    <div class="bg-emerald-500/5 border border-emerald-400/20 rounded-xl p-3 mt-3 text-center">
+      <p class="text-xs text-emerald-400">✅ Pago verificado por Inti Leagues</p>
+    </div>
+  `;
+  const titleEl = $('modal-title');
+  if (titleEl) titleEl.textContent = 'Comprobante';
+  $('result-form').classList.remove('hidden');
 };
 
 // ═══════════════════════════════════════════════════════════════
