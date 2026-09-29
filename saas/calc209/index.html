@@ -259,9 +259,9 @@ const canvas=$('scratchCanvas'),ctx=canvas.getContext('2d');let drawing=false,pa
 function sizeCanvas(){const r=canvas.getBoundingClientRect(),dpr=Math.max(1,devicePixelRatio||1);const old=paths.slice();canvas.width=Math.round(r.width*dpr);canvas.height=Math.round(r.height*dpr);ctx.setTransform(dpr,0,0,dpr,0,0);redraw()}
 function redraw(){const r=canvas.getBoundingClientRect();ctx.clearRect(0,0,r.width,r.height);ctx.lineCap='round';ctx.lineJoin='round';ctx.strokeStyle='#20242d';ctx.lineWidth=2.6;for(const p of paths){if(p.length<2)continue;ctx.beginPath();ctx.moveTo(p[0].x,p[0].y);for(let i=1;i<p.length;i++)ctx.lineTo(p[i].x,p[i].y);ctx.stroke()}}
 function point(e){const r=canvas.getBoundingClientRect();return{x:e.clientX-r.left,y:e.clientY-r.top}}
-canvas.addEventListener('pointerdown',e=>{drawing=true;currentPath=[point(e)];canvas.setPointerCapture(e.pointerId)});
-canvas.addEventListener('pointermove',e=>{if(!drawing)return;currentPath.push(point(e));paths.push(currentPath);currentPath=[];currentPath=[paths.pop().slice(-1)[0],point(e)];paths.push(currentPath);redraw()});
-canvas.addEventListener('pointerup',e=>{if(!drawing)return;drawing=false;if(currentPath.length)paths.push(currentPath);currentPath=[];redraw()});
+canvas.addEventListener('pointerdown',e=>{drawing=true;currentPath=[point(e)];paths.push(currentPath);canvas.setPointerCapture(e.pointerId);redraw()});
+canvas.addEventListener('pointermove',e=>{if(!drawing)return;currentPath.push(point(e));redraw()});
+canvas.addEventListener('pointerup',e=>{if(!drawing)return;drawing=false;currentPath=[];redraw()});
 $('clearScratch').onclick=()=>{paths=[];redraw()};
 $('undoScratch').onclick=()=>{paths.pop();redraw()};
 addEventListener('resize',()=>setTimeout(sizeCanvas,100));
