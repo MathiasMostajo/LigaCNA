@@ -14,17 +14,14 @@
 <style>
 :root{--bg:#0d0f13;--panel:#151922;--panel2:#1b202b;--text:#f5f7fb;--muted:#9aa4b4;--accent:#7aa2ff;--green:#56d38b;--red:#ff7777;--line:#2d3440;--yellow:#ffd166}
 *{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--text);font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;min-height:100vh}
-button,input,select{font:inherit}.app{max-width:760px;margin:auto;padding-bottom:86px}.top{position:sticky;top:0;z-index:10;background:#0d0f13ee;backdrop-filter:blur(14px);border-bottom:1px solid var(--line);padding:14px 16px}.row{display:flex;align-items:center;gap:10px}.between{justify-content:space-between}.brand{font-weight:900;font-size:21px}.brand b{color:var(--accent)}.pill{font-size:12px;color:var(--muted);border:1px solid var(--line);padding:5px 8px;border-radius:999px}
+button,input{font:inherit}.app{max-width:760px;margin:auto;padding-bottom:88px}.top{position:sticky;top:0;z-index:10;background:#0d0f13ee;backdrop-filter:blur(14px);border-bottom:1px solid var(--line);padding:14px 16px}.row{display:flex;align-items:center;gap:10px}.between{justify-content:space-between}.brand{font-weight:900;font-size:21px}.brand b{color:var(--accent)}.pill{font-size:12px;color:var(--muted);border:1px solid var(--line);padding:5px 8px;border-radius:999px}
 .screen{display:none;padding:18px 16px}.screen.on{display:block}.hero{margin-bottom:14px}.eyebrow{color:var(--accent);font-size:12px;font-weight:850;letter-spacing:.8px;text-transform:uppercase}.hero h1{font-size:24px;line-height:1.15;margin:6px 0 5px}.muted{color:var(--muted);line-height:1.45}
-.card{background:var(--panel);border:1px solid var(--line);border-radius:18px;padding:17px;margin-bottom:12px}.card h2,.card h3{margin:0 0 8px}.math{font-family:Cambria Math,Georgia,serif;font-size:24px;background:var(--panel2);border:1px solid var(--line);padding:14px;border-radius:14px;margin:12px 0;overflow:auto;text-align:center}
-.rule{background:#111c30;border:1px solid #274578;border-radius:14px;padding:13px;margin:12px 0}.rule b{color:#bcd0ff}.step{padding:10px 0;border-top:1px solid var(--line)}.step:first-child{border-top:0}.n{display:inline-grid;place-items:center;width:24px;height:24px;border-radius:999px;background:var(--panel2);color:var(--accent);font-weight:900;font-size:12px;margin-right:7px}
-.btn{border:1px solid var(--line);background:var(--panel2);color:var(--text);border-radius:13px;padding:12px 14px}.btn.primary{background:var(--accent);border-color:transparent;color:white;font-weight:850}.btn.good{background:var(--green);border-color:transparent;color:#07140c;font-weight:850}.btn.full{width:100%}.actions{display:flex;gap:9px;margin-top:14px}.actions>*{flex:1}.choices{display:grid;gap:9px;margin-top:12px}.choice{text-align:left}.choice.sel{border-color:var(--accent);outline:2px solid #7aa2ff44}.choice.correct{border-color:var(--green);background:#10241a}.choice.wrong{border-color:var(--red);background:#281315}
-.answer{width:100%;padding:13px;border-radius:13px;border:1px solid var(--line);background:var(--panel2);color:var(--text);outline:none;margin-top:10px}.feedback{display:none;margin-top:13px;padding:13px;border-radius:13px;background:var(--panel2);border:1px solid var(--line);line-height:1.5}.feedback.on{display:block}.feedback.good{border-color:var(--green)}.feedback.bad{border-color:var(--red)}
-.path{display:grid;gap:9px}.lesson{display:flex;align-items:center;gap:12px;background:var(--panel);border:1px solid var(--line);border-radius:15px;padding:13px}.lesson .dot{width:36px;height:36px;border-radius:50%;display:grid;place-items:center;background:var(--panel2);font-weight:900;color:var(--accent)}.lesson.locked{opacity:.45}.lesson.current{border-color:#5879be}.lesson.done .dot{background:#163120;color:var(--green)}.lesson .meta{flex:1}.lesson .meta b{display:block}.lesson .meta span{font-size:12px;color:var(--muted)}
-.progressbar{height:8px;background:var(--panel2);border-radius:999px;overflow:hidden;margin:10px 0}.progressbar i{display:block;height:100%;background:var(--accent)}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:18px;padding:17px;margin-bottom:12px}.card h2,.card h3{margin:0 0 8px}.math{font-family:Cambria Math,Georgia,serif;font-size:23px;background:var(--panel2);border:1px solid var(--line);padding:14px;border-radius:14px;margin:12px 0;overflow:auto;text-align:center}.rule{background:#111c30;border:1px solid #274578;border-radius:14px;padding:13px;margin:12px 0}.rule b{color:#bcd0ff}.step{padding:10px 0;border-top:1px solid var(--line)}.step:first-child{border-top:0}.n{display:inline-grid;place-items:center;width:24px;height:24px;border-radius:999px;background:var(--panel2);color:var(--accent);font-weight:900;font-size:12px;margin-right:7px}
+.btn{border:1px solid var(--line);background:var(--panel2);color:var(--text);border-radius:13px;padding:12px 14px}.btn.primary{background:var(--accent);border-color:transparent;color:#fff;font-weight:850}.btn.good{background:var(--green);border-color:transparent;color:#07140c;font-weight:850}.btn.full{width:100%}.actions{display:flex;gap:9px;margin-top:14px}.actions>*{flex:1}.choices{display:grid;gap:9px;margin-top:12px}.choice{text-align:left}.choice.sel{border-color:var(--accent);outline:2px solid #7aa2ff44}.choice.correct{border-color:var(--green);background:#10241a}.choice.wrong{border-color:var(--red);background:#281315}.answer{width:100%;padding:13px;border-radius:13px;border:1px solid var(--line);background:var(--panel2);color:var(--text);outline:none;margin-top:10px}.feedback{display:none;margin-top:13px;padding:13px;border-radius:13px;background:var(--panel2);border:1px solid var(--line);line-height:1.5}.feedback.on{display:block}.feedback.good{border-color:var(--green)}.feedback.bad{border-color:var(--red)}
+.path{display:grid;gap:9px}.chapterHead{margin:18px 2px 8px;color:var(--muted);font-weight:800;font-size:13px;text-transform:uppercase;letter-spacing:.8px}.lesson{display:flex;align-items:center;gap:12px;background:var(--panel);border:1px solid var(--line);border-radius:15px;padding:13px}.lesson .dot{width:36px;height:36px;border-radius:50%;display:grid;place-items:center;background:var(--panel2);font-weight:900;color:var(--accent);flex:0 0 auto}.lesson.locked{opacity:.42}.lesson.current{border-color:#5879be}.lesson.done .dot{background:#163120;color:var(--green)}.lesson .meta{flex:1}.lesson .meta b{display:block}.lesson .meta span{font-size:12px;color:var(--muted)}.progressbar{height:8px;background:var(--panel2);border-radius:999px;overflow:hidden;margin:10px 0}.progressbar i{display:block;height:100%;background:var(--accent)}
 .kpis{display:grid;grid-template-columns:repeat(3,1fr);gap:9px}.kpi{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:12px;text-align:center}.kpi strong{display:block;font-size:22px}.kpi span{font-size:11px;color:var(--muted)}
-.nav{position:fixed;left:0;right:0;bottom:0;background:#0d0f13ee;backdrop-filter:blur(14px);border-top:1px solid var(--line);display:flex;justify-content:center}.navin{width:min(760px,100%);display:grid;grid-template-columns:repeat(3,1fr)}.nav button{background:none;border:0;color:var(--muted);padding:11px 4px 15px}.nav button.on{color:var(--accent);font-weight:800}.tiny{font-size:12px;color:var(--muted);line-height:1.45}.tag{display:inline-block;padding:4px 7px;border-radius:999px;font-size:11px;background:var(--panel2);color:var(--muted);margin-right:5px}
-.toast{position:fixed;bottom:92px;left:50%;transform:translateX(-50%);background:#000;color:#fff;padding:10px 13px;border-radius:10px;opacity:0;transition:.2s;pointer-events:none;z-index:20}.toast.on{opacity:1}
+.scratch{margin-top:12px}.scratchTop{display:flex;justify-content:space-between;align-items:center;margin-bottom:9px}.scratch canvas{display:block;width:100%;height:240px;background:#f8f6f0;border-radius:14px;touch-action:none}.scratchTools{display:flex;gap:8px}.scratchTools button{padding:8px 10px}.tiny{font-size:12px;color:var(--muted);line-height:1.45}.graphBox{background:var(--panel2);border:1px solid var(--line);border-radius:14px;padding:8px;margin:12px 0}.graphBox svg{width:100%;height:auto;display:block}
+.nav{position:fixed;left:0;right:0;bottom:0;background:#0d0f13ee;backdrop-filter:blur(14px);border-top:1px solid var(--line);display:flex;justify-content:center}.navin{width:min(760px,100%);display:grid;grid-template-columns:repeat(3,1fr)}.nav button{background:none;border:0;color:var(--muted);padding:11px 4px 15px}.nav button.on{color:var(--accent);font-weight:800}.toast{position:fixed;bottom:92px;left:50%;transform:translateX(-50%);background:#000;color:#fff;padding:10px 13px;border-radius:10px;opacity:0;transition:.2s;pointer-events:none;z-index:20}.toast.on{opacity:1}
 </style>
 </head>
 <body>
@@ -32,32 +29,25 @@ button,input,select{font:inherit}.app{max-width:760px;margin:auto;padding-bottom
 <header class="top"><div class="row between"><div class="brand">Calc<b>209</b></div><div class="row"><span class="pill" id="streak">🔥 0</span><span class="pill" id="xp">0 XP</span></div></div></header>
 
 <main id="learn" class="screen on">
-  <div class="hero">
-    <div class="eyebrow">MATH 209 · From zero</div>
-    <h1 id="lessonTitle">Limits — What a limit means</h1>
-    <div class="muted" id="lessonSub">We start with the idea before using rules.</div>
-  </div>
+  <div class="hero"><div class="eyebrow" id="courseTag">MATH 209 · From zero</div><h1 id="lessonTitle"></h1><div class="muted" id="lessonSub"></div></div>
   <div id="lessonArea"></div>
+  <div class="card scratch">
+    <div class="scratchTop"><div><div class="eyebrow">Scratchpad</div><b>Write it out with your finger</b></div><div class="scratchTools"><button class="btn" id="undoScratch">Undo</button><button class="btn" id="clearScratch">Clear</button></div></div>
+    <canvas id="scratchCanvas"></canvas>
+    <div class="tiny" style="margin-top:8px">Use this for substitutions, arithmetic, formulas, or little graphs. Nothing here is graded.</div>
+  </div>
 </main>
 
 <main id="path" class="screen">
-  <div class="hero"><div class="eyebrow">Course path</div><h1>Your MATH 209 roadmap</h1><div class="muted">New topics unlock only after you show mastery of the previous one.</div></div>
-  <div class="card">
-    <div class="row between"><b>Chapter 2 progress</b><span id="pct">0%</span></div>
-    <div class="progressbar"><i id="bar" style="width:0%"></i></div>
-    <div class="tiny">Order: limits → one-sided limits → infinite limits/asymptotes → continuity → derivative idea → basic differentiation → marginal analysis.</div>
-  </div>
+  <div class="hero"><div class="eyebrow">Course path</div><h1>Your full MATH 209 roadmap</h1><div class="muted">Chapter 2 and Chapter 3 are both here. Topics unlock in order so later rules do not appear before the basics.</div></div>
+  <div class="card"><div class="row between"><b>Overall progress</b><span id="pct">0%</span></div><div class="progressbar"><i id="bar" style="width:0%"></i></div><div class="tiny">Your uploaded notes cover Sections 2.1–2.7 and 3.1–3.7.</div></div>
   <div class="path" id="pathList"></div>
 </main>
 
 <main id="progress" class="screen">
-  <div class="hero"><div class="eyebrow">Progress</div><h1>What you actually know</h1><div class="muted">The app counts mastery, not just questions completed.</div></div>
-  <div class="kpis">
-    <div class="kpi"><strong id="accuracy">—</strong><span>Accuracy</span></div>
-    <div class="kpi"><strong id="mastered">0</strong><span>Lessons mastered</span></div>
-    <div class="kpi"><strong id="reviews">0</strong><span>Reviews due</span></div>
-  </div>
-  <div class="card" style="margin-top:12px"><h3>Repetition system</h3><div class="tiny">When you get a skill right, it comes back later. When you miss it, Calc209 gives a worked example first, then a very similar problem.</div></div>
+  <div class="hero"><div class="eyebrow">Progress</div><h1>What you actually know</h1><div class="muted">Mastery is tracked separately from XP.</div></div>
+  <div class="kpis"><div class="kpi"><strong id="accuracy">—</strong><span>Accuracy</span></div><div class="kpi"><strong id="mastered">0</strong><span>Lessons mastered</span></div><div class="kpi"><strong id="reviews">0</strong><span>Reviews due</span></div></div>
+  <div class="card" style="margin-top:12px"><h3>How repetition works</h3><div class="tiny">Teach → worked example → guided problem → independent problem → later review. A mistake gives you another problem with different numbers, not the exact same one.</div></div>
   <div class="card"><h3>Current focus</h3><div id="focusText" class="muted"></div></div>
 </main>
 </div>
@@ -67,130 +57,217 @@ button,input,select{font:inherit}.app{max-width:760px;margin:auto;padding-bottom
 
 <script>
 const LESSONS=[
- {id:'L1',name:'What a limit means',short:'Idea of approaching',status:'open'},
- {id:'L2',name:'Direct substitution',short:'Linear functions',status:'locked'},
- {id:'L3',name:'Polynomial limits',short:'Substitute into x², x³…',status:'locked'},
- {id:'L4',name:'One-sided limits',short:'Approach from left/right',status:'locked'},
- {id:'L5',name:'Infinite limits',short:'Vertical asymptotes',status:'locked'},
- {id:'L6',name:'Continuity',short:'When limit = function value',status:'locked'},
- {id:'L7',name:'Derivative idea',short:'Slope / rate of change',status:'locked'}
+{id:'L1',ch:2,sec:'2.1a',name:'What a limit means',short:'Approaching a value'},
+{id:'L2',ch:2,sec:'2.1b',name:'Direct substitution',short:'Plug the approach value in'},
+{id:'L3',ch:2,sec:'2.1c',name:'Polynomial limits',short:'Substitution with powers'},
+{id:'L4',ch:2,sec:'2.1d',name:'One-sided limits',short:'Approach from left and right'},
+{id:'L5',ch:2,sec:'2.2',name:'Infinite limits & limits at infinity',short:'Vertical and horizontal asymptotes'},
+{id:'L6',ch:2,sec:'2.3',name:'Continuity',short:'The three continuity conditions'},
+{id:'L7',ch:2,sec:'2.4',name:'The derivative',short:'Rate of change and slope'},
+{id:'L8',ch:2,sec:'2.5',name:'Basic differentiation',short:'Constant and power rules'},
+{id:'L9',ch:2,sec:'2.6',name:'Differentials',short:'Δx, Δy, dx and dy'},
+{id:'L10',ch:2,sec:'2.7',name:'Marginal analysis',short:'Marginal cost, revenue and profit'},
+{id:'L11',ch:3,sec:'3.1',name:'e & continuous compounding',short:'The constant e and A=Pe^(rt)'},
+{id:'L12',ch:3,sec:'3.2',name:'Exponential & logarithmic derivatives',short:'e^x and ln x'},
+{id:'L13',ch:3,sec:'3.3',name:'Product & quotient rules',short:'Products and fractions'},
+{id:'L14',ch:3,sec:'3.4',name:'Chain rule',short:'Functions inside functions'},
+{id:'L15',ch:3,sec:'3.5',name:'Implicit differentiation',short:'Differentiate equations with x and y'},
+{id:'L16',ch:3,sec:'3.6',name:'Related rates',short:'Rates that change with time'},
+{id:'L17',ch:3,sec:'3.7',name:'Elasticity of demand',short:'Responsiveness of demand to price'}
 ];
 
 const DEFAULT={lesson:0,phase:0,xp:0,streak:0,lastDay:'',answered:0,correct:0,mastery:{},reviews:[],retryNonce:0};
 let S=JSON.parse(localStorage.getItem('calc209-beginner-v2')||'null')||structuredClone(DEFAULT);
+if(S.lesson>=LESSONS.length)S.lesson=0;
+if(S.retryNonce==null)S.retryNonce=0;
 const $=id=>document.getElementById(id);
 function save(){localStorage.setItem('calc209-beginner-v2',JSON.stringify(S));updateHeader()}
 function today(){return new Date().toISOString().slice(0,10)}
 function updateHeader(){const d=today();if(S.lastDay!==d){if(S.lastDay){const y=new Date(Date.now()-86400000).toISOString().slice(0,10);S.streak=S.lastDay===y?S.streak+1:1}else S.streak=1;S.lastDay=d;localStorage.setItem('calc209-beginner-v2',JSON.stringify(S))}$('streak').textContent='🔥 '+S.streak;$('xp').textContent=S.xp+' XP'}
-function toast(t){$('toast').textContent=t;$('toast').classList.add('on');setTimeout(()=>$('toast').classList.remove('on'),1600)}
-function card(inner){return '<div class="card">'+inner+'</div>'}
+function toast(t){$('toast').textContent=t;$('toast').classList.add('on');setTimeout(()=>$('toast').classList.remove('on'),1500)}
+function card(x){return '<div class="card">'+x+'</div>'}
 function btn(txt,fn,cls='primary'){return '<button class="btn '+cls+' full" onclick="'+fn+'">'+txt+'</button>'}
-function setLesson(i){S.lesson=i;S.phase=0;save();renderLesson();scrollTo(0,0)}
 function nextPhase(){S.phase++;save();renderLesson();scrollTo(0,0)}
-function retrySimilar(){S.retryNonce=(S.retryNonce||0)+1;save();renderLesson();scrollTo(0,0)}
+function retrySimilar(){S.retryNonce++;save();renderLesson();scrollTo(0,0)}
 function mastery(id){return S.mastery[id]||0}
 function setMastery(id,v){S.mastery[id]=Math.max(0,Math.min(100,v));save()}
 function scheduleReview(id,days){S.reviews=S.reviews.filter(r=>r.id!==id);S.reviews.push({id,due:Date.now()+days*86400000});save()}
 function dueReviews(){return S.reviews.filter(r=>r.due<=Date.now()).length}
-function finishLesson(id){
-  setMastery(id,100);scheduleReview(id,1);S.xp+=20;
-  if(S.lesson<LESSONS.length-1){S.lesson++;S.phase=0}else S.phase=0;
-  save();renderLesson();toast('Lesson mastered ✓');
-}
+function finishLesson(id){setMastery(id,100);scheduleReview(id,1);S.xp+=20;if(S.lesson<LESSONS.length-1){S.lesson++;S.phase=0;S.retryNonce=0}else S.phase=0;save();renderLesson();toast('Lesson mastered ✓')}
+function setLesson(i){if(i<=S.lesson||mastery(LESSONS[i].id)>=100){S.lesson=i;S.phase=0;S.retryNonce=0;save();renderLesson();showScreen('learn')}}
 function record(ok,id){S.answered++;if(ok)S.correct++;S.xp+=ok?8:2;setMastery(id,Math.max(mastery(id),ok?70:30));save()}
+function sgn(n){return n>=0?'+ '+n:'- '+(-n)}
+function esc(s){return String(s).replaceAll('&','&amp;').replaceAll('"','&quot;').replaceAll('<','&lt;').replaceAll('>','&gt;')}
 
-function renderLesson(){
- const i=S.lesson,l=LESSONS[i];$('lessonTitle').textContent='Limits — '+l.name;$('lessonSub').textContent=i===0?'We start with the idea before using rules.':'One small rule at a time.';
- if(i===0)return renderL1();
- if(i===1)return renderL2();
- if(i===2)return renderL3();
- if(i===3)return renderLockedPreview('One-sided limits','You will learn what x→a⁻ and x→a⁺ mean, with graphs.');
- if(i===4)return renderLockedPreview('Infinite limits','You will connect denominator = 0 to vertical asymptotes.');
- if(i===5)return renderLockedPreview('Continuity','You will learn the three conditions for continuity.');
- if(i===6)return renderLockedPreview('Derivative idea','You will learn derivative as slope/rate of change before formulas.');
+function questionMC(id,label,prompt,opts,ans,explain,next='nextPhase()'){
+ const key='q_'+S.lesson+'_'+S.phase+'_'+S.retryNonce;window[key]={ans,id,explain,next,type:'mc'};
+ return card('<div class="eyebrow">'+label+'</div><h2>'+prompt+'</h2><div class="choices">'+opts.map(o=>'<button class="btn choice" data-val="'+esc(o)+'" onclick="chooseMC(this,\''+key+'\')">'+o+'</button>').join('')+'</div><div id="fb" class="feedback"></div><div class="actions"><button class="btn" onclick="dontKnow(\''+key+'\')">I don\'t know</button><button class="btn primary" onclick="checkMC(\''+key+'\')">Check</button></div>');
 }
-function renderLockedPreview(title,msg){$('lessonArea').innerHTML=card('<div class="eyebrow">Coming next</div><h2>'+title+'</h2><p class="muted">'+msg+'</p>'+btn('Go back to the lesson path',"showScreen('path')",'primary'))}
-
-function renderL1(){
- const p=S.phase;let h='';
- if(p===0)h=card('<div class="eyebrow">Teach</div><h2>What does a limit ask?</h2><p>When you see:</p><div class="math">lim<sub>x→3</sub> f(x)</div><p>read it as:</p><div class="rule"><b>“What number does f(x) get close to when x gets close to 3?”</b></div><p class="muted">At first, we care about what happens <b>near</b> x=3. We do not automatically care about the exact value at x=3.</p>'+btn('Got it — show me an example','nextPhase()'));
- if(p===1)h=card('<div class="eyebrow">Watch me</div><h2>Example</h2><div class="math">lim<sub>x→2</sub> (x + 4)</div><div class="step"><span class="n">1</span>x is getting close to <b>2</b>.</div><div class="step"><span class="n">2</span>So look at what <b>x + 4</b> gets close to.</div><div class="step"><span class="n">3</span>Near x=2, x+4 is near <b>6</b>.</div><div class="math">Answer = 6</div>'+btn('Now let me try','nextPhase()'));
- if(p===2)h=questionMC('L1','Guided practice','In lim x→5 f(x), what is x approaching?',['f(x)','5','0','∞'],'5','Exactly. The number written under x→ is the x-value we approach.','nextPhase()');
- if(p===3)h=questionMC('L1','Concept check','If lim x→3 f(x)=7, what does that mean?',['f(3) must equal 7','f(x) gets close to 7 when x gets close to 3','x gets close to 7','f(x) is always 7'],'f(x) gets close to 7 when x gets close to 3','Correct. A limit describes nearby behavior.','nextPhase()');
- if(p>=4)h=card('<div class="eyebrow">Mini review</div><h2>You learned the main idea.</h2><div class="rule"><b>lim x→a f(x)</b> asks what f(x) approaches as x approaches a.</div><p class="muted">Next we learn the first actual calculation method: direct substitution.</p>'+btn('Start direct substitution',"finishLesson('L1')",'good'));
- $('lessonArea').innerHTML=h;
-}
-
-function renderL2(){
- const p=S.phase,n=(S.retryNonce||0);
- const guided=[
-  {c:4,a:3,b:2,opts:['2','3','4','14']},
-  {c:5,a:2,b:1,opts:['1','2','5','11']},
-  {c:3,a:4,b:1,opts:['1','4','3','13']},
-  {c:-2,a:3,b:5,opts:['5','3','-2','-1']}
- ][n%4];
- const solo1=[
-  {c:2,a:5,b:1},{c:3,a:2,b:4},{c:4,a:3,b:-2},{c:-1,a:4,b:6}
- ][n%4];
- const solo2=[
-  {c:-1,a:2,b:5},{c:2,a:4,b:-3},{c:5,a:2,b:2},{c:-2,a:3,b:7}
- ][n%4];
- const sgn=b=>b>=0?'+ '+b:'- '+(-b);
- let h='';
- if(p===0)h=card('<div class="eyebrow">Rule</div><h2>First method: direct substitution</h2><div class="rule"><b>If the function is simple and continuous, plug the x-value in.</b></div><p>Example:</p><div class="math">lim<sub>x→3</sub> (2x + 1)</div><p>Because x approaches 3, replace x by 3.</p>'+btn('Show the full example','nextPhase()'));
- if(p===1)h=card('<div class="eyebrow">Watch me</div><h2>Worked example</h2><div class="math">lim<sub>x→3</sub> (2x + 1)</div><div class="step"><span class="n">1</span>Replace x with 3:</div><div class="math">2(3) + 1</div><div class="step"><span class="n">2</span>Multiply:</div><div class="math">6 + 1</div><div class="step"><span class="n">3</span>Add:</div><div class="math">7</div><div class="rule"><b>Answer = 7</b></div>'+btn('Guided practice','nextPhase()'));
- if(p===2)h=questionMC('L2','Do it with me','FIRST STEP ONLY: For lim x→'+guided.c+' ('+guided.a+'x '+sgn(guided.b)+'), what value should replace x?',guided.opts,String(guided.c),'The value to substitute is the number x is approaching: '+guided.c+'.','nextPhase()');
- if(p===3){let ans=guided.a*guided.c+guided.b;h=questionNum('L2','Guided calculation','Now finish it: '+guided.a+'('+guided.c+') '+sgn(guided.b)+' = ?',ans,guided.a+'×('+guided.c+') '+sgn(guided.b)+' = '+ans+'.','nextPhase()')}
- if(p===4){let ans=solo1.a*solo1.c+solo1.b;h=questionNum('L2','Your turn','Find lim x→'+solo1.c+' ('+solo1.a+'x '+sgn(solo1.b)+').',ans,'Plug in x='+solo1.c+': '+solo1.a+'('+solo1.c+') '+sgn(solo1.b)+' = '+ans+'.','nextPhase()')}
- if(p===5){let ans=solo2.a*solo2.c+solo2.b;h=questionNum('L2','One more','Find lim x→'+solo2.c+' ('+solo2.a+'x '+sgn(solo2.b)+').',ans,'Plug in x='+solo2.c+': '+solo2.a+'('+solo2.c+') '+sgn(solo2.b)+' = '+ans+'.','nextPhase()')}
- if(p>=6)h=card('<div class="eyebrow">Mastery</div><h2>Direct substitution</h2><div class="rule"><b>1. Look at x→a<br>2. Replace x with a<br>3. Calculate</b></div><p class="muted">You now have the basic method. Next we use the same idea with x² and other polynomial terms.</p>'+btn('Continue to polynomial limits',"finishLesson('L2')",'good'));
- $('lessonArea').innerHTML=h;
-}
-
-function renderL3(){
- const p=S.phase,n=(S.retryNonce||0);
- const guided=[{c:3,b:2},{c:2,b:5},{c:-2,b:3},{c:4,b:1}][n%4];
- const solo1=[{c:2,a:2,b:3},{c:3,a:1,b:2},{c:-2,a:2,b:1},{c:4,a:1,b:-5}][n%4];
- const solo2=[{c:-2},{c:3},{c:-1},{c:2}][n%4];
- const sgn=b=>b>=0?'+ '+b:'- '+(-b);
- let h='';
- if(p===0)h=card('<div class="eyebrow">Teach</div><h2>Same rule, slightly different function</h2><div class="math">lim<sub>x→2</sub> (x² + 1)</div><p>Nothing new happens. We still substitute x=2.</p><div class="math">(2)² + 1 = 4 + 1 = 5</div><div class="rule"><b>Direct substitution still works.</b></div>'+btn('Try one with help','nextPhase()'));
- if(p===1){let correct=guided.c+'² '+sgn(guided.b);h=questionMC('L3','Guided step','For lim x→'+guided.c+' (x² '+sgn(guided.b)+'), what should you write first?',[correct,'x² '+sgn(guided.c),guided.b+'² '+sgn(guided.c),guided.c+'x '+sgn(guided.b)],correct,'Replace x with '+guided.c+' everywhere x appears.','nextPhase()')}
- if(p===2){let ans=guided.c*guided.c+guided.b;h=questionNum('L3','Finish it',guided.c+'² '+sgn(guided.b)+' = ?',ans,guided.c+'²='+(guided.c*guided.c)+', then '+(guided.c*guided.c)+' '+sgn(guided.b)+' = '+ans+'.','nextPhase()')}
- if(p===3){let ans=solo1.a*solo1.c*solo1.c+solo1.b;h=questionNum('L3','Your turn','Find lim x→'+solo1.c+' ('+solo1.a+'x² '+sgn(solo1.b)+').',ans,'Substitute x='+solo1.c+': '+solo1.a+'('+solo1.c+'²) '+sgn(solo1.b)+' = '+ans+'.','nextPhase()')}
- if(p===4){let c=solo2.c,ans=c*c+c+1;h=questionNum('L3','One more','Find lim x→'+c+' (x² + x + 1).',ans,'Substitute x='+c+': ('+c+')² + ('+c+') + 1 = '+ans+'.','nextPhase()')}
- if(p>=5)h=card('<div class="eyebrow">Mastery</div><h2>Polynomial limits</h2><p class="muted">You have enough direct substitution practice to move on to left-hand and right-hand limits.</p>'+btn('Master this lesson',"finishLesson('L3')",'good'));
- $('lessonArea').innerHTML=h;
-}
-
-function questionMC(id,label,prompt,opts,ans,explain,next){
- let key='q_'+S.lesson+'_'+S.phase;
- window[key]={ans,id,explain,next,type:'mc'};
- return card('<div class="eyebrow">'+label+'</div><h2>'+prompt+'</h2><div class="choices">'+opts.map((o,j)=>'<button class="btn choice" data-val="'+escapeHtml(o)+'" onclick="chooseMC(this,\''+key+'\')">'+o+'</button>').join('')+'</div><div id="fb" class="feedback"></div><div class="actions"><button class="btn" onclick="dontKnow(\''+key+'\')">I don\'t know</button><button class="btn primary" onclick="checkMC(\''+key+'\')">Check</button></div>');
-}
-function questionNum(id,label,prompt,ans,explain,next){
- let key='q_'+S.lesson+'_'+S.phase;window[key]={ans,id,explain,next,type:'num'};
- return card('<div class="eyebrow">'+label+'</div><h2>'+prompt+'</h2><input id="numAns" class="answer" inputmode="decimal" placeholder="Type your answer…"><div id="fb" class="feedback"></div><div class="actions"><button class="btn" onclick="dontKnow(\''+key+'\')">I don\'t know</button><button class="btn primary" onclick="checkNum(\''+key+'\')">Check</button></div>');
+function questionNum(id,label,prompt,ans,explain,next='nextPhase()',tol=.001){
+ const key='q_'+S.lesson+'_'+S.phase+'_'+S.retryNonce;window[key]={ans,id,explain,next,type:'num',tol};
+ return card('<div class="eyebrow">'+label+'</div><h2>'+prompt+'</h2><input id="numAns" class="answer" inputmode="decimal" placeholder="Type only the final number…"><div id="fb" class="feedback"></div><div class="actions"><button class="btn" onclick="dontKnow(\''+key+'\')">I don\'t know</button><button class="btn primary" onclick="checkNum(\''+key+'\')">Check</button></div>');
 }
 let chosen=null;
 function chooseMC(el,key){chosen=el.dataset.val;document.querySelectorAll('.choice').forEach(b=>b.classList.remove('sel'));el.classList.add('sel')}
 function showFb(ok,text,next){let f=$('fb');f.className='feedback on '+(ok?'good':'bad');f.innerHTML='<b>'+(ok?'✓ Correct':'Not quite')+'</b><div>'+text+'</div>'+(ok?'<button class="btn primary full" style="margin-top:10px" onclick="'+next+'">Continue</button>':'<button class="btn full" style="margin-top:10px" onclick="retrySimilar()">Try a different similar one</button>')}
-function checkMC(key){let q=window[key];if(chosen===null){toast('Pick an answer first');return}let ok=chosen===q.ans;record(ok,q.id);if(ok){document.querySelectorAll('.choice').forEach(b=>{if(b.dataset.val===q.ans)b.classList.add('correct')});showFb(true,q.explain,q.next)}else{document.querySelectorAll('.choice').forEach(b=>{if(b.dataset.val===chosen)b.classList.add('wrong');if(b.dataset.val===q.ans)b.classList.add('correct')});showFb(false,'The correct idea is: '+q.explain,q.next)}chosen=null}
-function checkNum(key){let q=window[key],v=parseFloat(($('numAns').value||'').replace(',','.'));if(!Number.isFinite(v)){toast('Type a number first');return}let ok=Math.abs(v-q.ans)<0.001;record(ok,q.id);showFb(ok,ok?q.explain:'Correct answer: '+q.ans+'. '+q.explain,q.next)}
+function checkMC(key){let q=window[key];if(chosen===null){toast('Pick an answer first');return}let ok=chosen===q.ans;record(ok,q.id);document.querySelectorAll('.choice').forEach(b=>{if(b.dataset.val===q.ans)b.classList.add('correct');else if(b.dataset.val===chosen&&!ok)b.classList.add('wrong')});showFb(ok,ok?q.explain:'Correct idea: '+q.explain,q.next);chosen=null}
+function checkNum(key){let q=window[key],v=parseFloat(($('numAns').value||'').replace(',','.'));if(!Number.isFinite(v)){toast('Type a number first');return}let ok=Math.abs(v-q.ans)<=q.tol;record(ok,q.id);showFb(ok,ok?q.explain:'Correct answer: '+q.ans+'. '+q.explain,q.next)}
 function dontKnow(key){let q=window[key];record(false,q.id);showFb(false,'No problem. '+q.explain,q.next)}
-function escapeHtml(s){return String(s).replaceAll('&','&amp;').replaceAll('"','&quot;').replaceAll('<','&lt;').replaceAll('>','&gt;')}
+
+function oneSideGraph(){
+return '<div class="graphBox"><svg viewBox="0 0 520 260" aria-label="one sided limit graph"><line x1="45" y1="220" x2="490" y2="220" stroke="#9aa4b4" stroke-width="2"/><line x1="260" y1="235" x2="260" y2="25" stroke="#9aa4b4" stroke-width="2"/><path d="M65 180 L245 120" fill="none" stroke="#7aa2ff" stroke-width="5"/><circle cx="260" cy="115" r="9" fill="#1b202b" stroke="#7aa2ff" stroke-width="4"/><path d="M275 65 L470 35" fill="none" stroke="#56d38b" stroke-width="5"/><circle cx="260" cy="67" r="9" fill="#1b202b" stroke="#56d38b" stroke-width="4"/><circle cx="260" cy="175" r="8" fill="#ffd166"/><text x="268" y="238" fill="#d9deea" font-size="18">x=3</text><text x="220" y="105" fill="#a9bfff" font-size="18">2</text><text x="220" y="60" fill="#8ce7ad" font-size="18">5</text></svg></div>';
+}
+function asymGraph(){
+return '<div class="graphBox"><svg viewBox="0 0 520 260"><line x1="45" y1="220" x2="490" y2="220" stroke="#9aa4b4" stroke-width="2"/><line x1="210" y1="235" x2="210" y2="20" stroke="#9aa4b4" stroke-width="2"/><line x1="320" y1="20" x2="320" y2="235" stroke="#ff7777" stroke-width="3" stroke-dasharray="8 8"/><path d="M235 200 C270 190 292 160 313 35" fill="none" stroke="#7aa2ff" stroke-width="5"/><path d="M327 35 C345 135 380 185 475 200" fill="none" stroke="#7aa2ff" stroke-width="5"/><text x="329" y="238" fill="#ffaaaa" font-size="18">x=3</text></svg></div>';
+}
+
+function renderLesson(){
+ const l=LESSONS[S.lesson];$('courseTag').textContent='MATH 209 · Chapter '+l.ch+' · Section '+l.sec;$('lessonTitle').textContent=l.name;$('lessonSub').textContent='One small rule at a time.';
+ const f=[renderL1,renderL2,renderL3,renderL4,renderL5,renderL6,renderL7,renderL8,renderL9,renderL10,renderL11,renderL12,renderL13,renderL14,renderL15,renderL16,renderL17][S.lesson];f();
+}
+
+function renderL1(){const p=S.phase;let h='';
+if(p===0)h=card('<div class="eyebrow">Teach</div><h2>What does a limit ask?</h2><div class="math">lim<sub>x→3</sub> f(x)</div><div class="rule"><b>Read it as: “What number does f(x) get close to when x gets close to 3?”</b></div><p class="muted">The exact value at x=3 can be different. A limit is about nearby behavior.</p>'+btn('Show me an example','nextPhase()'));
+if(p===1)h=card('<div class="eyebrow">Watch me</div><h2>Example</h2><div class="math">lim<sub>x→2</sub> (x+4)</div><div class="step"><span class="n">1</span>x gets close to 2.</div><div class="step"><span class="n">2</span>x+4 gets close to 2+4.</div><div class="math">Answer = 6</div>'+btn('Let me try','nextPhase()'));
+if(p===2)h=questionMC('L1','Guided practice','In lim x→5 f(x), what is x approaching?',['f(x)','5','0','∞'],'5','The number after x→ is the x-value being approached.');
+if(p===3)h=questionMC('L1','Concept check','If lim x→3 f(x)=7, what does it mean?',['f(3) must equal 7','f(x) gets close to 7 when x gets close to 3','x gets close to 7','f(x) is always 7'],'f(x) gets close to 7 when x gets close to 3','A limit describes what f(x) approaches near x=3.');
+if(p>=4)h=card('<div class="eyebrow">Mastery</div><h2>Main idea learned</h2><div class="rule"><b>lim x→a f(x)</b> asks what f(x) approaches as x approaches a.</div>'+btn('Continue','finishLesson("L1")','good'));$('lessonArea').innerHTML=h}
+
+function renderL2(){const p=S.phase,n=S.retryNonce,sets=[{c:4,a:3,b:2},{c:5,a:2,b:1},{c:3,a:4,b:1},{c:-2,a:3,b:5}],q=sets[n%sets.length],ans=q.a*q.c+q.b;let h='';
+if(p===0)h=card('<div class="eyebrow">Rule</div><h2>Direct substitution</h2><div class="rule"><b>For simple continuous functions, replace x with the value x approaches.</b></div><div class="math">lim<sub>x→3</sub>(2x+1) → 2(3)+1</div>'+btn('Show the full example','nextPhase()'));
+if(p===1)h=card('<div class="eyebrow">Watch me</div><h2>Worked example</h2><div class="math">lim<sub>x→3</sub>(2x+1)</div><div class="step"><span class="n">1</span>Replace x with 3: 2(3)+1</div><div class="step"><span class="n">2</span>Multiply: 6+1</div><div class="math">Answer = 7</div>'+btn('Guided practice','nextPhase()'));
+if(p===2)h=questionMC('L2','Do it with me','FIRST STEP ONLY: For lim x→'+q.c+' ('+q.a+'x '+sgn(q.b)+'), what value replaces x?',[String(q.b),String(q.a),String(q.c),String(ans)],String(q.c),'Use the number x is approaching: '+q.c+'.');
+if(p===3)h=questionNum('L2','Now finish it',q.a+'('+q.c+') '+sgn(q.b)+' = ?',ans,q.a+'×('+q.c+') '+sgn(q.b)+' = '+ans+'.');
+if(p===4)h=questionNum('L2','Your turn','Find lim x→'+(q.c+1)+' ('+(q.a+1)+'x '+sgn(q.b-1)+').',(q.a+1)*(q.c+1)+(q.b-1),'Substitute x='+(q.c+1)+' first.');
+if(p>=5)h=card('<div class="eyebrow">Mastery</div><h2>Direct substitution</h2><div class="rule"><b>1. Look at x→a<br>2. Replace x with a<br>3. Calculate</b></div>'+btn('Continue','finishLesson("L2")','good'));$('lessonArea').innerHTML=h}
+
+function renderL3(){const p=S.phase,n=S.retryNonce,sets=[{c:2,a:2,b:3},{c:3,a:1,b:2},{c:-2,a:2,b:1},{c:4,a:1,b:-5}],q=sets[n%sets.length],ans=q.a*q.c*q.c+q.b;let h='';
+if(p===0)h=card('<div class="eyebrow">Teach</div><h2>Polynomials use the same idea</h2><div class="math">lim<sub>x→2</sub>(x²+1)</div><div class="math">(2)²+1=5</div><div class="rule"><b>Direct substitution still works.</b></div>'+btn('Try one','nextPhase()'));
+if(p===1)h=questionMC('L3','Guided step','For lim x→3 (x²+2), what should you write first?',['3²+2','x²+3','2²+3','3x+2'],'3²+2','Replace every x with 3.');
+if(p===2)h=questionNum('L3','Finish it','3²+2 = ?',11,'3²=9, then 9+2=11.');
+if(p===3)h=questionNum('L3','Your turn','Find lim x→'+q.c+' ('+q.a+'x² '+sgn(q.b)+').',ans,'Substitute x='+q.c+', then calculate.');
+if(p>=4)h=card('<div class="eyebrow">Mastery</div><h2>Polynomial limits</h2><p class="muted">Now you can evaluate ordinary polynomial limits by substitution.</p>'+btn('Continue','finishLesson("L3")','good'));$('lessonArea').innerHTML=h}
+
+function renderL4(){const p=S.phase;let h='';
+if(p===0)h=card('<div class="eyebrow">Teach</div><h2>Left side vs right side</h2><div class="rule"><b>x→a⁻ means approach a from the LEFT.<br>x→a⁺ means approach a from the RIGHT.</b></div>'+oneSideGraph()+'<p class="muted">At x=3, the blue side approaches 2 and the green side approaches 5.</p>'+btn('Show me what that means','nextPhase()'));
+if(p===1)h=card('<div class="eyebrow">Watch me</div><h2>Read the graph</h2>'+oneSideGraph()+'<div class="math">lim<sub>x→3⁻</sub>f(x)=2</div><div class="math">lim<sub>x→3⁺</sub>f(x)=5</div><p>Because 2 ≠ 5, the two-sided limit at x=3 <b>does not exist</b>.</p>'+btn('Try it','nextPhase()'));
+if(p===2)h=questionMC('L4','Guided practice','On the graph, what is lim x→3⁻ f(x)?',['2','5','3','DNE'],'2','The minus sign means approach x=3 from the left (blue side).');
+if(p===3)h=questionMC('L4','Concept check','If left limit = 4 and right limit = 4, the two-sided limit is…',['4','8','0','DNE'],'4','A two-sided limit exists when both one-sided limits are equal.');
+if(p>=4)h=card('<div class="eyebrow">Mastery</div><h2>One-sided limits</h2><div class="rule"><b>Left limit = right limit → two-sided limit exists.</b></div>'+btn('Continue to Section 2.2','finishLesson("L4")','good'));$('lessonArea').innerHTML=h}
+
+function renderL5(){const p=S.phase;let h='';
+if(p===0)h=card('<div class="eyebrow">Teach</div><h2>Infinite limits</h2>'+asymGraph()+'<p>Near x=3, the graph shoots upward/downward without bound.</p><div class="rule"><b>If f(x)→±∞ as x→a, then x=a is a vertical asymptote.</b></div>'+btn('Show the rule in action','nextPhase()'));
+if(p===1)h=card('<div class="eyebrow">Watch me</div><div class="math">f(x)=1/(x-3)</div><p>The denominator becomes 0 at x=3, and the graph blows up near x=3.</p><div class="rule"><b>Vertical asymptote: x=3</b></div><p class="muted">Limits at ±∞ describe end behavior and can reveal horizontal asymptotes.</p>'+btn('Try one','nextPhase()'));
+if(p===2)h=questionMC('L5','Guided practice','For f(x)=1/(x-5), where is the vertical asymptote?',['x=0','x=1','x=5','y=5'],'x=5','Set the denominator x-5 equal to 0.');
+if(p===3)h=questionMC('L5','Concept check','If lim x→∞ f(x)=2, what horizontal asymptote does that suggest?',['x=2','y=2','x=0','none'],'y=2','A finite limit as x→±∞ gives the horizontal line y=L.');
+if(p>=4)h=card('<div class="eyebrow">Mastery</div><h2>Section 2.2 core idea</h2><div class="rule"><b>Infinite limit → vertical asymptote.<br>Finite limit at ±∞ → horizontal asymptote.</b></div>'+btn('Continue','finishLesson("L5")','good'));$('lessonArea').innerHTML=h}
+
+function renderL6(){const p=S.phase;let h='';
+if(p===0)h=card('<div class="eyebrow">Teach</div><h2>Continuity at x=c</h2><div class="rule"><b>Three things must be true:<br>1. f(c) exists<br>2. lim x→c f(x) exists<br>3. lim x→c f(x)=f(c)</b></div><p class="muted">If any one fails, the function is discontinuous at c.</p>'+btn('Show me an example','nextPhase()'));
+if(p===1)h=card('<div class="eyebrow">Watch me</div><p>Suppose f(2)=5 and lim x→2 f(x)=5.</p><div class="step"><span class="n">1</span>f(2) exists ✓</div><div class="step"><span class="n">2</span>The limit exists ✓</div><div class="step"><span class="n">3</span>They are equal ✓</div><div class="rule"><b>Continuous at x=2.</b></div>'+btn('Try one','nextPhase()'));
+if(p===2)h=questionMC('L6','Guided practice','If f(3)=7 but lim x→3 f(x)=5, is f continuous at x=3?',['Yes','No'],'No','Condition 3 fails because the limit and function value are different.');
+if(p===3)h=questionMC('L6','Concept check','A hole in a graph usually represents…',['continuity','discontinuity','a derivative','a horizontal asymptote'],'discontinuity','A hole means the graph breaks at that x-value.');
+if(p>=4)h=card('<div class="eyebrow">Mastery</div><h2>Continuity</h2><div class="rule"><b>Value exists + limit exists + they are equal.</b></div>'+btn('Continue','finishLesson("L6")','good'));$('lessonArea').innerHTML=h}
+
+function renderL7(){const p=S.phase;let h='';
+if(p===0)h=card('<div class="eyebrow">Teach</div><h2>Derivative = instantaneous rate of change</h2><p>Average rate of change from x₁ to x₂:</p><div class="math">[f(x₂)-f(x₁)] / (x₂-x₁)</div><p>The derivative asks for the slope at a single point.</p><div class="rule"><b>f′(x)=lim<sub>h→0</sub>[f(x+h)-f(x)]/h</b></div>'+btn('Show me the idea','nextPhase()'));
+if(p===1)h=card('<div class="eyebrow">Watch me</div><h2>Average slope first</h2><p>If f(x)=x², from x=1 to x=3:</p><div class="math">(9-1)/(3-1)=8/2=4</div><p class="muted">The derivative shrinks that interval toward a single point.</p>'+btn('Try one','nextPhase()'));
+if(p===2)h=questionNum('L7','Guided practice','If f(1)=2 and f(4)=11, what is the average rate of change from 1 to 4?',3,'(11-2)/(4-1)=9/3=3.');
+if(p===3)h=questionMC('L7','Concept check','Geometrically, f′(a) is the slope of the…',['secant line through two separate points','tangent line at x=a','x-axis','vertical asymptote'],'tangent line at x=a','The derivative gives the tangent-line slope at that point.');
+if(p>=4)h=card('<div class="eyebrow">Mastery</div><h2>The derivative</h2><div class="rule"><b>Derivative = instantaneous rate of change = tangent slope.</b></div>'+btn('Continue','finishLesson("L7")','good'));$('lessonArea').innerHTML=h}
+
+function renderL8(){const p=S.phase,n=S.retryNonce,sets=[{a:3,n:4},{a:5,n:3},{a:2,n:5},{a:7,n:2}],q=sets[n%4],coef=q.a*q.n,pow=q.n-1;let h='';
+if(p===0)h=card('<div class="eyebrow">Teach</div><h2>Two basic derivative rules</h2><div class="rule"><b>Constant rule: d/dx(k)=0<br>Power rule: d/dx(xⁿ)=n·xⁿ⁻¹</b></div>'+btn('Show me an example','nextPhase()'));
+if(p===1)h=card('<div class="eyebrow">Watch me</div><div class="math">f(x)=4x³+7</div><div class="step"><span class="n">1</span>4x³ → 4·3x² = 12x²</div><div class="step"><span class="n">2</span>7 → 0</div><div class="math">f′(x)=12x²</div>'+btn('Try one','nextPhase()'));
+if(p===2)h=questionMC('L8','Guided practice','What is d/dx(x⁵)?',['5x⁴','x⁴','5x⁵','4x⁵'],'5x⁴','Bring the exponent down, then subtract 1 from the exponent.');
+if(p===3)h=questionMC('L8','Your turn','Differentiate '+q.a+'x^'+q.n+'.',[''+coef+'x^'+pow,''+q.a+'x^'+pow,''+q.n+'x^'+pow,''+coef+'x^'+q.n],''+coef+'x^'+pow,'Multiply the old coefficient by the exponent, then reduce the exponent by 1.');
+if(p>=4)h=card('<div class="eyebrow">Mastery</div><h2>Basic differentiation</h2><div class="rule"><b>Constants → 0. Powers → n·xⁿ⁻¹.</b></div>'+btn('Continue','finishLesson("L8")','good'));$('lessonArea').innerHTML=h}
+
+function renderL9(){const p=S.phase;let h='';
+if(p===0)h=card('<div class="eyebrow">Teach</div><h2>Increments and differentials</h2><div class="math">Δx = x₂-x₁</div><div class="math">Δy = f(x+Δx)-f(x)</div><p>For a small change dx, the differential is:</p><div class="rule"><b>dy = f′(x)·dx</b></div>'+btn('Show me an example','nextPhase()'));
+if(p===1)h=card('<div class="eyebrow">Watch me</div><p>If f(x)=x², then f′(x)=2x.</p><p>At x=3 with dx=0.1:</p><div class="math">dy = 2(3)(0.1)=0.6</div><p class="muted">dy estimates the change in y for a small change in x.</p>'+btn('Try one','nextPhase()'));
+if(p===2)h=questionNum('L9','Guided practice','If f′(4)=3 and dx=0.2, find dy.',0.6,'dy=f′(x)dx=3(0.2)=0.6.');
+if(p===3)h=questionMC('L9','Concept check','Which formula gives the differential dy?',['dy=f(x)+dx','dy=f′(x)dx','dy=Δx/Δy','dy=f′(x)/dx'],'dy=f′(x)dx','The differential formula multiplies the derivative by dx.');
+if(p>=4)h=card('<div class="eyebrow">Mastery</div><h2>Differentials</h2><div class="rule"><b>dy=f′(x)dx</b> approximates a small change in y.</div>'+btn('Continue','finishLesson("L9")','good'));$('lessonArea').innerHTML=h}
+
+function renderL10(){const p=S.phase;let h='';
+if(p===0)h=card('<div class="eyebrow">Teach</div><h2>Marginal means rate of change</h2><div class="rule"><b>Marginal cost = C′(x)<br>Marginal revenue = R′(x)<br>Marginal profit = P′(x)</b></div><p class="muted">In business problems, the derivative tells how the total changes when production changes.</p>'+btn('Show me an example','nextPhase()'));
+if(p===1)h=card('<div class="eyebrow">Watch me</div><div class="math">C(x)=1000+6x</div><p>Differentiate:</p><div class="math">C′(x)=6</div><p>So marginal cost is 6 dollars per additional unit (approximately).</p>'+btn('Try one','nextPhase()'));
+if(p===2)h=questionNum('L10','Guided practice','If C(x)=500+8x, what is marginal cost?',8,'C′(x)=8.');
+if(p===3)h=questionMC('L10','Concept check','If P(x)=R(x)-C(x), then P′(x)=…',['R′(x)-C′(x)','R′(x)+C′(x)','R(x)-C(x)','0'],'R′(x)-C′(x)','Differentiate revenue minus cost.');
+if(p>=4)h=card('<div class="eyebrow">Mastery</div><h2>Chapter 2 complete</h2><p>You now have the foundation for the derivative rules in Chapter 3.</p>'+btn('Start Chapter 3','finishLesson("L10")','good'));$('lessonArea').innerHTML=h}
+
+function renderL11(){const p=S.phase;let h='';
+if(p===0)h=card('<div class="eyebrow">Teach</div><h2>The constant e</h2><p>e is a special irrational number:</p><div class="math">e ≈ 2.71828</div><p>For continuously compounded interest:</p><div class="rule"><b>A = Pe^(rt)</b></div><p>P=principal, r=annual rate as a decimal, t=time in years.</p>'+btn('Show me an example','nextPhase()'));
+if(p===1)h=card('<div class="eyebrow">Watch me</div><p>$1000 at 5% continuously compounded for 2 years:</p><div class="math">A=1000e^(0.05·2)=1000e^0.1</div><p class="muted">The important part right now is setting up P, r and t correctly.</p>'+btn('Try one','nextPhase()'));
+if(p===2)h=questionMC('L11','Guided practice','In A=Pe^(rt), what does P represent?',['annual rate','principal / initial amount','time','number of compounds'],'principal / initial amount','P is the initial investment.');
+if(p===3)h=questionMC('L11','Setup check','$500 invested at 4% continuously for 3 years is set up as…',['500e^(4·3)','500e^(0.04·3)','0.04e^(500·3)','500(1.04)^3'],'500e^(0.04·3)','Convert 4% to 0.04, then use A=Pe^(rt).');
+if(p>=4)h=card('<div class="eyebrow">Mastery</div><h2>e and continuous compounding</h2><div class="rule"><b>A=Pe^(rt)</b></div>'+btn('Continue','finishLesson("L11")','good'));$('lessonArea').innerHTML=h}
+
+function renderL12(){const p=S.phase;let h='';
+if(p===0)h=card('<div class="eyebrow">Teach</div><h2>Two derivative facts</h2><div class="rule"><b>d/dx(e^x)=e^x<br>d/dx(ln x)=1/x</b></div>'+btn('Show me examples','nextPhase()'));
+if(p===1)h=card('<div class="eyebrow">Watch me</div><div class="math">f(x)=5e^x-2ln x+6x</div><div class="math">f′(x)=5e^x-2/x+6</div><p class="muted">Differentiate term by term.</p>'+btn('Try one','nextPhase()'));
+if(p===2)h=questionMC('L12','Guided practice','What is d/dx(ln x)?',['ln x','1/x','x','e^x'],'1/x','The basic logarithm derivative is 1/x.');
+if(p===3)h=questionMC('L12','Your turn','Differentiate 3e^x + 4ln x.',['3e^x+4/x','3x e^x+4x','3e^x+4ln x','3e^x+1/x'],'3e^x+4/x','Use d(e^x)=e^x and d(ln x)=1/x.');
+if(p>=4)h=card('<div class="eyebrow">Mastery</div><h2>Exponential and logarithmic derivatives</h2>'+btn('Continue','finishLesson("L12")','good'));$('lessonArea').innerHTML=h}
+
+function renderL13(){const p=S.phase;let h='';
+if(p===0)h=card('<div class="eyebrow">Teach</div><h2>Product and quotient rules</h2><div class="rule"><b>Product: (fg)′=f′g+fg′<br><br>Quotient: (f/g)′=(f′g-fg′)/g²</b></div>'+btn('Show me a product example','nextPhase()'));
+if(p===1)h=card('<div class="eyebrow">Watch me</div><div class="math">y=x²(x+1)</div><p>f=x², g=x+1</p><div class="math">y′=(2x)(x+1)+(x²)(1)</div><p class="muted">Derivative of first × second + first × derivative of second.</p>'+btn('Try one','nextPhase()'));
+if(p===2)h=questionMC('L13','Guided practice','Which is the product rule?',['f′g+fg′','f′/g′','f′g-fg′','fg'],'f′g+fg′','Product means derivative-first times second + first times derivative-second.');
+if(p===3)h=questionMC('L13','Quotient check','Which denominator appears in the quotient rule?',['g','g′','g²','f²'],'g²','The entire denominator is squared.');
+if(p>=4)h=card('<div class="eyebrow">Mastery</div><h2>Product and quotient rules</h2>'+btn('Continue','finishLesson("L13")','good'));$('lessonArea').innerHTML=h}
+
+function renderL14(){const p=S.phase;let h='';
+if(p===0)h=card('<div class="eyebrow">Teach</div><h2>Chain rule = outside × inside</h2><p>Use it when one function is inside another.</p><div class="rule"><b>If y=f(g(x)), then y′=f′(g(x))·g′(x)</b></div>'+btn('Show me an example','nextPhase()'));
+if(p===1)h=card('<div class="eyebrow">Watch me</div><div class="math">y=(3x+2)^4</div><div class="step"><span class="n">1</span>Outside derivative: 4(3x+2)^3</div><div class="step"><span class="n">2</span>Inside derivative: 3</div><div class="math">y′=12(3x+2)^3</div>'+btn('Try one','nextPhase()'));
+if(p===2)h=questionMC('L14','Guided practice','For y=(2x+1)^5, what is the inside function?',['x^5','2x+1','5','2'],'2x+1','The inside is the expression being raised to the power.');
+if(p===3)h=questionMC('L14','Your turn','Differentiate (2x+1)^3.',['3(2x+1)^2','6(2x+1)^2','6(2x+1)^3','2(2x+1)^2'],'6(2x+1)^2','Outside gives 3(2x+1)^2, then multiply by inside derivative 2.');
+if(p>=4)h=card('<div class="eyebrow">Mastery</div><h2>Chain rule</h2><div class="rule"><b>Differentiate the outside, keep the inside, then multiply by derivative of the inside.</b></div>'+btn('Continue','finishLesson("L14")','good'));$('lessonArea').innerHTML=h}
+
+function renderL15(){const p=S.phase;let h='';
+if(p===0)h=card('<div class="eyebrow">Teach</div><h2>Implicit differentiation</h2><p>Sometimes x and y are mixed in one equation.</p><div class="rule"><b>When differentiating a y-term with respect to x, multiply by y′.</b></div>'+btn('Show me an example','nextPhase()'));
+if(p===1)h=card('<div class="eyebrow">Watch me</div><div class="math">x²+y²=25</div><div class="step"><span class="n">1</span>2x + 2y·y′ = 0</div><div class="step"><span class="n">2</span>2y·y′ = -2x</div><div class="math">y′=-x/y</div>'+btn('Try one','nextPhase()'));
+if(p===2)h=questionMC('L15','Guided practice','When differentiating y² with respect to x, you get…',['2y','2y·y′','y′²','2x'],'2y·y′','Chain rule adds y′ because y depends on x.');
+if(p===3)h=questionNum('L15','Your turn','For x²+y²=25, find y′ at x=3, y=4.',-0.75,'Use y′=-x/y=-3/4=-0.75.');
+if(p>=4)h=card('<div class="eyebrow">Mastery</div><h2>Implicit differentiation</h2>'+btn('Continue','finishLesson("L15")','good'));$('lessonArea').innerHTML=h}
+
+function renderL16(){const p=S.phase;let h='';
+if(p===0)h=card('<div class="eyebrow">Teach</div><h2>Related rates</h2><p>Now variables change with time.</p><div class="rule"><b>Differentiate with respect to time t, then plug in the known rates and values.</b></div>'+btn('Show me an example','nextPhase()'));
+if(p===1)h=card('<div class="eyebrow">Watch me</div><p>Circle area A=πr².</p><div class="math">dA/dt = 2πr·dr/dt</div><p>If r=3 and dr/dt=2:</p><div class="math">dA/dt=12π</div>'+btn('Try one','nextPhase()'));
+if(p===2)h=questionMC('L16','Guided practice','When variables depend on time, which derivative notation represents the rate of radius change?',['dr/dt','dr/dx','r/t','dt/dr'],'dr/dt','The denominator dt means “per unit time.”');
+if(p===3)h=questionNum('L16','Your turn','For A=πr², if r=2 and dr/dt=1, what is dA/dt divided by π?',4,'dA/dt=2π(2)(1)=4π, so divided by π the answer is 4.');
+if(p>=4)h=card('<div class="eyebrow">Mastery</div><h2>Related rates</h2>'+btn('Continue','finishLesson("L16")','good'));$('lessonArea').innerHTML=h}
+
+function renderL17(){const p=S.phase;let h='';
+if(p===0)h=card('<div class="eyebrow">Teach</div><h2>Elasticity of demand</h2><p>Elasticity measures how responsive quantity demanded is to a change in price.</p><div class="rule"><b>E(p) = -p·f′(p) / f(p)</b></div><p class="muted">Your notes also define the relative rate of change as f′(x)/f(x).</p>'+btn('Show me an example','nextPhase()'));
+if(p===1)h=card('<div class="eyebrow">Watch me</div><p>Suppose demand is x=f(p)=100-2p.</p><p>Then f′(p)=-2.</p><div class="math">E(p)= -p(-2)/(100-2p)</div><p class="muted">The minus sign makes elasticity positive for an ordinary downward-sloping demand function.</p>'+btn('Try one','nextPhase()'));
+if(p===2)h=questionMC('L17','Guided practice','What is the relative rate of change of f(x)?',['f′(x)/f(x)','f(x)/f′(x)','f′(x)f(x)','f′(x)+f(x)'],'f′(x)/f(x)','Relative rate compares the derivative with the current function value.');
+if(p===3)h=questionMC('L17','Formula check','Which formula is elasticity of demand?',['-p f′(p)/f(p)','p f(p)/f′(p)','f′(p)/p','-f(p)/p'],'-p f′(p)/f(p)','That is the elasticity formula used in your notes.');
+if(p>=4)h=card('<div class="eyebrow">Course checkpoint</div><h2>Chapter 3 complete</h2><p>You have reached the end of the material currently loaded from your Chapter 2 and Chapter 3 notes.</p><div class="rule"><b>Next step: keep reviewing weak lessons with spaced repetition.</b></div>'+btn('Mark complete','finishLesson("L17")','good'));$('lessonArea').innerHTML=h}
 
 function renderPath(){
  const complete=LESSONS.filter(l=>mastery(l.id)>=100).length,pct=Math.round(100*complete/LESSONS.length);$('pct').textContent=pct+'%';$('bar').style.width=pct+'%';
- $('pathList').innerHTML=LESSONS.map((l,i)=>{let m=mastery(l.id),available=i<=S.lesson||m>=100,cls=m>=100?'done':i===S.lesson?'current':available?'':'locked',icon=m>=100?'✓':i+1;return '<div class="lesson '+cls+'" '+(available?'onclick="setLesson('+i+');showScreen(\'learn\')"':'')+'><div class="dot">'+icon+'</div><div class="meta"><b>'+l.name+'</b><span>'+l.short+'</span></div><span class="tiny">'+(m>=100?'Mastered':i===S.lesson?'Current':'Locked')+'</span></div>'}).join('');
+ let html='',last=null;LESSONS.forEach((l,i)=>{if(l.ch!==last){html+='<div class="chapterHead">Chapter '+l.ch+'</div>';last=l.ch}let m=mastery(l.id),available=i<=S.lesson||m>=100,cls=m>=100?'done':i===S.lesson?'current':available?'':'locked',icon=m>=100?'✓':i+1;html+='<div class="lesson '+cls+'" '+(available?'onclick="setLesson('+i+')"':'')+'><div class="dot">'+icon+'</div><div class="meta"><b>'+l.sec+' · '+l.name+'</b><span>'+l.short+'</span></div><span class="tiny">'+(m>=100?'Mastered':i===S.lesson?'Current':'Locked')+'</span></div>'});$('pathList').innerHTML=html;
 }
-function renderProgress(){
- $('accuracy').textContent=S.answered?Math.round(100*S.correct/S.answered)+'%':'—';$('mastered').textContent=LESSONS.filter(l=>mastery(l.id)>=100).length;$('reviews').textContent=dueReviews();$('focusText').textContent='Current lesson: '+LESSONS[S.lesson].name+'. '+(mastery(LESSONS[S.lesson].id)>=100?'Mastered.':'We stay here until the core idea is clear.');
-}
+function renderProgress(){$('accuracy').textContent=S.answered?Math.round(100*S.correct/S.answered)+'%':'—';$('mastered').textContent=LESSONS.filter(l=>mastery(l.id)>=100).length;$('reviews').textContent=dueReviews();const l=LESSONS[S.lesson];$('focusText').textContent='Current: Chapter '+l.ch+', '+l.sec+' — '+l.name+'.'}
 function showScreen(id){document.querySelectorAll('.screen').forEach(s=>s.classList.toggle('on',s.id===id));document.querySelectorAll('.nav button').forEach(b=>b.classList.toggle('on',b.dataset.s===id));if(id==='path')renderPath();if(id==='progress')renderProgress();scrollTo(0,0)}
 document.querySelectorAll('.nav button').forEach(b=>b.onclick=()=>showScreen(b.dataset.s));
+
+/* finger/stylus scratchpad */
+const canvas=$('scratchCanvas'),ctx=canvas.getContext('2d');let drawing=false,paths=[],currentPath=[];
+function sizeCanvas(){const r=canvas.getBoundingClientRect(),dpr=Math.max(1,devicePixelRatio||1);const old=paths.slice();canvas.width=Math.round(r.width*dpr);canvas.height=Math.round(r.height*dpr);ctx.setTransform(dpr,0,0,dpr,0,0);redraw()}
+function redraw(){const r=canvas.getBoundingClientRect();ctx.clearRect(0,0,r.width,r.height);ctx.lineCap='round';ctx.lineJoin='round';ctx.strokeStyle='#20242d';ctx.lineWidth=2.6;for(const p of paths){if(p.length<2)continue;ctx.beginPath();ctx.moveTo(p[0].x,p[0].y);for(let i=1;i<p.length;i++)ctx.lineTo(p[i].x,p[i].y);ctx.stroke()}}
+function point(e){const r=canvas.getBoundingClientRect();return{x:e.clientX-r.left,y:e.clientY-r.top}}
+canvas.addEventListener('pointerdown',e=>{drawing=true;currentPath=[point(e)];canvas.setPointerCapture(e.pointerId)});
+canvas.addEventListener('pointermove',e=>{if(!drawing)return;currentPath.push(point(e));paths.push(currentPath);currentPath=[];currentPath=[paths.pop().slice(-1)[0],point(e)];paths.push(currentPath);redraw()});
+canvas.addEventListener('pointerup',e=>{if(!drawing)return;drawing=false;if(currentPath.length)paths.push(currentPath);currentPath=[];redraw()});
+$('clearScratch').onclick=()=>{paths=[];redraw()};
+$('undoScratch').onclick=()=>{paths.pop();redraw()};
+addEventListener('resize',()=>setTimeout(sizeCanvas,100));
+
 if('serviceWorker' in navigator)addEventListener('load',()=>navigator.serviceWorker.register('/calc209/calc209-sw.js',{scope:'/calc209/'}).catch(()=>{}));
-updateHeader();renderLesson();
+updateHeader();renderLesson();setTimeout(sizeCanvas,120);
 </script>
 </body>
 </html>
