@@ -26,7 +26,7 @@ button,input{font:inherit}.app{max-width:760px;margin:auto;padding-bottom:88px}.
 </head>
 <body>
 <div class="app">
-<header class="top"><div class="row between"><div class="brand">Calc<b>209</b> <span style="font-size:10px;color:#9aa4b4;font-weight:700">v2</span></div><div class="row"><span class="pill" id="streak">🔥 0</span><span class="pill" id="xp">0 XP</span></div></div></header>
+<header class="top"><div class="row between"><div class="brand">Calc<b>209</b> <span style="font-size:10px;color:#9aa4b4;font-weight:700">v2.1</span></div><div class="row"><span class="pill" id="streak">🔥 0</span><span class="pill" id="xp">0 XP</span></div></div></header>
 
 <main id="learn" class="screen on">
   <div class="hero"><div class="eyebrow" id="courseTag">MATH 209 · From zero</div><h1 id="lessonTitle"></h1><div class="muted" id="lessonSub"></div></div>
@@ -99,7 +99,7 @@ function record(ok,id){S.answered++;if(ok)S.correct++;S.xp+=ok?8:2;setMastery(id
 function sgn(n){return n>=0?'+ '+n:'- '+(-n)}
 function esc(s){return String(s).replaceAll('&','&amp;').replaceAll('"','&quot;').replaceAll('<','&lt;').replaceAll('>','&gt;')}
 
-function questionMC(id,label,prompt,opts,ans,explain,next='nextPhase()'){
+function questionMC(id,label,prompt,opts,ans,explain,next='nextPhase()',extra=''){
  const key='q_'+S.lesson+'_'+S.phase+'_'+S.retryNonce;window[key]={ans,id,explain,next,type:'mc'};
  return card('<div class="eyebrow">'+label+'</div><h2>'+prompt+'</h2><div class="choices">'+opts.map(o=>'<button class="btn choice" data-val="'+esc(o)+'" onclick="chooseMC(this,\''+key+'\')">'+o+'</button>').join('')+'</div><div id="fb" class="feedback"></div><div class="actions"><button class="btn" onclick="dontKnow(\''+key+'\')">I don\'t know</button><button class="btn primary" onclick="checkMC(\''+key+'\')">Check</button></div>');
 }
@@ -151,7 +151,7 @@ if(p>=4)h=card('<div class="eyebrow">Mastery</div><h2>Polynomial limits</h2><p c
 function renderL4(){const p=S.phase;let h='';
 if(p===0)h=card('<div class="eyebrow">Teach</div><h2>Left side vs right side</h2><div class="rule"><b>x→a⁻ means approach a from the LEFT.<br>x→a⁺ means approach a from the RIGHT.</b></div>'+oneSideGraph()+'<p class="muted">At x=3, the blue side approaches 2 and the green side approaches 5.</p>'+btn('Show me what that means','nextPhase()'));
 if(p===1)h=card('<div class="eyebrow">Watch me</div><h2>Read the graph</h2>'+oneSideGraph()+'<div class="math">lim<sub>x→3⁻</sub>f(x)=2</div><div class="math">lim<sub>x→3⁺</sub>f(x)=5</div><p>Because 2 ≠ 5, the two-sided limit at x=3 <b>does not exist</b>.</p>'+btn('Try it','nextPhase()'));
-if(p===2)h=questionMC('L4','Guided practice','On the graph, what is lim x→3⁻ f(x)?',['2','5','3','DNE'],'2','The minus sign means approach x=3 from the left (blue side).');
+if(p===2)h=questionMC('L4','Guided practice','On the graph, what is lim x→3⁻ f(x)?',['2','5','3','DNE'],'2','The minus sign means approach x=3 from the left (blue side).','nextPhase()',oneSideGraph());
 if(p===3)h=questionMC('L4','Concept check','If left limit = 4 and right limit = 4, the two-sided limit is…',['4','8','0','DNE'],'4','A two-sided limit exists when both one-sided limits are equal.');
 if(p>=4)h=card('<div class="eyebrow">Mastery</div><h2>One-sided limits</h2><div class="rule"><b>Left limit = right limit → two-sided limit exists.</b></div>'+btn('Continue to Section 2.2','finishLesson("L4")','good'));$('lessonArea').innerHTML=h}
 
