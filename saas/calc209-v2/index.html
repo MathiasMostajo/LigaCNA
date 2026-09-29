@@ -20,21 +20,22 @@ button,input{font:inherit}.app{max-width:760px;margin:auto;padding-bottom:88px}.
 .btn{border:1px solid var(--line);background:var(--panel2);color:var(--text);border-radius:13px;padding:12px 14px}.btn.primary{background:var(--accent);border-color:transparent;color:#fff;font-weight:850}.btn.good{background:var(--green);border-color:transparent;color:#07140c;font-weight:850}.btn.full{width:100%}.actions{display:flex;gap:9px;margin-top:14px}.actions>*{flex:1}.choices{display:grid;gap:9px;margin-top:12px}.choice{text-align:left}.choice.sel{border-color:var(--accent);outline:2px solid #7aa2ff44}.choice.correct{border-color:var(--green);background:#10241a}.choice.wrong{border-color:var(--red);background:#281315}.answer{width:100%;padding:13px;border-radius:13px;border:1px solid var(--line);background:var(--panel2);color:var(--text);outline:none;margin-top:10px}.feedback{display:none;margin-top:13px;padding:13px;border-radius:13px;background:var(--panel2);border:1px solid var(--line);line-height:1.5}.feedback.on{display:block}.feedback.good{border-color:var(--green)}.feedback.bad{border-color:var(--red)}
 .path{display:grid;gap:9px}.chapterHead{margin:18px 2px 8px;color:var(--muted);font-weight:800;font-size:13px;text-transform:uppercase;letter-spacing:.8px}.lesson{display:flex;align-items:center;gap:12px;background:var(--panel);border:1px solid var(--line);border-radius:15px;padding:13px}.lesson .dot{width:36px;height:36px;border-radius:50%;display:grid;place-items:center;background:var(--panel2);font-weight:900;color:var(--accent);flex:0 0 auto}.lesson.locked{opacity:.42}.lesson.current{border-color:#5879be}.lesson.done .dot{background:#163120;color:var(--green)}.lesson .meta{flex:1}.lesson .meta b{display:block}.lesson .meta span{font-size:12px;color:var(--muted)}.progressbar{height:8px;background:var(--panel2);border-radius:999px;overflow:hidden;margin:10px 0}.progressbar i{display:block;height:100%;background:var(--accent)}
 .kpis{display:grid;grid-template-columns:repeat(3,1fr);gap:9px}.kpi{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:12px;text-align:center}.kpi strong{display:block;font-size:22px}.kpi span{font-size:11px;color:var(--muted)}
-.scratch{margin-top:12px}.scratchTop{display:flex;justify-content:space-between;align-items:center;margin-bottom:9px}.scratch canvas{display:block;width:100%;height:240px;background:#f8f6f0;border-radius:14px;touch-action:none}.scratchTools{display:flex;gap:8px}.scratchTools button{padding:8px 10px}.tiny{font-size:12px;color:var(--muted);line-height:1.45}.graphBox{background:var(--panel2);border:1px solid var(--line);border-radius:14px;padding:8px;margin:12px 0}.graphBox svg{width:100%;height:auto;display:block}
+.scratchModal{position:fixed;inset:0;z-index:50;background:#06080dcc;backdrop-filter:blur(8px);display:none;align-items:flex-end}.scratchModal.on{display:flex}.scratchSheet{width:100%;height:92dvh;background:var(--panel);border-top:1px solid var(--line);border-radius:24px 24px 0 0;padding:16px;display:flex;flex-direction:column}.scratchHeader{display:flex;justify-content:space-between;align-items:flex-start;gap:10px;margin-bottom:12px}.scratchTools{display:flex;gap:7px;flex-wrap:wrap;justify-content:flex-end}.scratchTools button{padding:8px 10px}.scratchSheet canvas{display:block;width:100%;flex:1;min-height:0;background:#f8f6f0;border-radius:16px;touch-action:none}.tiny{font-size:12px;color:var(--muted);line-height:1.45}.graphBox{background:var(--panel2);border:1px solid var(--line);border-radius:14px;padding:8px;margin:12px 0}.graphBox svg{width:100%;height:auto;display:block}
 .nav{position:fixed;left:0;right:0;bottom:0;background:#0d0f13ee;backdrop-filter:blur(14px);border-top:1px solid var(--line);display:flex;justify-content:center}.navin{width:min(760px,100%);display:grid;grid-template-columns:repeat(3,1fr)}.nav button{background:none;border:0;color:var(--muted);padding:11px 4px 15px}.nav button.on{color:var(--accent);font-weight:800}.toast{position:fixed;bottom:92px;left:50%;transform:translateX(-50%);background:#000;color:#fff;padding:10px 13px;border-radius:10px;opacity:0;transition:.2s;pointer-events:none;z-index:20}.toast.on{opacity:1}
 </style>
 </head>
 <body>
 <div class="app">
-<header class="top"><div class="row between"><div class="brand">Calc<b>209</b> <span style="font-size:10px;color:#9aa4b4;font-weight:700">v2.1</span></div><div class="row"><span class="pill" id="streak">🔥 0</span><span class="pill" id="xp">0 XP</span></div></div></header>
+<header class="top"><div class="row between"><div class="brand">Calc<b>209</b> <span style="font-size:10px;color:#9aa4b4;font-weight:700">v2.2</span></div><div class="row"><span class="pill" id="streak">🔥 0</span><span class="pill" id="xp">0 XP</span></div></div></header>
 
 <main id="learn" class="screen on">
   <div class="hero"><div class="eyebrow" id="courseTag">MATH 209 · From zero</div><h1 id="lessonTitle"></h1><div class="muted" id="lessonSub"></div></div>
   <div id="lessonArea"></div>
-  <div class="card scratch">
-    <div class="scratchTop"><div><div class="eyebrow">Scratchpad</div><b>Write it out with your finger</b></div><div class="scratchTools"><button class="btn" id="undoScratch">Undo</button><button class="btn" id="clearScratch">Clear</button></div></div>
-    <canvas id="scratchCanvas"></canvas>
-    <div class="tiny" style="margin-top:8px">Use this for substitutions, arithmetic, formulas, or little graphs. Nothing here is graded.</div>
+  <div class="card">
+    <div class="row between">
+      <div><div class="eyebrow">Scratchpad</div><b>Need room to work?</b><div class="tiny">Open a large writing board and minimize it when you're done.</div></div>
+      <button class="btn primary" id="openScratch">Open</button>
+    </div>
   </div>
 </main>
 
@@ -50,6 +51,21 @@ button,input{font:inherit}.app{max-width:760px;margin:auto;padding-bottom:88px}.
   <div class="card" style="margin-top:12px"><h3>How repetition works</h3><div class="tiny">Teach → worked example → guided problem → independent problem → later review. A mistake gives you another problem with different numbers, not the exact same one.</div></div>
   <div class="card"><h3>Current focus</h3><div id="focusText" class="muted"></div></div>
 </main>
+</div>
+
+<div id="scratchModal" class="scratchModal" aria-hidden="true">
+  <div class="scratchSheet">
+    <div class="scratchHeader">
+      <div><div class="eyebrow">Scratchpad</div><b>Work it out here</b></div>
+      <div class="scratchTools">
+        <button class="btn" id="undoScratch">Undo</button>
+        <button class="btn" id="clearScratch">Clear</button>
+        <button class="btn primary" id="minScratch">Minimize</button>
+      </div>
+    </div>
+    <canvas id="scratchCanvas"></canvas>
+    <div class="tiny" style="margin-top:8px">Write with your finger or stylus. Your work stays while you minimize it during this session.</div>
+  </div>
 </div>
 
 <nav class="nav"><div class="navin"><button class="on" data-s="learn">✎<br>Learn</button><button data-s="path">▤<br>Path</button><button data-s="progress">▥<br>Progress</button></div></nav>
@@ -101,7 +117,7 @@ function esc(s){return String(s).replaceAll('&','&amp;').replaceAll('"','&quot;'
 
 function questionMC(id,label,prompt,opts,ans,explain,next='nextPhase()',extra=''){
  const key='q_'+S.lesson+'_'+S.phase+'_'+S.retryNonce;window[key]={ans,id,explain,next,type:'mc'};
- return card('<div class="eyebrow">'+label+'</div><h2>'+prompt+'</h2><div class="choices">'+opts.map(o=>'<button class="btn choice" data-val="'+esc(o)+'" onclick="chooseMC(this,\''+key+'\')">'+o+'</button>').join('')+'</div><div id="fb" class="feedback"></div><div class="actions"><button class="btn" onclick="dontKnow(\''+key+'\')">I don\'t know</button><button class="btn primary" onclick="checkMC(\''+key+'\')">Check</button></div>');
+ return card('<div class="eyebrow">'+label+'</div><h2>'+prompt+'</h2>'+extra+'<div class="choices">'+opts.map(o=>'<button class="btn choice" data-val="'+esc(o)+'" onclick="chooseMC(this,\''+key+'\')">'+o+'</button>').join('')+'</div><div id="fb" class="feedback"></div><div class="actions"><button class="btn" onclick="dontKnow(\''+key+'\')">I don\'t know</button><button class="btn primary" onclick="checkMC(\''+key+'\')">Check</button></div>');
 }
 function questionNum(id,label,prompt,ans,explain,next='nextPhase()',tol=.001){
  const key='q_'+S.lesson+'_'+S.phase+'_'+S.retryNonce;window[key]={ans,id,explain,next,type:'num',tol};
@@ -254,17 +270,29 @@ function renderProgress(){$('accuracy').textContent=S.answered?Math.round(100*S.
 function showScreen(id){document.querySelectorAll('.screen').forEach(s=>s.classList.toggle('on',s.id===id));document.querySelectorAll('.nav button').forEach(b=>b.classList.toggle('on',b.dataset.s===id));if(id==='path')renderPath();if(id==='progress')renderProgress();scrollTo(0,0)}
 document.querySelectorAll('.nav button').forEach(b=>b.onclick=()=>showScreen(b.dataset.s));
 
-/* finger/stylus scratchpad */
+/* full-screen finger/stylus scratchpad */
 const canvas=$('scratchCanvas'),ctx=canvas.getContext('2d');let drawing=false,paths=[],currentPath=[];
-function sizeCanvas(){const r=canvas.getBoundingClientRect(),dpr=Math.max(1,devicePixelRatio||1);const old=paths.slice();canvas.width=Math.round(r.width*dpr);canvas.height=Math.round(r.height*dpr);ctx.setTransform(dpr,0,0,dpr,0,0);redraw()}
-function redraw(){const r=canvas.getBoundingClientRect();ctx.clearRect(0,0,r.width,r.height);ctx.lineCap='round';ctx.lineJoin='round';ctx.strokeStyle='#20242d';ctx.lineWidth=2.6;for(const p of paths){if(p.length<2)continue;ctx.beginPath();ctx.moveTo(p[0].x,p[0].y);for(let i=1;i<p.length;i++)ctx.lineTo(p[i].x,p[i].y);ctx.stroke()}}
+function sizeCanvas(){
+  const r=canvas.getBoundingClientRect(); if(r.width<10||r.height<10)return;
+  const dpr=Math.max(1,devicePixelRatio||1);
+  canvas.width=Math.round(r.width*dpr); canvas.height=Math.round(r.height*dpr);
+  ctx.setTransform(dpr,0,0,dpr,0,0); redraw();
+}
+function redraw(){
+  const r=canvas.getBoundingClientRect(); if(r.width<10||r.height<10)return;
+  ctx.clearRect(0,0,r.width,r.height);ctx.lineCap='round';ctx.lineJoin='round';ctx.strokeStyle='#20242d';ctx.lineWidth=2.8;
+  for(const p of paths){if(p.length<2)continue;ctx.beginPath();ctx.moveTo(p[0].x,p[0].y);for(let i=1;i<p.length;i++)ctx.lineTo(p[i].x,p[i].y);ctx.stroke()}
+}
 function point(e){const r=canvas.getBoundingClientRect();return{x:e.clientX-r.left,y:e.clientY-r.top}}
 canvas.addEventListener('pointerdown',e=>{drawing=true;currentPath=[point(e)];paths.push(currentPath);canvas.setPointerCapture(e.pointerId);redraw()});
 canvas.addEventListener('pointermove',e=>{if(!drawing)return;currentPath.push(point(e));redraw()});
-canvas.addEventListener('pointerup',e=>{if(!drawing)return;drawing=false;currentPath=[];redraw()});
+canvas.addEventListener('pointerup',()=>{drawing=false;currentPath=[];redraw()});
+canvas.addEventListener('pointercancel',()=>{drawing=false;currentPath=[]});
+$('openScratch').onclick=()=>{$('scratchModal').classList.add('on');$('scratchModal').setAttribute('aria-hidden','false');document.body.style.overflow='hidden';setTimeout(sizeCanvas,80)};
+$('minScratch').onclick=()=>{$('scratchModal').classList.remove('on');$('scratchModal').setAttribute('aria-hidden','true');document.body.style.overflow=''};
 $('clearScratch').onclick=()=>{paths=[];redraw()};
 $('undoScratch').onclick=()=>{paths.pop();redraw()};
-addEventListener('resize',()=>setTimeout(sizeCanvas,100));
+addEventListener('resize',()=>{if($('scratchModal').classList.contains('on'))setTimeout(sizeCanvas,100)});
 
 if('serviceWorker' in navigator)addEventListener('load',()=>navigator.serviceWorker.register('/calc209-v2/calc209-sw.js?v=2',{scope:'/calc209-v2/',updateViaCache:'none'}).then(r=>r.update()).catch(()=>{}).catch(()=>{}));
 updateHeader();renderLesson();setTimeout(sizeCanvas,120);
