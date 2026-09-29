@@ -76,7 +76,7 @@ const LESSONS=[
  {id:'L7',name:'Derivative idea',short:'Slope / rate of change',status:'locked'}
 ];
 
-const DEFAULT={lesson:0,phase:0,xp:0,streak:0,lastDay:'',answered:0,correct:0,mastery:{},reviews:[]};
+const DEFAULT={lesson:0,phase:0,xp:0,streak:0,lastDay:'',answered:0,correct:0,mastery:{},reviews:[],retryNonce:0};
 let S=JSON.parse(localStorage.getItem('calc209-beginner-v2')||'null')||structuredClone(DEFAULT);
 const $=id=>document.getElementById(id);
 function save(){localStorage.setItem('calc209-beginner-v2',JSON.stringify(S));updateHeader()}
@@ -87,6 +87,7 @@ function card(inner){return '<div class="card">'+inner+'</div>'}
 function btn(txt,fn,cls='primary'){return '<button class="btn '+cls+' full" onclick="'+fn+'">'+txt+'</button>'}
 function setLesson(i){S.lesson=i;S.phase=0;save();renderLesson();scrollTo(0,0)}
 function nextPhase(){S.phase++;save();renderLesson();scrollTo(0,0)}
+function retrySimilar(){S.retryNonce=(S.retryNonce||0)+1;save();renderLesson();scrollTo(0,0)}
 function mastery(id){return S.mastery[id]||0}
 function setMastery(id,v){S.mastery[id]=Math.max(0,Math.min(100,v));save()}
 function scheduleReview(id,days){S.reviews=S.reviews.filter(r=>r.id!==id);S.reviews.push({id,due:Date.now()+days*86400000});save()}
@@ -121,24 +122,43 @@ function renderL1(){
 }
 
 function renderL2(){
- const p=S.phase;let h='';
+ const p=S.phase,n=(S.retryNonce||0);
+ const guided=[
+  {c:4,a:3,b:2,opts:['2','3','4','14']},
+  {c:5,a:2,b:1,opts:['1','2','5','11']},
+  {c:3,a:4,b:1,opts:['1','4','3','13']},
+  {c:-2,a:3,b:5,opts:['5','3','-2','-1']}
+ ][n%4];
+ const solo1=[
+  {c:2,a:5,b:1},{c:3,a:2,b:4},{c:4,a:3,b:-2},{c:-1,a:4,b:6}
+ ][n%4];
+ const solo2=[
+  {c:-1,a:2,b:5},{c:2,a:4,b:-3},{c:5,a:2,b:2},{c:-2,a:3,b:7}
+ ][n%4];
+ const sgn=b=>b>=0?'+ '+b:'- '+(-b);
+ let h='';
  if(p===0)h=card('<div class="eyebrow">Rule</div><h2>First method: direct substitution</h2><div class="rule"><b>If the function is simple and continuous, plug the x-value in.</b></div><p>Example:</p><div class="math">lim<sub>x→3</sub> (2x + 1)</div><p>Because x approaches 3, replace x by 3.</p>'+btn('Show the full example','nextPhase()'));
  if(p===1)h=card('<div class="eyebrow">Watch me</div><h2>Worked example</h2><div class="math">lim<sub>x→3</sub> (2x + 1)</div><div class="step"><span class="n">1</span>Replace x with 3:</div><div class="math">2(3) + 1</div><div class="step"><span class="n">2</span>Multiply:</div><div class="math">6 + 1</div><div class="step"><span class="n">3</span>Add:</div><div class="math">7</div><div class="rule"><b>Answer = 7</b></div>'+btn('Guided practice','nextPhase()'));
- if(p===2)h=questionMC('L2','Do it with me','For lim x→4 (3x + 2), what number replaces x?',['2','3','4','14'],'4','Yes. Always start with the number x is approaching.','nextPhase()');
- if(p===3)h=questionNum('L2','Guided calculation','Now finish it: 3(4)+2 = ?',14,'3×4=12, then 12+2=14.','nextPhase()');
- if(p===4)h=questionNum('L2','Your turn','Find lim x→2 (5x + 1).',11,'Plug in x=2: 5(2)+1=10+1=11.','nextPhase()');
- if(p===5)h=questionNum('L2','One more','Find lim x→-1 (2x + 5).',3,'Plug in x=-1: 2(-1)+5=-2+5=3.','nextPhase()');
+ if(p===2)h=questionMC('L2','Do it with me','FIRST STEP ONLY: For lim x→'+guided.c+' ('+guided.a+'x '+sgn(guided.b)+'), what value should replace x?',guided.opts,String(guided.c),'The value to substitute is the number x is approaching: '+guided.c+'.','nextPhase()');
+ if(p===3){let ans=guided.a*guided.c+guided.b;h=questionNum('L2','Guided calculation','Now finish it: '+guided.a+'('+guided.c+') '+sgn(guided.b)+' = ?',ans,guided.a+'×('+guided.c+') '+sgn(guided.b)+' = '+ans+'.','nextPhase()')}
+ if(p===4){let ans=solo1.a*solo1.c+solo1.b;h=questionNum('L2','Your turn','Find lim x→'+solo1.c+' ('+solo1.a+'x '+sgn(solo1.b)+').',ans,'Plug in x='+solo1.c+': '+solo1.a+'('+solo1.c+') '+sgn(solo1.b)+' = '+ans+'.','nextPhase()')}
+ if(p===5){let ans=solo2.a*solo2.c+solo2.b;h=questionNum('L2','One more','Find lim x→'+solo2.c+' ('+solo2.a+'x '+sgn(solo2.b)+').',ans,'Plug in x='+solo2.c+': '+solo2.a+'('+solo2.c+') '+sgn(solo2.b)+' = '+ans+'.','nextPhase()')}
  if(p>=6)h=card('<div class="eyebrow">Mastery</div><h2>Direct substitution</h2><div class="rule"><b>1. Look at x→a<br>2. Replace x with a<br>3. Calculate</b></div><p class="muted">You now have the basic method. Next we use the same idea with x² and other polynomial terms.</p>'+btn('Continue to polynomial limits',"finishLesson('L2')",'good'));
  $('lessonArea').innerHTML=h;
 }
 
 function renderL3(){
- const p=S.phase;let h='';
+ const p=S.phase,n=(S.retryNonce||0);
+ const guided=[{c:3,b:2},{c:2,b:5},{c:-2,b:3},{c:4,b:1}][n%4];
+ const solo1=[{c:2,a:2,b:3},{c:3,a:1,b:2},{c:-2,a:2,b:1},{c:4,a:1,b:-5}][n%4];
+ const solo2=[{c:-2},{c:3},{c:-1},{c:2}][n%4];
+ const sgn=b=>b>=0?'+ '+b:'- '+(-b);
+ let h='';
  if(p===0)h=card('<div class="eyebrow">Teach</div><h2>Same rule, slightly different function</h2><div class="math">lim<sub>x→2</sub> (x² + 1)</div><p>Nothing new happens. We still substitute x=2.</p><div class="math">(2)² + 1 = 4 + 1 = 5</div><div class="rule"><b>Direct substitution still works.</b></div>'+btn('Try one with help','nextPhase()'));
- if(p===1)h=questionMC('L3','Guided step','For lim x→3 (x²+2), what should you write first?',['3²+2','x²+3','2²+3','3x+2'],'3²+2','Correct. Replace x with 3 everywhere x appears.','nextPhase()');
- if(p===2)h=questionNum('L3','Finish it','3² + 2 = ?',11,'3²=9, then 9+2=11.','nextPhase()');
- if(p===3)h=questionNum('L3','Your turn','Find lim x→2 (2x² + 3).',11,'Substitute x=2: 2(2²)+3 = 2(4)+3 = 11.','nextPhase()');
- if(p===4)h=questionNum('L3','One more','Find lim x→-2 (x² + x + 1).',3,'Substitute x=-2: (-2)²+(-2)+1 = 4-2+1 = 3.','nextPhase()');
+ if(p===1){let correct=guided.c+'² '+sgn(guided.b);h=questionMC('L3','Guided step','For lim x→'+guided.c+' (x² '+sgn(guided.b)+'), what should you write first?',[correct,'x² '+sgn(guided.c),guided.b+'² '+sgn(guided.c),guided.c+'x '+sgn(guided.b)],correct,'Replace x with '+guided.c+' everywhere x appears.','nextPhase()')}
+ if(p===2){let ans=guided.c*guided.c+guided.b;h=questionNum('L3','Finish it',guided.c+'² '+sgn(guided.b)+' = ?',ans,guided.c+'²='+(guided.c*guided.c)+', then '+(guided.c*guided.c)+' '+sgn(guided.b)+' = '+ans+'.','nextPhase()')}
+ if(p===3){let ans=solo1.a*solo1.c*solo1.c+solo1.b;h=questionNum('L3','Your turn','Find lim x→'+solo1.c+' ('+solo1.a+'x² '+sgn(solo1.b)+').',ans,'Substitute x='+solo1.c+': '+solo1.a+'('+solo1.c+'²) '+sgn(solo1.b)+' = '+ans+'.','nextPhase()')}
+ if(p===4){let c=solo2.c,ans=c*c+c+1;h=questionNum('L3','One more','Find lim x→'+c+' (x² + x + 1).',ans,'Substitute x='+c+': ('+c+')² + ('+c+') + 1 = '+ans+'.','nextPhase()')}
  if(p>=5)h=card('<div class="eyebrow">Mastery</div><h2>Polynomial limits</h2><p class="muted">You have enough direct substitution practice to move on to left-hand and right-hand limits.</p>'+btn('Master this lesson',"finishLesson('L3')",'good'));
  $('lessonArea').innerHTML=h;
 }
@@ -154,7 +174,7 @@ function questionNum(id,label,prompt,ans,explain,next){
 }
 let chosen=null;
 function chooseMC(el,key){chosen=el.dataset.val;document.querySelectorAll('.choice').forEach(b=>b.classList.remove('sel'));el.classList.add('sel')}
-function showFb(ok,text,next){let f=$('fb');f.className='feedback on '+(ok?'good':'bad');f.innerHTML='<b>'+(ok?'✓ Correct':'Not quite')+'</b><div>'+text+'</div>'+(ok?'<button class="btn primary full" style="margin-top:10px" onclick="'+next+'">Continue</button>':'<button class="btn full" style="margin-top:10px" onclick="renderLesson()">Try a similar one</button>')}
+function showFb(ok,text,next){let f=$('fb');f.className='feedback on '+(ok?'good':'bad');f.innerHTML='<b>'+(ok?'✓ Correct':'Not quite')+'</b><div>'+text+'</div>'+(ok?'<button class="btn primary full" style="margin-top:10px" onclick="'+next+'">Continue</button>':'<button class="btn full" style="margin-top:10px" onclick="retrySimilar()">Try a different similar one</button>')}
 function checkMC(key){let q=window[key];if(chosen===null){toast('Pick an answer first');return}let ok=chosen===q.ans;record(ok,q.id);if(ok){document.querySelectorAll('.choice').forEach(b=>{if(b.dataset.val===q.ans)b.classList.add('correct')});showFb(true,q.explain,q.next)}else{document.querySelectorAll('.choice').forEach(b=>{if(b.dataset.val===chosen)b.classList.add('wrong');if(b.dataset.val===q.ans)b.classList.add('correct')});showFb(false,'The correct idea is: '+q.explain,q.next)}chosen=null}
 function checkNum(key){let q=window[key],v=parseFloat(($('numAns').value||'').replace(',','.'));if(!Number.isFinite(v)){toast('Type a number first');return}let ok=Math.abs(v-q.ans)<0.001;record(ok,q.id);showFb(ok,ok?q.explain:'Correct answer: '+q.ans+'. '+q.explain,q.next)}
 function dontKnow(key){let q=window[key];record(false,q.id);showFb(false,'No problem. '+q.explain,q.next)}
