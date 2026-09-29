@@ -26,7 +26,7 @@ button,input{font:inherit}.app{max-width:760px;margin:auto;padding-bottom:88px}.
 </head>
 <body>
 <div class="app">
-<header class="top"><div class="row between"><div class="brand">Calc<b>209</b> <span style="font-size:10px;color:#9aa4b4;font-weight:700">v2.8</span></div><div class="row"><span class="pill" id="streak">🔥 0</span><span class="pill" id="xp">0 XP</span></div></div></header>
+<header class="top"><div class="row between"><div class="brand">Calc<b>209</b> <span style="font-size:10px;color:#9aa4b4;font-weight:700">v3.0</span></div><div class="row"><span class="pill" id="streak">🔥 0</span><span class="pill" id="xp">0 XP</span></div></div></header>
 
 <main id="learn" class="screen on">
   <div class="hero"><div class="eyebrow" id="courseTag">MATH 209 · From zero</div><h1 id="lessonTitle"></h1><div class="muted" id="lessonSub"></div></div>
@@ -127,7 +127,17 @@ const LESSONS=[
 {id:'L14',ch:3,sec:'3.4',name:'Chain rule',short:'Functions inside functions'},
 {id:'L15',ch:3,sec:'3.5',name:'Implicit differentiation',short:'Differentiate equations with x and y'},
 {id:'L16',ch:3,sec:'3.6',name:'Related rates',short:'Rates that change with time'},
-{id:'L17',ch:3,sec:'3.7',name:'Elasticity of demand',short:'Responsiveness of demand to price'}
+{id:'L17',ch:3,sec:'3.7',name:'Elasticity of demand',short:'Responsiveness of demand to price'},
+{id:'L18',ch:4,sec:'4.1',name:'First derivative & graphs',short:'Increasing, decreasing and critical numbers'},
+{id:'L19',ch:4,sec:'4.2',name:'Second derivative & graphs',short:'Concavity and inflection points'},
+{id:'L20',ch:4,sec:'4.4',name:'Curve sketching',short:'Build a graph from derivative information'},
+{id:'L21',ch:4,sec:'4.5',name:'Absolute maxima & minima',short:'Largest and smallest values on an interval'},
+{id:'L22',ch:4,sec:'4.6',name:'Optimization',short:'Turn a real constraint into a best-value problem'},
+{id:'L23',ch:5,sec:'5.1',name:'Antiderivatives',short:'Reverse differentiation'},
+{id:'L24',ch:5,sec:'5.2',name:'Integration by substitution',short:'Reverse the chain rule'},
+{id:'L25',ch:5,sec:'5.4',name:'The definite integral',short:'Accumulation and signed area'},
+{id:'L26',ch:5,sec:'5.5',name:'Fundamental Theorem of Calculus',short:'Connect derivatives and definite integrals'},
+{id:'L27',ch:6,sec:'6.1',name:'Area between curves',short:'Top minus bottom, integrated'}
 ];
 
 const DEFAULT={lesson:0,phase:0,xp:0,streak:0,lastDay:'',answered:0,correct:0,mastery:{},reviews:[],retryNonce:0};
@@ -192,7 +202,17 @@ const CONTEXT={
 'L14':{why:'The chain rule handles a change inside another change.',real:'Suppose sales depend on price, and price changes over time. Time changes price, and price changes sales. The chain rule connects those layers.',flow:['time changes price','price changes sales','chain rule connects them']},
 'L15':{why:'Sometimes variables are tied together by a constraint instead of one being isolated.',real:'On a circle, x and y must satisfy x²+y²=r². If x changes, y must change too. Implicit differentiation finds that relationship.',flow:['constraint connects x,y','x changes','y must respond']},
 'L16':{why:'Related rates connect several quantities that are changing at the same time.',real:'When a balloon inflates, radius and volume both change. If you know how fast radius changes, calculus can find how fast volume changes.',flow:['radius changes','geometry formula','volume changes']},
-'L17':{why:'Elasticity tells businesses how sensitive demand is to price.',real:'If a 1% price increase causes demand to drop a lot, demand is elastic. If demand barely changes, it is inelastic. This is directly useful in pricing decisions.',flow:['price changes','demand responds','elasticity measures sensitivity']}
+'L17':{why:'Elasticity tells businesses how sensitive demand is to price.',real:'If a 1% price increase causes demand to drop a lot, demand is elastic. If demand barely changes, it is inelastic. This is directly useful in pricing decisions.',flow:['price changes','demand responds','elasticity measures sensitivity']},
+'L18':{why:'The sign of the first derivative tells you which way a graph is moving.',real:'If profit is rising as sales increase, P′(x)>0. If profit starts falling, P′(x)<0. The point where the direction can switch is a critical number.',flow:['compute f′(x)','check its sign','increasing or decreasing']},
+'L19':{why:'The second derivative tells you how the slope itself is changing.',real:'A car can still be moving forward while slowing down. Likewise a graph can be increasing but bending downward. Concavity captures that bending.',flow:['compute f″(x)','check its sign','concave up or down']},
+'L20':{why:'Curve sketching lets you reconstruct the important shape of a function without plotting thousands of points.',real:'You combine intercepts, critical points, increasing/decreasing intervals and concavity to make a reliable picture of a business or growth model.',flow:['key points','first derivative','second derivative','graph shape']},
+'L21':{why:'Absolute extrema answer “what is the biggest or smallest value allowed in this interval?”',real:'A business may want the highest profit between 0 and 500 units, not merely a local peak somewhere outside its feasible range.',flow:['critical points','endpoints','compare values','absolute max/min']},
+'L22':{why:'Optimization turns a real constraint into a function you can maximize or minimize.',real:'Choose dimensions that use a fixed amount of material but maximize area, or choose output that maximizes profit.',flow:['real constraint','one-variable objective','differentiate','best feasible value']},
+'L23':{why:'An antiderivative reverses a derivative.',real:'If you know a marginal cost C′(x), integration can reconstruct a total-cost function up to a constant.',flow:['rate of change','antiderivative','original quantity + constant']},
+'L24':{why:'Substitution is a way to undo a chain rule hidden inside an integral.',real:'When an accumulation model contains an inside expression and its derivative, substitution lets you simplify the integral into a familiar form.',flow:['spot inside function','set u','rewrite integral','integrate']},
+'L25':{why:'A definite integral measures accumulated net change over an interval.',real:'If a rate tells you dollars per unit or units per hour, integrating the rate over an interval gives the total accumulated change.',flow:['rate over interval','many tiny pieces','add them','total accumulation']},
+'L26':{why:'The Fundamental Theorem says integration and differentiation undo each other.',real:'Instead of adding infinitely many tiny areas manually, you can evaluate an antiderivative at the endpoints.',flow:['find antiderivative F','evaluate F(b)-F(a)','definite integral']},
+'L27':{why:'Area between curves measures the gap between two models over an interval.',real:'It can measure the accumulated difference between revenue and cost curves, or between two population/income models.',flow:['find intersections','top minus bottom','integrate','area']}
 };
 function contextHTML(id){
  const x=CONTEXT[id]; if(!x)return '';
@@ -207,7 +227,7 @@ function contextHTML(id){
 function renderLesson(){
  const l=LESSONS[S.lesson];$('courseTag').textContent='MATH 209 · Chapter '+l.ch+' · Section '+l.sec;$('lessonTitle').textContent=l.name;$('lessonSub').textContent='Understand it → visualize it → learn the rule → practice it.';
  $('contextArea').innerHTML=contextHTML(l.id);
- const f=[renderL1,renderL2,renderL3,renderL4,renderL5,renderL6,renderL7,renderL8,renderL9,renderL10,renderL11,renderL12,renderL13,renderL14,renderL15,renderL16,renderL17][S.lesson];f();
+ const f=[renderL1,renderL2,renderL3,renderL4,renderL5,renderL6,renderL7,renderL8,renderL9,renderL10,renderL11,renderL12,renderL13,renderL14,renderL15,renderL16,renderL17,renderL18,renderL19,renderL20,renderL21,renderL22,renderL23,renderL24,renderL25,renderL26,renderL27][S.lesson];f();
 }
 
 function renderL1(){const p=S.phase;let h='';
@@ -331,7 +351,77 @@ if(p===0)h=card('<div class="eyebrow">Teach</div><h2>Elasticity of demand</h2><p
 if(p===1)h=card('<div class="eyebrow">Watch me</div><p>Suppose demand is x=f(p)=100-2p.</p><p>Then f′(p)=-2.</p><div class="math">E(p)= -p(-2)/(100-2p)</div><p class="muted">The minus sign makes elasticity positive for an ordinary downward-sloping demand function.</p>'+btn('Try one','nextPhase()'));
 if(p===2)h=questionMC('L17','Guided practice','What is the relative rate of change of f(x)?',['f′(x)/f(x)','f(x)/f′(x)','f′(x)f(x)','f′(x)+f(x)'],'f′(x)/f(x)','Relative rate compares the derivative with the current function value.');
 if(p===3)h=questionMC('L17','Formula check','Which formula is elasticity of demand?',['-p f′(p)/f(p)','p f(p)/f′(p)','f′(p)/p','-f(p)/p'],'-p f′(p)/f(p)','That is the elasticity formula used in your notes.');
-if(p>=4)h=card('<div class="eyebrow">Course checkpoint</div><h2>Chapter 3 complete</h2><p>You have reached the end of the material currently loaded from your Chapter 2 and Chapter 3 notes.</p><div class="rule"><b>Next step: keep reviewing weak lessons with spaced repetition.</b></div>'+btn('Mark complete','finishLesson("L17")','good'));$('lessonArea').innerHTML=h}
+if(p>=4)h=card('<div class="eyebrow">Checkpoint</div><h2>Chapter 3 complete</h2><p class="muted">This finishes the material in your uploaded Chapter 2–3 notes. The next lessons follow the official Fall 2026 MATH 209 outline for the material after the midterm.</p>'+btn('Continue to graph analysis','finishLesson("L17")','good'));$('lessonArea').innerHTML=h}
+
+function renderL18(){const p=S.phase;let h='';
+if(p===0)h=card('<div class="eyebrow">Teach</div><h2>First derivative = direction</h2><div class="rule"><b>f′(x)>0 → f is increasing<br>f′(x)<0 → f is decreasing<br>f′(x)=0 or undefined → possible critical number</b></div>'+btn('Show me an example','nextPhase()'));
+if(p===1)h=card('<div class="eyebrow">Watch me</div><div class="math">f(x)=x²-4x</div><p>f′(x)=2x-4. Set it equal to 0:</p><div class="math">2x-4=0 → x=2</div><p>Before 2, f′ is negative → decreasing. After 2, f′ is positive → increasing. So x=2 is a local minimum.</p>'+btn('Try one','nextPhase()'));
+if(p===2)h=questionMC('L18','Guided practice','If f′(x)>0 on (1,5), what is f doing there?',['Increasing','Decreasing','Constant','Undefined'],'Increasing','A positive derivative means the graph rises as x increases.');
+if(p===3)h=questionMC('L18','Test-style','For f(x)=x²-6x+5, where can a local extremum occur?',['x=1','x=3','x=5','x=6'],'x=3','f′(x)=2x-6. Critical number: 2x-6=0 → x=3.');
+if(p>=4)h=card('<div class="eyebrow">Mastery</div><h2>First derivative & graphs</h2><div class="rule"><b>The sign of f′ tells direction; sign changes at critical numbers reveal local extrema.</b></div>'+btn('Continue','finishLesson("L18")','good'));$('lessonArea').innerHTML=h}
+
+function renderL19(){const p=S.phase;let h='';
+if(p===0)h=card('<div class="eyebrow">Teach</div><h2>Second derivative = bending</h2><div class="rule"><b>f″(x)>0 → concave up ∪<br>f″(x)<0 → concave down ∩</b></div><p class="muted">An inflection point is where the concavity actually changes.</p>'+btn('Show me an example','nextPhase()'));
+if(p===1)h=card('<div class="eyebrow">Watch me</div><div class="math">f(x)=x³</div><p>f′(x)=3x² and f″(x)=6x.</p><p>For x&lt;0, f″&lt;0 → concave down. For x&gt;0, f″&gt;0 → concave up. Concavity changes at x=0.</p>'+btn('Try one','nextPhase()'));
+if(p===2)h=questionMC('L19','Guided practice','If f″(x)=-7 on an interval, the graph is…',['Concave up','Concave down','Always increasing','Always decreasing'],'Concave down','Negative second derivative means concave down.');
+if(p===3)h=questionMC('L19','Concept check','Is f″(c)=0 by itself enough to prove an inflection point?',['Yes','No'],'No','The concavity must actually change from one side of c to the other.');
+if(p>=4)h=card('<div class="eyebrow">Mastery</div><h2>Concavity & inflection</h2>'+btn('Continue','finishLesson("L19")','good'));$('lessonArea').innerHTML=h}
+
+function renderL20(){const p=S.phase;let h='';
+if(p===0)h=card('<div class="eyebrow">Teach</div><h2>Curve sketching is a checklist</h2><div class="rule"><b>1. Domain/intercepts<br>2. Critical numbers<br>3. Increasing/decreasing<br>4. Concavity/inflection<br>5. Extrema/asymptotes if relevant</b></div>'+btn('See the logic','nextPhase()'));
+if(p===1)h=card('<div class="eyebrow">Visual logic</div><p>If f′ changes - to +, the graph makes a valley. If f″ is positive there, it bends upward too.</p><div class="viz"><div class="vizFlow"><span class="box">f′: negative</span><span class="arrow">→</span><span class="box">critical point</span><span class="arrow">→</span><span class="box">f′: positive</span></div></div>'+btn('Try one','nextPhase()'));
+if(p===2)h=questionMC('L20','Guided practice','If f′ changes from positive to negative at x=4, what happens there?',['Local maximum','Local minimum','Inflection only','Vertical asymptote'],'Local maximum','The graph rises before x=4 and falls after it.');
+if(p===3)h=questionMC('L20','Test-style','Which information directly tells you where a function is concave up?',['Sign of f','Sign of f′','Sign of f″','x-intercepts'],'Sign of f″','Concavity comes from the second derivative.');
+if(p>=4)h=card('<div class="eyebrow">Mastery</div><h2>Curve-sketching framework</h2>'+btn('Continue','finishLesson("L20")','good'));$('lessonArea').innerHTML=h}
+
+function renderL21(){const p=S.phase;let h='';
+if(p===0)h=card('<div class="eyebrow">Teach</div><h2>Absolute max/min on a closed interval</h2><div class="rule"><b>Check every critical number inside the interval AND both endpoints. Then compare the actual f-values.</b></div>'+btn('Show me an example','nextPhase()'));
+if(p===1)h=card('<div class="eyebrow">Watch me</div><p>For f(x)=x²-4x on [0,5], critical x=2.</p><div class="math">f(0)=0, f(2)=-4, f(5)=5</div><p>Absolute minimum = -4 at x=2. Absolute maximum = 5 at x=5.</p>'+btn('Try one','nextPhase()'));
+if(p===2)h=questionMC('L21','Guided practice','On a closed interval, which points must you compare?',['Only critical points','Only endpoints','Critical points and endpoints','Only x-intercepts'],'Critical points and endpoints','An endpoint can beat every interior critical point.');
+if(p===3)h=questionNum('L21','Test-style','For f(x)=x²-2x on [0,3], what is the absolute maximum value?',3,'Critical x=1. Compare f(0)=0, f(1)=-1, f(3)=3. Largest value is 3.');
+if(p>=4)h=card('<div class="eyebrow">Mastery</div><h2>Absolute extrema</h2>'+btn('Continue','finishLesson("L21")','good'));$('lessonArea').innerHTML=h}
+
+function renderL22(){const p=S.phase;let h='';
+if(p===0)h=card('<div class="eyebrow">Teach</div><h2>Optimization = build the function first</h2><div class="rule"><b>1. Define variables<br>2. Write the constraint<br>3. Write what you maximize/minimize<br>4. Reduce to one variable<br>5. Differentiate and check the feasible answer</b></div>'+btn('Show me a classic example','nextPhase()'));
+if(p===1)h=card('<div class="eyebrow">Watch me</div><p>A rectangle has perimeter 20. If sides are x and y:</p><div class="math">2x+2y=20 → y=10-x</div><p>Area:</p><div class="math">A=x(10-x)=10x-x²</div><p>A′=10-2x=0 → x=5, y=5. The square gives maximum area.</p>'+btn('Try one','nextPhase()'));
+if(p===2)h=questionNum('L22','Guided practice','A rectangle has perimeter 24. What side length x gives maximum area?',6,'The maximum-area rectangle for fixed perimeter is a square: 4x=24 → x=6.');
+if(p===3)h=questionMC('L22','Concept check','What is the most common mistake in optimization?',['Differentiating','Using the constraint incorrectly or optimizing the wrong function','Checking units','Finding a critical point'],'Using the constraint incorrectly or optimizing the wrong function','The hard part is usually modeling the situation, not taking the derivative.');
+if(p>=4)h=card('<div class="eyebrow">Mastery</div><h2>Optimization</h2>'+btn('Continue','finishLesson("L22")','good'));$('lessonArea').innerHTML=h}
+
+function renderL23(){const p=S.phase;let h='';
+if(p===0)h=card('<div class="eyebrow">Teach</div><h2>Antiderivative = reverse derivative</h2><div class="rule"><b>∫xⁿ dx = xⁿ⁺¹/(n+1) + C, for n≠-1</b></div><p>The +C matters because many functions have the same derivative.</p>'+btn('Show me an example','nextPhase()'));
+if(p===1)h=card('<div class="eyebrow">Watch me</div><div class="math">∫ 6x² dx</div><p>Add 1 to exponent: 2→3. Divide coefficient by 3:</p><div class="math">2x³ + C</div><p>Check: derivative of 2x³+C is 6x².</p>'+btn('Try one','nextPhase()'));
+if(p===2)h=questionMC('L23','Guided practice','∫4x³ dx = ?',['x⁴+C','4x⁴+C','12x²+C','x³+C'],'x⁴+C','Increase exponent to 4 and divide 4 by 4.');
+if(p===3)h=questionMC('L23','Concept check','Why do indefinite integrals include +C?',['C is always 1','Different constants disappear when differentiated','It means multiply by C','Only for logarithms'],'Different constants disappear when differentiated','The derivative of any constant is 0.');
+if(p>=4)h=card('<div class="eyebrow">Mastery</div><h2>Antiderivatives</h2>'+btn('Continue','finishLesson("L23")','good'));$('lessonArea').innerHTML=h}
+
+function renderL24(){const p=S.phase;let h='';
+if(p===0)h=card('<div class="eyebrow">Teach</div><h2>u-substitution reverses the chain rule</h2><p>Look for an inside expression and something proportional to its derivative.</p><div class="rule"><b>Choose u = inside expression, compute du, rewrite, integrate, substitute back.</b></div>'+btn('Show me an example','nextPhase()'));
+if(p===1)h=card('<div class="eyebrow">Watch me</div><div class="math">∫ 2x(x²+1)³ dx</div><p>Let u=x²+1, so du=2x dx.</p><div class="math">∫u³ du = u⁴/4 + C = (x²+1)⁴/4 + C</div>'+btn('Try one','nextPhase()'));
+if(p===2)h=questionMC('L24','Guided practice','For ∫3x²(x³+5)^4 dx, the best u is…',['x²','x³+5','3x²','(x³+5)^4'],'x³+5','Its derivative is 3x², which is already present.');
+if(p===3)h=questionMC('L24','Test-style','∫2x e^(x²) dx = ?',['e^(x²)+C','2e^x+C','x²e^(x²)+C','e^x²/2+C'],'e^(x²)+C','Let u=x², du=2x dx, then ∫e^u du=e^u+C.');
+if(p>=4)h=card('<div class="eyebrow">Mastery</div><h2>Integration by substitution</h2>'+btn('Continue','finishLesson("L24")','good'));$('lessonArea').innerHTML=h}
+
+function renderL25(){const p=S.phase;let h='';
+if(p===0)h=card('<div class="eyebrow">Teach</div><h2>Definite integral = accumulated signed area</h2><div class="math">∫ₐᵇ f(x) dx</div><p>Area above the x-axis counts positive; below counts negative.</p>'+btn('Show me an example','nextPhase()'));
+if(p===1)h=card('<div class="eyebrow">Watch me</div><div class="math">∫₀² x dx</div><p>An antiderivative is x²/2.</p><div class="math">[x²/2]₀² = 2-0 = 2</div>'+btn('Try one','nextPhase()'));
+if(p===2)h=questionNum('L25','Guided practice','Find ∫₀³ 2x dx.',9,'Antiderivative is x². Evaluate: 3²-0²=9.');
+if(p===3)h=questionMC('L25','Concept check','If f(x) is below the x-axis on [a,b], ∫ₐᵇf(x)dx is generally…',['Positive','Negative','Always zero','Undefined'],'Negative','A definite integral measures signed area, not ordinary geometric area.');
+if(p>=4)h=card('<div class="eyebrow">Mastery</div><h2>The definite integral</h2>'+btn('Continue','finishLesson("L25")','good'));$('lessonArea').innerHTML=h}
+
+function renderL26(){const p=S.phase;let h='';
+if(p===0)h=card('<div class="eyebrow">Teach</div><h2>Fundamental Theorem of Calculus</h2><div class="rule"><b>If F′(x)=f(x), then ∫ₐᵇ f(x)dx = F(b)-F(a).</b></div><p>Integration and differentiation are inverse processes.</p>'+btn('Show me an example','nextPhase()'));
+if(p===1)h=card('<div class="eyebrow">Watch me</div><div class="math">∫₁³ 2x dx</div><p>F(x)=x², so:</p><div class="math">F(3)-F(1)=9-1=8</div>'+btn('Try one','nextPhase()'));
+if(p===2)h=questionNum('L26','Guided practice','Find ∫₁² 3x² dx.',7,'F(x)=x³. Evaluate 2³-1³=8-1=7.');
+if(p===3)h=questionMC('L26','Concept check','In F(b)-F(a), which endpoint is subtracted?',['Upper b','Lower a','Neither','Whichever is bigger'],'Lower a','Evaluate the antiderivative at the upper endpoint minus the lower endpoint.');
+if(p>=4)h=card('<div class="eyebrow">Mastery</div><h2>Fundamental Theorem</h2>'+btn('Continue','finishLesson("L26")','good'));$('lessonArea').innerHTML=h}
+
+function renderL27(){const p=S.phase;let h='';
+if(p===0)h=card('<div class="eyebrow">Teach</div><h2>Area between curves</h2><div class="rule"><b>Area = ∫ (top function - bottom function) dx</b></div><p>First find where the curves meet and whether they switch order.</p>'+btn('Show me an example','nextPhase()'));
+if(p===1)h=card('<div class="eyebrow">Watch me</div><p>Between y=2x and y=x² on [0,2], 2x is above x².</p><div class="math">Area=∫₀²(2x-x²)dx</div><div class="math">=[x²-x³/3]₀²=4-8/3=4/3</div>'+btn('Try one','nextPhase()'));
+if(p===2)h=questionMC('L27','Guided practice','For area between y=5 and y=x² on [-2,2], the integrand should be…',['x²-5','5-x²','5+x²','2x'],'5-x²','Top minus bottom: 5 is above x² throughout [-2,2].');
+if(p===3)h=questionNum('L27','Test-style','Find the area between y=x and y=0 on [0,2].',2,'Area=∫₀²x dx=[x²/2]₀²=2.');
+if(p>=4)h=card('<div class="eyebrow">Course checkpoint</div><h2>Official Fall 2026 course path complete</h2><p class="muted">You now have a Learn-mode introduction to every topic named in the Fall 2026 outline. Exam mode is where these ideas are combined at test difficulty.</p>'+btn('Mark complete','finishLesson("L27")','good'));$('lessonArea').innerHTML=h}
 
 const PAST_BANK=[
 {id:'P1',unlock:9,topic:'Differentials',type:'num',prompt:'Past-exam based: Let h=x^(3/2). At x=4, x changes by 0.1. Use a differential to find dh.',ans:0.3,tol:.001,solution:'dh=h′(x)dx. Since h′(x)=(3/2)√x, h′(4)=3. Then dh=3(0.1)=0.3.',source:'Adapted from Concordia MATH 209 self-assessment Q3.'},
