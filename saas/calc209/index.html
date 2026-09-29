@@ -1,0 +1,117 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#0f1115">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Calc209">
+<link rel="manifest" href="/calc209/calc209-manifest.webmanifest">
+<link rel="icon" href="/calc209/calc209-icon.svg" type="image/svg+xml">
+<title>Calc209</title>
+<style>
+:root{--bg:#0f1115;--card:#171a21;--card2:#1e222b;--text:#f3f4f7;--muted:#9aa3b2;--a:#7aa2ff;--good:#55d187;--bad:#ff7070;--line:#303641}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--text);font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;min-height:100vh}
+button,input,select{font:inherit}.app{max-width:720px;margin:auto;padding-bottom:82px}.top{position:sticky;top:0;z-index:5;background:#0f1115ee;backdrop-filter:blur(14px);border-bottom:1px solid var(--line);padding:14px 16px}
+.row{display:flex;align-items:center;justify-content:space-between;gap:10px}.brand{font-weight:900;font-size:21px}.brand b{color:var(--a)}.pill{font-size:12px;color:var(--muted);border:1px solid var(--line);padding:5px 8px;border-radius:999px}
+.screen{display:none;padding:18px 16px}.screen.on{display:block}.card,.box{background:var(--card);border:1px solid var(--line);border-radius:18px;padding:17px}.meta{display:flex;justify-content:space-between;color:var(--muted);font-size:12px}.topic{color:var(--a);font-weight:800;text-transform:uppercase;letter-spacing:.7px}
+.prompt{font-size:20px;font-weight:800;line-height:1.35;margin:13px 0}.math{font-family:Cambria Math,Times New Roman,serif;font-size:24px;background:var(--card2);padding:13px;border-radius:13px;overflow:auto;margin:12px 0}
+.choices{display:grid;gap:9px}.choice,.btn{border-radius:13px;padding:12px 13px;border:1px solid var(--line);background:var(--card2);color:var(--text)}.choice{text-align:left}.choice.sel{border-color:var(--a);outline:2px solid #7aa2ff44}.choice.correct{border-color:var(--good)}.choice.wrong{border-color:var(--bad)}
+.actions{display:flex;gap:9px;margin-top:14px}.actions>*{flex:1}.btn.primary{background:var(--a);color:#fff;border:0;font-weight:800}.btn.danger{color:var(--bad)}
+.answer{width:100%;padding:13px;border-radius:13px;border:1px solid var(--line);background:var(--card2);color:var(--text);outline:none}.feedback{display:none;margin-top:14px;padding:13px;border-radius:13px;background:var(--card2);border:1px solid var(--line);line-height:1.5;font-size:14px}.feedback.on{display:block}.feedback.good{border-color:var(--good)}.feedback.bad{border-color:var(--bad)}
+.graph{background:var(--card2);border:1px solid var(--line);border-radius:14px;padding:7px;margin:12px 0}.graph canvas{width:100%;height:245px;display:block;touch-action:none}.hint{text-align:center;color:var(--muted);font-size:12px;margin:4px}
+h2{margin:0 0 14px}.stats{display:grid;grid-template-columns:repeat(3,1fr);gap:9px;margin-bottom:14px}.stat{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:12px;text-align:center}.big{font-size:22px;font-weight:900}.small{font-size:11px;color:var(--muted)}
+.pitem{background:var(--card);border:1px solid var(--line);border-radius:13px;padding:12px;margin-bottom:9px}.phead{display:flex;justify-content:space-between;font-size:13px}.bar{height:7px;background:var(--card2);border-radius:999px;margin-top:7px;overflow:hidden}.bar i{display:block;height:100%;background:var(--a)}
+.setting{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px;margin-bottom:10px}.setting h3{margin:0 0 5px;font-size:15px}.setting p{margin:0 0 10px;color:var(--muted);font-size:12px;line-height:1.45}.setting select{width:100%;padding:11px;border-radius:11px;background:var(--card2);color:var(--text);border:1px solid var(--line)}
+.nav{position:fixed;bottom:0;left:0;right:0;background:#0f1115ee;backdrop-filter:blur(14px);border-top:1px solid var(--line);display:flex;justify-content:center}.navin{width:min(720px,100%);display:grid;grid-template-columns:repeat(3,1fr)}.nav button{background:none;border:0;color:var(--muted);padding:12px 4px 16px}.nav button.on{color:var(--a);font-weight:800}.toast{position:fixed;bottom:90px;left:50%;transform:translateX(-50%);background:#000;color:#fff;padding:10px 13px;border-radius:10px;opacity:0;transition:.2s;pointer-events:none}.toast.on{opacity:1}
+.source{color:var(--muted);font-size:12px;line-height:1.5;margin-top:12px}.install-note{color:var(--muted);font-size:12px;line-height:1.45}
+</style>
+</head>
+<body>
+<div class="app">
+<header class="top"><div class="row"><div class="brand">Calc<b>209</b></div><div class="row"><span class="pill" id="streak">🔥 0</span><span class="pill" id="xp">0 XP</span></div></div></header>
+
+<main id="practice" class="screen on">
+<div class="card">
+<div class="meta"><span class="topic" id="topic">Limits</span><span id="difficulty">Easy</span></div>
+<div class="prompt" id="prompt"></div><div id="formula"></div><div id="graph"></div><div id="answer"></div>
+<div class="actions" id="pre"><button class="btn" id="dont">I don't know</button><button class="btn primary" id="check">Check</button></div>
+<div class="feedback" id="feedback"><b id="fbtitle"></b><div id="fbtext"></div><div id="fbrule" style="margin-top:8px;border-top:1px solid var(--line);padding-top:8px"></div></div>
+<div class="actions" id="post" style="display:none"><button class="btn" id="again">Again later</button><button class="btn primary" id="next">Next question</button></div>
+</div>
+<div class="source">Short questions, immediate explanation, and spaced repetition. Your weaker topics come back more often.</div>
+</main>
+
+<main id="progress" class="screen"><h2>Progress</h2><div class="stats"><div class="stat"><div class="big" id="acc">—</div><div class="small">Accuracy</div></div><div class="stat"><div class="big" id="ans">0</div><div class="small">Answered</div></div><div class="stat"><div class="big" id="weak">—</div><div class="small">Weakest</div></div></div><div id="plist"></div></main>
+
+<main id="settings" class="screen"><h2>Settings</h2>
+<div class="setting"><h3>Install Calc209</h3><p>Install it on your Samsung so it opens like a normal app and keeps working offline.</p><button class="btn primary" id="install" style="width:100%">Install app</button><div class="install-note" id="installNote" style="margin-top:8px">If no prompt appears: Chrome ⋮ → Add to Home screen / Install app.</div></div>
+<div class="setting"><h3>Practice focus</h3><p>Adaptive prioritizes whatever you are weakest at.</p><select id="focus"><option value="adaptive">Adaptive</option><option value="limits">Limits & continuity</option><option value="derivatives">Derivatives</option><option value="applications">Applications</option><option value="full">Full MATH 209 mix</option></select></div>
+<div class="setting"><h3>Daily reminders</h3><p>The installed PWA works now. Reliable scheduled reminders require a push-notification backend, so I left them out instead of faking them.</p></div>
+<div class="setting"><h3>Reset</h3><p>Clears progress stored on this device.</p><button class="btn danger" id="reset">Reset progress</button></div>
+<div class="source">Content follows your MATH 209 notes and Concordia-style Calculus I topics: limits, continuity, derivatives, exponentials/logs, product/quotient, chain rule, implicit differentiation, related rates, marginal analysis and elasticity.</div>
+</main>
+</div>
+
+<nav class="nav"><div class="navin"><button class="on" data-s="practice">✎<br>Practice</button><button data-s="progress">▥<br>Progress</button><button data-s="settings">⚙<br>Settings</button></div></nav><div class="toast" id="toast"></div>
+
+<script>
+const TOPICS=[
+{id:'limits',n:'Limits',g:'limits'},{id:'continuity',n:'Continuity',g:'limits'},{id:'asymptotes',n:'Asymptotes',g:'limits'},
+{id:'power',n:'Power rule',g:'derivatives'},{id:'product',n:'Product rule',g:'derivatives'},{id:'quotient',n:'Quotient rule',g:'derivatives'},{id:'chain',n:'Chain rule',g:'derivatives'},{id:'logs',n:'Exponentials & logs',g:'derivatives'},{id:'implicit',n:'Implicit differentiation',g:'derivatives'},
+{id:'related',n:'Related rates',g:'applications'},{id:'marginal',n:'Marginal analysis',g:'applications'},{id:'elasticity',n:'Elasticity',g:'applications'}];
+const DEF={xp:0,streak:0,last:'',answered:0,correct:0,focus:'adaptive',stats:{},cards:{},history:[]};
+let S=JSON.parse(localStorage.getItem('calc209-state')||'null')||structuredClone(DEF),Q=null,sel=null,locked=false,tap=null;
+const $=x=>document.getElementById(x),ri=(a,b)=>Math.floor(Math.random()*(b-a+1))+a,round=(n,d=2)=>Math.round(n*10**d)/10**d;
+function save(){localStorage.setItem('calc209-state',JSON.stringify(S));header()}
+function stat(t){if(!S.stats[t])S.stats[t]={r:0,w:0,m:.35};return S.stats[t]}
+function header(){const d=new Date().toISOString().slice(0,10);if(S.last!==d){if(S.last){const y=new Date(Date.now()-86400000).toISOString().slice(0,10);S.streak=S.last===y?S.streak+1:1}else S.streak=1;S.last=d;localStorage.setItem('calc209-state',JSON.stringify(S))}$('streak').textContent='🔥 '+S.streak;$('xp').textContent=S.xp+' XP'}
+function toast(t){$('toast').textContent=t;$('toast').classList.add('on');setTimeout(()=>$('toast').classList.remove('on'),1800)}
+function mcq(topic,d,p,f,opts,a,e,r){return{topic,d,p,f,opts,a,e,r,type:'mcq',id:topic+'-'+p}}
+function num(topic,d,p,f,a,e,r,t=.01){return{topic,d,p,f,a,e,r,type:'num',tol:t,id:topic+'-'+p}}
+function tapq(topic,d,p,f,a,e,r,graph,t=.35){return{topic,d,p,f,a,e,r,type:'tap',tol:t,graph,id:topic+'-'+p}}
+
+const G=[
+()=>{let c=ri(-5,5),L=ri(-4,6);return mcq('limits','Easy','If lim x→'+c+' f(x) = '+L+', must f('+c+') also equal '+L+'?','',['Yes, always','No, not necessarily'],'No, not necessarily','A limit describes what f(x) approaches near x='+c+'. The actual point can be different or undefined.','A limit does not require f(c) to equal the limit.')},
+()=>{let c=ri(-4,4),a=ri(1,5),b=ri(-5,5);return num('limits','Easy','Evaluate the limit by direct substitution.','lim x→'+c+' ('+a+'x '+(b>=0?'+ '+b:'- '+(-b))+')',a*c+b,'This is a polynomial/linear function, so substitute x='+c+'.','For continuous functions, lim x→c f(x)=f(c).')},
+()=>{let c=ri(2,6);return mcq('limits','Easy','A two-sided limit exists only when…','x → '+c,['the left and right limits are equal','f('+c+') exists','the graph has no hole','the derivative exists'],'the left and right limits are equal','Both one-sided limits must exist and match.','LHL = RHL is required for a two-sided limit.')},
+()=>{let c=ri(-4,4);return mcq('continuity','Easy','Which condition is required for continuity at x='+c+'?','',['f('+c+') exists','Only the left limit exists','f\'(c)=0','There is a vertical asymptote'],'f('+c+') exists','Continuity needs f(c), the limit, and equality between them.','Continuous at c means f(c) exists, lim f(x) exists, and lim f(x)=f(c).')},
+()=>{let a=ri(-5,5);return tapq('asymptotes','Medium','Tap the vertical asymptote.','f(x)=1/(x '+(a>=0?'- '+a:'+ '+(-a))+')',a,'The denominator is zero at x='+a+', so that is the vertical asymptote.','For 1/(x-a), the vertical asymptote is x=a.',{k:'rat',a:a,b:0})},
+()=>{let a=ri(1,7),n=ri(2,6);return num('power','Easy','Differentiate, then enter the coefficient of x^'+(n-1)+'.','f(x)='+a+'x^'+n,a*n,'Power rule: '+a+'·'+n+'x^'+(n-1)+'.','d/dx[x^n]=n x^(n-1).')},
+()=>{let n=ri(2,6),k=ri(2,6),b=ri(-5,5);let ans=n*k;return num('chain','Medium','Differentiate. Enter only the coefficient in front.','d/dx [('+k+'x '+(b>=0?'+ '+b:'- '+(-b))+')^'+n+']',ans,'Outer derivative gives '+n+'(…)^'+(n-1)+', then multiply by the inside derivative '+k+'.','Chain rule: outside derivative × inside derivative.')},
+()=>{let a=ri(1,5),b=ri(1,5);let good=''+a+'x^'+(a-1)+'·x^'+b+' + x^'+a+'·'+b+'x^'+(b-1);return mcq('product','Medium','Which derivative is correct?','y=(x^'+a+')(x^'+b+')',[good,''+(a+b)+'x^'+(a+b),'x^'+(a+b-1),''+a*b+'x^'+(a+b-2)],good,'Differentiate the first times the second, plus the first times the derivative of the second.','Product rule: (fg)\'=f\'g+fg\'.')},
+()=>mcq('quotient','Medium','What is the quotient rule?','y=f/g',['(f\'g - fg\')/g²','(f\'g + fg\')/g²','f\'/g\'','(fg)\'/g²'],'(f\'g - fg\')/g²','The denominator is squared and the numerator is f\'g - fg\'.','Quotient rule: (f/g)\'=(f\'g-fg\')/g².'),
+()=>{let k=ri(2,7);return mcq('logs','Easy','Differentiate.','f(x)=ln('+k+'x)',['1/x',''+k+'/x','ln('+k+')','1/('+k+'x²)'],'1/x','ln(kx)=ln k + ln x, and ln k is constant.','d/dx ln(kx)=1/x for constant k>0.')},
+()=>{let k=ri(2,6),good=k+'e^('+k+'x)';return mcq('logs','Medium','Differentiate.','f(x)=e^('+k+'x)',[good,'e^('+k+'x)',k+'x·e^('+k+'x)','e^x'],good,'Chain rule multiplies e^('+k+'x) by the derivative '+k+'.','d/dx e^{g(x)}=e^{g(x)}g\'(x).')},
+()=>{let x=ri(1,4),y=ri(1,5),ans=-x/y;return num('implicit','Medium','For x²+y²=25, find dy/dx at x='+x+', y='+y+'.','',ans,'Differentiate: 2x+2y y\'=0, so y\'=-x/y = '+round(ans,3)+'.','When differentiating y terms, multiply by y\'.')},
+()=>{let r=ri(2,7),dr=ri(1,4),ans=2*Math.PI*r*dr;return num('related','Medium','A circle radius is increasing at '+dr+' cm/s. How fast is its area changing when r='+r+'?','A=πr²',ans,'dA/dt=2πr·dr/dt = '+round(ans,2)+' cm²/s.','Related rates: differentiate with respect to time, then substitute known values.',.15)},
+()=>{let x=ri(10,50),a=ri(2,8);return num('marginal','Easy','If C(x)=1000+'+a+'x, what is marginal cost at x='+x+'?','C\'(x)=?',a,'The derivative of 1000 is 0 and of '+a+'x is '+a+'.','Marginal cost is C\'(x).')},
+()=>{let p=ri(10,30),A=150,b=ri(1,3),e=p*b/(A-b*p);return num('elasticity','Hard','For demand x='+A+'-'+b+'p, find E(p) at p='+p+'.','E(p)= -p f\'(p)/f(p)',e,'f\'(p)=-'+b+', so E='+p+'·'+b+'/('+A+'-'+b+'·'+p+') = '+round(e,3)+'.','Elasticity: E(p)= -p f\'(p)/f(p).',.02)},
+()=>{let h=ri(-3,3),k=ri(-4,2);return tapq('power','Medium','Tap the x-value where the tangent is horizontal.','y=(x '+(h>=0?'- '+h:'+ '+(-h))+')² '+(k>=0?'+ '+k:'- '+(-k)),h,'A parabola has slope 0 at its vertex, x='+h+'.','Horizontal tangent means f\'(x)=0.',{k:'par',h:h,v:k})},
+()=>{let a=ri(1,4),b=ri(1,4);return mcq('chain','Medium','Which rule should you use first?','y=('+a+'x²+'+b+')^5',['Chain rule','Product rule','Quotient rule','Implicit differentiation'],'Chain rule','A function is raised to a power, so differentiate the outside and then the inside.','Composite functions use the chain rule.')}
+];
+
+function pool(){let f=S.focus||'adaptive';if(f==='full'||f==='adaptive')return G;return G.filter(fn=>{let q=fn(),t=TOPICS.find(x=>x.id===q.topic);return t&&t.g===f})}
+function choose(){let P=pool(),best=null,bestScore=-1;for(let i=0;i<Math.min(9,P.length);i++){let q=P[ri(0,P.length-1)](),s=stat(q.topic),c=S.cards[q.id]||{},due=!c.due||c.due<=Date.now(),recent=S.history.slice(-4).includes(q.id),score=(1-s.m)*3+(due?1.5:0)+Math.random()*.8-(recent?1.5:0);if(score>bestScore){bestScore=score;best=q}}return best||P[0]()}
+function render(){Q=choose();sel=null;tap=null;locked=false;$('topic').textContent=TOPICS.find(x=>x.id===Q.topic).n;$('difficulty').textContent=Q.d;$('prompt').textContent=Q.p;$('formula').innerHTML=Q.f?'<div class="math">'+Q.f+'</div>':'';$('feedback').className='feedback';$('pre').style.display='flex';$('post').style.display='none';$('answer').innerHTML='';$('graph').innerHTML='';
+if(Q.graph)drawGraph(Q);
+if(Q.type==='mcq'){let d=document.createElement('div');d.className='choices';Q.opts.forEach(o=>{let b=document.createElement('button');b.className='choice';b.textContent=o;b.onclick=()=>{if(locked)return;sel=o;[...d.children].forEach(x=>x.classList.remove('sel'));b.classList.add('sel')};d.appendChild(b)});$('answer').appendChild(d)}
+if(Q.type==='num'){let i=document.createElement('input');i.className='answer';i.id='input';i.inputMode='decimal';i.placeholder='Type your answer…';i.onkeydown=e=>{if(e.key==='Enter')check(false)};$('answer').appendChild(i)}}
+function val(){if(Q.type==='mcq')return sel;if(Q.type==='tap')return tap;let i=$('input');return i?i.value:null}
+function correct(v){if(v===null||v==='')return false;if(Q.type==='mcq')return v===Q.a;let n=parseFloat(String(v).replace(',','.'));return Number.isFinite(n)&&Math.abs(n-Q.a)<=(Q.tol||.01)}
+function check(force){if(locked)return;let v=val();if(!force&&(v===null||v==='')){toast('Choose or type an answer');return}locked=true;let ok=!force&&correct(v),s=stat(Q.topic);S.answered++;if(ok)S.correct++;S.xp+=ok?10:3;if(ok){s.r++;s.m=Math.min(.98,s.m+.07*(1-s.m)+.01)}else{s.w++;s.m=Math.max(.05,s.m-.08)}let c=S.cards[Q.id]||{i:0,e:2.3};if(ok){c.i=c.i===0?1:c.i===1?3:Math.min(21,Math.round(c.i*c.e));c.e=Math.min(2.8,c.e+.05)}else{c.i=.12;c.e=Math.max(1.6,c.e-.15)}c.due=Date.now()+c.i*86400000;S.cards[Q.id]=c;S.history.push(Q.id);if(S.history.length>100)S.history.shift();save();feedback(ok,v)}
+function feedback(ok,v){$('feedback').className='feedback on '+(ok?'good':'bad');$('fbtitle').textContent=ok?'✓ Correct':'Not quite';$('fbtext').textContent=Q.e;$('fbrule').innerHTML='<b>Core rule:</b> '+Q.r;$('pre').style.display='none';$('post').style.display='flex';if(Q.type==='mcq')document.querySelectorAll('.choice').forEach(b=>{if(b.textContent===Q.a)b.classList.add('correct');else if(b.textContent===v&&!ok)b.classList.add('wrong')})}
+function drawGraph(q){let w=document.createElement('div');w.className='graph';let c=document.createElement('canvas');c.width=700;c.height=420;w.appendChild(c);let h=document.createElement('div');h.className='hint';h.textContent='Tap directly on the graph';w.appendChild(h);$('graph').appendChild(w);plot(c,q.graph);c.onpointerdown=e=>{if(locked)return;let r=c.getBoundingClientRect(),px=(e.clientX-r.left)/r.width*c.width;tap=-8+16*(px/c.width);sel=tap;h.textContent='Selected x ≈ '+round(tap,1)}}
+function plot(c,g){let x=c.getContext('2d'),W=c.width,H=c.height,tx=n=>(n+8)/16*W,ty=n=>H-(n+8)/16*H;x.clearRect(0,0,W,H);x.strokeStyle='#303641';x.lineWidth=1;for(let i=-8;i<=8;i++){x.beginPath();x.moveTo(tx(i),0);x.lineTo(tx(i),H);x.stroke();x.beginPath();x.moveTo(0,ty(i));x.lineTo(W,ty(i));x.stroke()}x.strokeStyle='#9aa3b2';x.lineWidth=2;x.beginPath();x.moveTo(0,ty(0));x.lineTo(W,ty(0));x.moveTo(tx(0),0);x.lineTo(tx(0),H);x.stroke();x.strokeStyle='#7aa2ff';x.lineWidth=4;x.beginPath();let started=false,py=null;for(let p=0;p<=W;p++){let n=-8+16*p/W,y=g.k==='rat'?1/(n-g.a)+g.b:(n-g.h)*(n-g.h)+g.v;if(!Number.isFinite(y)||Math.abs(y)>8){started=false;py=null;continue}let yy=ty(y);if(!started||py===null||Math.abs(yy-py)>H/2){x.moveTo(p,yy);started=true}else x.lineTo(p,yy);py=yy}x.stroke();if(g.k==='rat'){x.setLineDash([10,10]);x.strokeStyle='#ff7070';x.lineWidth=2;x.beginPath();x.moveTo(tx(g.a),0);x.lineTo(tx(g.a),H);x.stroke();x.setLineDash([])}}
+function progress(){let arr=TOPICS.map(t=>({t:t,s:stat(t.id)})).sort((a,b)=>a.s.m-b.s.m);$('acc').textContent=S.answered?Math.round(100*S.correct/S.answered)+'%':'—';$('ans').textContent=S.answered;$('weak').textContent=arr[0].t.n.split(' ')[0];$('plist').innerHTML='';arr.forEach(o=>{let p=Math.round(o.s.m*100),d=document.createElement('div');d.className='pitem';d.innerHTML='<div class="phead"><span>'+o.t.n+'</span><span>'+p+'% · '+o.s.r+'/'+(o.s.r+o.s.w)+'</span></div><div class="bar"><i style="width:'+p+'%"></i></div>';$('plist').appendChild(d)})}
+document.querySelectorAll('.nav button').forEach(b=>b.onclick=()=>{document.querySelectorAll('.screen').forEach(s=>s.classList.toggle('on',s.id===b.dataset.s));document.querySelectorAll('.nav button').forEach(n=>n.classList.toggle('on',n===b));if(b.dataset.s==='progress')progress();if(b.dataset.s==='settings')$('focus').value=S.focus||'adaptive';scrollTo(0,0)});
+$('check').onclick=()=>check(false);$('dont').onclick=()=>check(true);$('next').onclick=render;$('again').onclick=()=>{let c=S.cards[Q.id]||{};c.due=Date.now()+2*3600000;S.cards[Q.id]=c;save();render()};$('focus').onchange=e=>{S.focus=e.target.value;save();toast('Focus updated')};$('reset').onclick=()=>{if(confirm('Reset all Calc209 progress?')){S=structuredClone(DEF);save();render();toast('Progress reset')}};
+let deferred=null;window.addEventListener('beforeinstallprompt',e=>{e.preventDefault();deferred=e;$('install').disabled=false});window.addEventListener('appinstalled',()=>{$('install').textContent='Installed ✓';$('install').disabled=true;$('installNote').textContent='Calc209 is installed on this device.'});
+$('install').onclick=async()=>{if(deferred){deferred.prompt();await deferred.userChoice;deferred=null}else toast('Chrome ⋮ → Add to Home screen / Install app')};
+if(matchMedia('(display-mode: standalone)').matches){$('install').textContent='Installed ✓';$('install').disabled=true;$('installNote').textContent='Calc209 is running as an installed app.'}
+if('serviceWorker' in navigator)addEventListener('load',()=>navigator.serviceWorker.register('/calc209/calc209-sw.js',{scope:'/calc209/'}).catch(()=>{}));
+header();render();
+</script>
+</body></html>
