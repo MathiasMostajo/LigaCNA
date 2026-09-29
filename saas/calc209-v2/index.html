@@ -26,7 +26,7 @@ button,input{font:inherit}.app{max-width:760px;margin:auto;padding-bottom:88px}.
 </head>
 <body>
 <div class="app">
-<header class="top"><div class="row between"><div class="brand">Calc<b>209</b> <span style="font-size:10px;color:#9aa4b4;font-weight:700">v3.0</span></div><div class="row"><span class="pill" id="streak">🔥 0</span><span class="pill" id="xp">0 XP</span></div></div></header>
+<header class="top"><div class="row between"><div class="brand">Calc<b>209</b> <span style="font-size:10px;color:#9aa4b4;font-weight:700">v3.1</span></div><div class="row"><span class="pill" id="streak">🔥 0</span><span class="pill" id="xp">0 XP</span></div></div></header>
 
 <main id="learn" class="screen on">
   <div class="hero"><div class="eyebrow" id="courseTag">MATH 209 · From zero</div><h1 id="lessonTitle"></h1><div class="muted" id="lessonSub"></div></div>
@@ -517,10 +517,10 @@ const EVIDENCE_HTML=
 '</div>'+
 '<div class="card"><div class="eyebrow">Quality control</div><div class="evidenceRow"><b>Mislabeled uploads are excluded</b><div class="tiny">For example, a third-party page labeled “Fall 2026 sample midterm” contains a paper whose own header says Midterm Oct 2024. It is treated as 2024 material, not 2026 evidence.</div><span class="signal caution">Source label ≠ trusted date</span></div><div class="evidenceRow"><b>No exact-question guarantee</b><div class="tiny">“Confirmed scope” means Concordia officially says the topic is examinable. Historical recurrence and mock matching increase the signal, but they do not prove an exact 2026 question will appear.</div></div></div>';
 
-let examMode='past', examIndex=0, examChoice=null, examChecked=false, examTopic='all', simScore=0, simAnswered=0, writtenIndex=0;
+let examMode='past', examIndex=0, examChoice=null, examChecked=false, examTopic='all', examYear='all', simScore=0, simAnswered=0, writtenIndex=0;
 
 function setExamMode(mode){
- examMode=mode; examIndex=0; examChoice=null; examChecked=false; examTopic='all'; simScore=0; simAnswered=0; writtenIndex=0;
+ examMode=mode; examIndex=0; examChoice=null; examChecked=false; examTopic='all'; examYear='all'; simScore=0; simAnswered=0; writtenIndex=0;
  ['Past','Midterm','Final','Evidence'].forEach(k=>{const el=$('mode'+k);if(el)el.classList.toggle('primary',mode===k.toLowerCase())});
  renderExam();
 }
@@ -534,8 +534,11 @@ function renderExam(){
  }
  if(examMode==='past'){
    const opts=pastTopics().map(t=>'<option value="'+esc(t)+'">'+t+'</option>').join('');
-   $('examModeInfo').innerHTML='<div class="card"><div class="row between"><div><div class="eyebrow">Past-exam bank</div><b>Adapted from 2021–2025 papers</b><div class="tiny">Questions are paraphrased into app format; source year is shown on each item.</div></div><span class="pill">'+PAST_BANK.length+' questions</span></div><label class="tiny" for="examTopic2">Topic</label><select id="examTopic2" class="examSelect"><option value="all">Mixed topics</option>'+opts+'</select></div>';
-   $('examTopic2').value=examTopic;
+   const years=[...new Set(PAST_BANK.map(q=>q.year))];
+   const yearOpts=years.map(y=>'<option value="'+esc(y)+'">'+y+'</option>').join('');
+   $('examModeInfo').innerHTML='<div class="card"><div class="row between"><div><div class="eyebrow">Past-exam bank</div><b>Adapted from 2021–2025 papers</b><div class="tiny">Questions are paraphrased into app format; source year is shown on each item.</div></div><span class="pill">'+PAST_BANK.length+' questions</span></div><div style="display:grid;grid-template-columns:1fr 1fr;gap:8px"><div><label class="tiny" for="examYear2">Year / source</label><select id="examYear2" class="examSelect"><option value="all">All years</option>'+yearOpts+'</select></div><div><label class="tiny" for="examTopic2">Topic</label><select id="examTopic2" class="examSelect"><option value="all">Mixed topics</option>'+opts+'</select></div></div></div>';
+   $('examYear2').value=examYear;$('examTopic2').value=examTopic;
+   $('examYear2').onchange=e=>{examYear=e.target.value;examIndex=0;renderExamQuestion()};
    $('examTopic2').onchange=e=>{examTopic=e.target.value;examIndex=0;renderExamQuestion()};
  } else if(examMode==='midterm'){
    $('examModeInfo').innerHTML='<div class="card"><div class="eyebrow">Predicted 2026 midterm simulation</div><b>27 multiple-choice / short-answer items</b><p class="tiny">Officially confirmed: 1.5 hours and Sections 2.1–3.7. The 27-question format is an evidence-based estimate from recent common midterms, not an official 2026 announcement.</p><span class="signal confirmed">Scope confirmed</span><span class="signal strong">Format estimated from recent papers</span></div>';
@@ -545,7 +548,7 @@ function renderExam(){
  renderExamQuestion();
 }
 function currentExamPool(){
- if(examMode==='past') return PAST_BANK.filter(q=>examTopic==='all'||q.topic===examTopic);
+ if(examMode==='past') return PAST_BANK.filter(q=>(examTopic==='all'||q.topic===examTopic)&&(examYear==='all'||q.year===examYear));
  if(examMode==='midterm') return MIDTERM_SIM;
  return FINAL_SIM;
 }
@@ -553,8 +556,9 @@ function renderExamQuestion(){
  const pool=currentExamPool();
  if(!pool.length){$('examQuestion').innerHTML=card('<h3>No questions in this filter.</h3>');return}
  if(examIndex>=pool.length){
-   if(examMode==='final'){renderWrittenQuestion();return}
-   renderSimSummary(pool);return;
+   if(examMode==='past'){examIndex=0}
+   else if(examMode==='final'){renderWrittenQuestion();return}
+   else {renderSimSummary(pool);return}
  }
  const q=pool[examIndex]; examChoice=null; examChecked=false;
  const input=q.type==='mc'
