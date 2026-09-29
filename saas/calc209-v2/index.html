@@ -20,13 +20,13 @@ button,input{font:inherit}.app{max-width:760px;margin:auto;padding-bottom:88px}.
 .btn{border:1px solid var(--line);background:var(--panel2);color:var(--text);border-radius:13px;padding:12px 14px}.btn.primary{background:var(--accent);border-color:transparent;color:#fff;font-weight:850}.btn.good{background:var(--green);border-color:transparent;color:#07140c;font-weight:850}.btn.full{width:100%}.actions{display:flex;gap:9px;margin-top:14px}.actions>*{flex:1}.choices{display:grid;gap:9px;margin-top:12px}.choice{text-align:left}.choice.sel{border-color:var(--accent);outline:2px solid #7aa2ff44}.choice.correct{border-color:var(--green);background:#10241a}.choice.wrong{border-color:var(--red);background:#281315}.answer{width:100%;padding:13px;border-radius:13px;border:1px solid var(--line);background:var(--panel2);color:var(--text);outline:none;margin-top:10px}.feedback{display:none;margin-top:13px;padding:13px;border-radius:13px;background:var(--panel2);border:1px solid var(--line);line-height:1.5}.feedback.on{display:block}.feedback.good{border-color:var(--green)}.feedback.bad{border-color:var(--red)}
 .path{display:grid;gap:9px}.chapterHead{margin:18px 2px 8px;color:var(--muted);font-weight:800;font-size:13px;text-transform:uppercase;letter-spacing:.8px}.lesson{display:flex;align-items:center;gap:12px;background:var(--panel);border:1px solid var(--line);border-radius:15px;padding:13px}.lesson .dot{width:36px;height:36px;border-radius:50%;display:grid;place-items:center;background:var(--panel2);font-weight:900;color:var(--accent);flex:0 0 auto}.lesson.locked{opacity:.42}.lesson.current{border-color:#5879be}.lesson.done .dot{background:#163120;color:var(--green)}.lesson .meta{flex:1}.lesson .meta b{display:block}.lesson .meta span{font-size:12px;color:var(--muted)}.progressbar{height:8px;background:var(--panel2);border-radius:999px;overflow:hidden;margin:10px 0}.progressbar i{display:block;height:100%;background:var(--accent)}
 .kpis{display:grid;grid-template-columns:repeat(3,1fr);gap:9px}.kpi{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:12px;text-align:center}.kpi strong{display:block;font-size:22px}.kpi span{font-size:11px;color:var(--muted)}
-.scratchModal{position:fixed;inset:0;z-index:50;background:#06080dcc;backdrop-filter:blur(8px);display:none;align-items:flex-end}.scratchModal.on{display:flex}.scratchSheet{width:100%;height:92dvh;background:var(--panel);border-top:1px solid var(--line);border-radius:24px 24px 0 0;padding:16px;display:flex;flex-direction:column}.scratchHeader{display:flex;justify-content:space-between;align-items:flex-start;gap:10px;margin-bottom:12px}.scratchTools{display:flex;gap:7px;flex-wrap:wrap;justify-content:flex-end}.scratchTools button{padding:8px 10px}.scratchSheet canvas{display:block;width:100%;flex:1;min-height:0;background:#f8f6f0;border-radius:16px;touch-action:none}.tiny{font-size:12px;color:var(--muted);line-height:1.45}.graphBox{background:var(--panel2);border:1px solid var(--line);border-radius:14px;padding:8px;margin:12px 0}.graphBox svg{width:100%;height:auto;display:block}
+.scratchModal{position:fixed;inset:0;z-index:50;background:#06080dcc;backdrop-filter:blur(8px);display:none;align-items:flex-end}.scratchModal.on{display:flex}.scratchSheet{width:100%;height:92dvh;background:var(--panel);border-top:1px solid var(--line);border-radius:24px 24px 0 0;padding:16px;display:flex;flex-direction:column}.scratchHeader{display:flex;justify-content:space-between;align-items:flex-start;gap:10px;margin-bottom:12px}.scratchTools{display:flex;gap:7px;flex-wrap:wrap;justify-content:flex-end}.scratchTools button{padding:8px 10px}.scratchProblem{background:var(--panel2);border:1px solid var(--line);border-radius:14px;padding:12px;margin-bottom:12px;max-height:30dvh;overflow:auto}.scratchProblem h2{font-size:19px;line-height:1.3;margin:0}.scratchProblem .math{font-size:20px;margin:8px 0}.scratchProblem .graphBox{margin:8px 0}.scratchSheet canvas{display:block;width:100%;flex:1;min-height:0;background:#f8f6f0;border-radius:16px;touch-action:none}.tiny{font-size:12px;color:var(--muted);line-height:1.45}.graphBox{background:var(--panel2);border:1px solid var(--line);border-radius:14px;padding:8px;margin:12px 0}.graphBox svg{width:100%;height:auto;display:block}
 .nav{position:fixed;left:0;right:0;bottom:0;background:#0d0f13ee;backdrop-filter:blur(14px);border-top:1px solid var(--line);display:flex;justify-content:center}.navin{width:min(760px,100%);display:grid;grid-template-columns:repeat(3,1fr)}.nav button{background:none;border:0;color:var(--muted);padding:11px 4px 15px}.nav button.on{color:var(--accent);font-weight:800}.toast{position:fixed;bottom:92px;left:50%;transform:translateX(-50%);background:#000;color:#fff;padding:10px 13px;border-radius:10px;opacity:0;transition:.2s;pointer-events:none;z-index:20}.toast.on{opacity:1}
 </style>
 </head>
 <body>
 <div class="app">
-<header class="top"><div class="row between"><div class="brand">Calc<b>209</b> <span style="font-size:10px;color:#9aa4b4;font-weight:700">v2.2</span></div><div class="row"><span class="pill" id="streak">🔥 0</span><span class="pill" id="xp">0 XP</span></div></div></header>
+<header class="top"><div class="row between"><div class="brand">Calc<b>209</b> <span style="font-size:10px;color:#9aa4b4;font-weight:700">v2.3</span></div><div class="row"><span class="pill" id="streak">🔥 0</span><span class="pill" id="xp">0 XP</span></div></div></header>
 
 <main id="learn" class="screen on">
   <div class="hero"><div class="eyebrow" id="courseTag">MATH 209 · From zero</div><h1 id="lessonTitle"></h1><div class="muted" id="lessonSub"></div></div>
@@ -63,6 +63,7 @@ button,input{font:inherit}.app{max-width:760px;margin:auto;padding-bottom:88px}.
         <button class="btn primary" id="minScratch">Minimize</button>
       </div>
     </div>
+    <div id="scratchProblem" class="scratchProblem"></div>
     <canvas id="scratchCanvas"></canvas>
     <div class="tiny" style="margin-top:8px">Write with your finger or stylus. Your work stays while you minimize it during this session.</div>
   </div>
@@ -102,7 +103,7 @@ function today(){return new Date().toISOString().slice(0,10)}
 function updateHeader(){const d=today();if(S.lastDay!==d){if(S.lastDay){const y=new Date(Date.now()-86400000).toISOString().slice(0,10);S.streak=S.lastDay===y?S.streak+1:1}else S.streak=1;S.lastDay=d;localStorage.setItem('calc209-beginner-v2',JSON.stringify(S))}$('streak').textContent='🔥 '+S.streak;$('xp').textContent=S.xp+' XP'}
 function toast(t){$('toast').textContent=t;$('toast').classList.add('on');setTimeout(()=>$('toast').classList.remove('on'),1500)}
 function card(x){return '<div class="card">'+x+'</div>'}
-function btn(txt,fn,cls='primary'){return '<button class="btn '+cls+' full" onclick="'+fn+'">'+txt+'</button>'}
+function btn(txt,fn,cls='primary'){const safeFn=String(fn).replaceAll('"','&quot;');return '<button class="btn '+cls+' full" onclick="'+safeFn+'">'+txt+'</button>'}
 function nextPhase(){S.phase++;save();renderLesson();scrollTo(0,0)}
 function retrySimilar(){S.retryNonce++;save();renderLesson();scrollTo(0,0)}
 function mastery(id){return S.mastery[id]||0}
@@ -288,7 +289,22 @@ canvas.addEventListener('pointerdown',e=>{drawing=true;currentPath=[point(e)];pa
 canvas.addEventListener('pointermove',e=>{if(!drawing)return;currentPath.push(point(e));redraw()});
 canvas.addEventListener('pointerup',()=>{drawing=false;currentPath=[];redraw()});
 canvas.addEventListener('pointercancel',()=>{drawing=false;currentPath=[]});
-$('openScratch').onclick=()=>{$('scratchModal').classList.add('on');$('scratchModal').setAttribute('aria-hidden','false');document.body.style.overflow='hidden';setTimeout(sizeCanvas,80)};
+function syncScratchProblem(){
+  const source=$('lessonArea').querySelector('.card');
+  const target=$('scratchProblem');
+  if(!source){target.innerHTML='<div class="tiny">No active problem.</div>';return}
+  const parts=[];
+  const title=source.querySelector('h2');
+  const math=source.querySelector('.math');
+  const graph=source.querySelector('.graphBox');
+  const rule=source.querySelector('.rule');
+  if(title)parts.push(title.outerHTML);
+  if(math)parts.push(math.outerHTML);
+  if(graph)parts.push(graph.outerHTML);
+  else if(rule && !math)parts.push(rule.outerHTML);
+  target.innerHTML=parts.join('')||'<div class="tiny">Current lesson: '+$('lessonTitle').textContent+'</div>';
+}
+$('openScratch').onclick=()=>{syncScratchProblem();$('scratchModal').classList.add('on');$('scratchModal').setAttribute('aria-hidden','false');document.body.style.overflow='hidden';setTimeout(sizeCanvas,80)};
 $('minScratch').onclick=()=>{$('scratchModal').classList.remove('on');$('scratchModal').setAttribute('aria-hidden','true');document.body.style.overflow=''};
 $('clearScratch').onclick=()=>{paths=[];redraw()};
 $('undoScratch').onclick=()=>{paths.pop();redraw()};
